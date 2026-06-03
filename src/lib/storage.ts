@@ -1,0 +1,674 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer } from '../types';
+
+// Egypt Time helper: UTC + 3 hours
+export function getEgyptTime(): Date {
+  const utc = new Date();
+  // Egypt is UTC+3. Adjust timezone offset
+  const tzOffset = 3 * 60 * 60 * 1000; 
+  return new Date(utc.getTime() + tzOffset);
+}
+
+export function formatEgyptDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toISOString().split('T')[0];
+}
+
+export function formatEgyptDateTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toISOString().replace('T', ' ').substring(0, 19);
+}
+
+// Default Hotels
+const DEFAULT_HOTELS: Hotel[] = [
+  {
+    id: 'h1',
+    name: 'AL HARAM Hotel (Madina)',
+    city: 'Madinah',
+    stars: 5,
+    address: 'Central Northern Area, Madinah',
+    contact: '+966 14 820 0000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
+    views: ['Haram View', 'City View', 'Courtyard View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B', 'Iftar Ramadan', 'Sohour'],
+  },
+  {
+    id: 'h2',
+    name: 'VOCO Makkah Hotel',
+    city: 'Makkah',
+    stars: 4,
+    address: 'Ibrahim Al Khalil Road, Makkah',
+    contact: '+966 12 526 0000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['City View', 'Street View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B'],
+  },
+  {
+    id: 'h3',
+    name: 'Movenpick Hajar Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Abraj Al Bait, Makkah',
+    contact: '+966 12 571 7171',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
+    views: ['Haram View', 'Kaaba View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B', 'Iftar Ramadan'],
+  },
+  {
+    id: 'h4',
+    name: 'Al Ansar Golden Tulip EX (Al Shourfa)',
+    city: 'Madinah',
+    stars: 4,
+    address: 'Central Northern Area, Madinah',
+    contact: '+966 14 820 1111',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['City View', 'Haram View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B'],
+  },
+];
+
+// Default Agents
+const DEFAULT_AGENTS: Agent[] = [
+  {
+    id: 'a1',
+    agentNumber: 1,
+    name: 'Orient Gate Tours',
+    companyName: 'Orient Gate Tours LLC',
+    country: 'Egypt',
+    type: 'Customer',
+    phone: '+20 100 123 4567',
+    email: 'info@orientgate.com',
+    address: 'Tahrir Square, Cairo, Egypt',
+    balance: -85985.00, // Representing opening/statement balance
+    auditLogs: [{ id: 'l1', timestamp: '2026-06-01 10:00:00', user: 'Hazem Mohey El-Din', action: 'Agent created with opening balance' }]
+  },
+  {
+    id: 'a2',
+    agentNumber: 5,
+    name: 'Al Hussam Tourism',
+    companyName: 'Al Hussam Holding',
+    country: 'Saudi Arabia',
+    type: 'Customer',
+    phone: '+966 50 111 2222',
+    email: 'makkah@alhussam.com',
+    address: 'Makkah Al Mukarramah',
+    balance: -42000.00,
+    auditLogs: []
+  },
+  {
+    id: 'a3',
+    agentNumber: 8,
+    name: 'Najd Tours',
+    companyName: 'Najd Travel Services',
+    country: 'Egypt',
+    type: 'Customer',
+    phone: '+20 111 555 4444',
+    email: 'booking@najdtours.com',
+    address: 'Dokki, Giza, Egypt',
+    balance: -15000.00,
+    auditLogs: []
+  },
+  {
+    id: 'a4',
+    agentNumber: 10,
+    name: 'Ameely Events',
+    companyName: 'Ameely LLC',
+    country: 'Egypt',
+    type: 'Customer',
+    phone: '+20 102 999 8888',
+    email: 'events@ameely.com',
+    address: 'Maadi, Cairo, Egypt',
+    balance: 0,
+    auditLogs: []
+  },
+  {
+    id: 'a5',
+    agentNumber: 13,
+    name: 'Areej Taba',
+    companyName: 'Areej Taba Hotel Reservations',
+    country: 'Indonesia',
+    type: 'Customer',
+    phone: '+62 21 888 777',
+    email: 'res@areejtaba.com',
+    address: 'Jakarta, Indonesia',
+    balance: -30000.00,
+    auditLogs: []
+  },
+  {
+    id: 'a6',
+    agentNumber: 18,
+    name: 'Marseilia Tours',
+    companyName: 'Marseilia Travel Group',
+    country: 'Egypt',
+    type: 'Customer',
+    phone: '+20 3 555 6667',
+    email: 'alex@marseilia.com',
+    address: 'Alexandria, Egypt',
+    balance: -17800.00,
+    auditLogs: []
+  },
+  {
+    id: 's1',
+    agentNumber: 501,
+    name: 'Makkah Towers Provider',
+    companyName: 'Makkah Towers Operator',
+    country: 'Saudi Arabia',
+    type: 'Supplier',
+    phone: '+966 12 555 1111',
+    email: 'supplier@makkahtowers.com',
+    address: 'Clock Tower Complex, Makkah',
+    balance: 15478.26,
+    auditLogs: []
+  },
+  {
+    id: 's2',
+    agentNumber: 502,
+    name: 'Madinah Anwar Vendor',
+    companyName: 'Madinah Hotels Supplier Co',
+    country: 'Saudi Arabia',
+    type: 'Supplier',
+    phone: '+966 14 555 2222',
+    email: 'booking@madinahres.com',
+    address: 'Northern Central Area, Madinah',
+    balance: 35000.00,
+    auditLogs: []
+  }
+];
+
+// Default Allotments
+const DEFAULT_ALLOTMENTS: Allotment[] = [
+  {
+    id: 'al1',
+    hotelId: 'h3',
+    roomType: 'Double',
+    supplierId: 's1',
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
+    totalRooms: 10,
+    bookedRooms: 2,
+  },
+  {
+    id: 'al2',
+    hotelId: 'h2',
+    roomType: 'Quad',
+    supplierId: 's1',
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
+    totalRooms: 5,
+    bookedRooms: 1,
+  },
+];
+
+// Default Reservations
+const DEFAULT_RESERVATIONS: Reservation[] = [
+  {
+    id: 21,
+    checkIn: '2026-03-05',
+    checkOut: '2026-03-09',
+    nights: 4,
+    clientId: 'a6', // Marseilia Tours
+    hotelId: 'h3',  // Movenpick Hajar
+    guestName: 'Samy Abdulrahim',
+    guestNationality: 'Egypt',
+    clientOptionDate: '2026-03-04',
+    termsAndConditions: 'Rooms allocation is subject to hotel availability. Check In 16:00 hrs. Check Out 12:00 hrs. One Full Night charged if Guest check out after 16:00 hrs. Confirmation of Rooms will be made upon receipt 100 % of total ammount before option Date.',
+    supplierId: 's1',
+    supplierVoucher: 'SV-9921',
+    supplierOptionDate: '2026-03-04',
+    rooms: [
+      {
+        id: 'r1',
+        roomType: 'Double',
+        qty: 2,
+        nightlyRates: 2225, // Average selling rate per night = 17800 total / 2 qty / 4 nights = 2225
+        buyRate: 1950,      // Buying rate = 1950 per night
+        mealPlan: 'Iftar Ramadan',
+        hasSeparateMealRate: false,
+        mealRate: 0,
+        pax: 2
+      }
+    ],
+    status: 'Confirmed',
+    agreementNo: '13510799629761932',
+    agreementConfirmed: true,
+    hotelConfirmationNo: '12035220-21',
+    amountPaidByClient: 17800.00,
+    amountPaidToSupplier: 15600.00,
+    createdBy: 'Hazem Mohey El-Din',
+    createdAt: '2026-02-24 13:50:18',
+  },
+  {
+    id: 5,
+    checkIn: '2026-02-16',
+    checkOut: '2026-02-21',
+    nights: 5,
+    clientId: 'a1', // Orient Gate Tours
+    hotelId: 'h1',  // AL HARAM Hotel Madina
+    guestName: 'Hassanain Helmy',
+    guestNationality: 'Egypt',
+    clientOptionDate: '2026-02-15',
+    termsAndConditions: 'Regular booking conditions apply.',
+    supplierId: 's2',
+    supplierVoucher: 'SV-4401',
+    supplierOptionDate: '2026-02-15',
+    rooms: [
+      {
+        id: 'r2',
+        roomType: 'Double',
+        qty: 1,
+        nightlyRates: 1400,
+        buyRate: 1100,
+        mealPlan: 'RO',
+        hasSeparateMealRate: true,
+        mealRate: 50, // Per person night
+        pax: 2
+      }
+    ],
+    status: 'Confirmed',
+    agreementNo: '13510799629182543',
+    agreementConfirmed: true,
+    hotelConfirmationNo: '223715',
+    amountPaidByClient: 0,
+    amountPaidToSupplier: 0,
+    createdBy: 'Zaki Makkawi',
+    createdAt: '2026-02-10 16:30:11'
+  },
+  {
+    id: 1,
+    checkIn: '2026-02-21',
+    checkOut: '2026-02-25',
+    nights: 4,
+    clientId: 'a1', // Orient Gate Tours
+    hotelId: 'h2',  // VOCO Makkah
+    guestName: 'Ehab Abdo Ali',
+    guestNationality: 'Egypt',
+    clientOptionDate: '2026-02-18',
+    termsAndConditions: 'General terms and conditions apply.',
+    supplierId: 's1',
+    supplierVoucher: 'SV-1022',
+    supplierOptionDate: '2026-02-18',
+    rooms: [
+      {
+        id: 'r3',
+        roomType: 'Double',
+        qty: 1,
+        nightlyRates: 1100,
+        buyRate: 900,
+        mealPlan: 'B.B',
+        hasSeparateMealRate: false,
+        mealRate: 0,
+        pax: 2
+      }
+    ],
+    status: 'Tentative',
+    agreementNo: '2251800570220938',
+    agreementConfirmed: false,
+    hotelConfirmationNo: '',
+    amountPaidByClient: 0,
+    amountPaidToSupplier: 0,
+    createdBy: 'Hazem Mohey El-Din',
+    createdAt: '2026-02-15 09:12:00'
+  }
+];
+
+// Default Accounts
+const DEFAULT_ACCOUNTS: Account[] = [
+  { id: 'ac1', name: 'Primary Cash Drawer (SAR)', type: 'Cash', balance: 45000 },
+  { id: 'ac2', name: 'Al Rajhi Bank (SAR)', type: 'Bank', balance: 350000 },
+  { id: 'ac3', name: 'Banque Saudi Fransi (SAR)', type: 'Bank', balance: 180000 },
+];
+
+// Default Transactions
+const DEFAULT_TRANSACTIONS: Transaction[] = [
+  {
+    id: 'tr1',
+    docNo: '1',
+    date: '2026-02-03',
+    type: 'ClientPayment',
+    amount: 1400,
+    fromAccountId: 'ac1',
+    reservationId: '5',
+    agentId: 'a1',
+    description: 'Payment for reservation Guest Hassanain Helmy',
+    paymentMethod: 'Cash',
+    voucherNo: 'REC-1001',
+    createdBy: 'Yasmeen Madani'
+  },
+  {
+    id: 'tr2',
+    docNo: '2',
+    date: '2026-02-24',
+    type: 'ClientPayment',
+    amount: 17800.00,
+    fromAccountId: 'ac2',
+    reservationId: '21',
+    agentId: 'a6',
+    description: 'Received bank transfer for reservation Guest Samy Abdulrahim',
+    paymentMethod: 'Bank Transfer',
+    voucherNo: 'REC-1002',
+    createdBy: 'Yasmeen Madani'
+  }
+];
+
+// Default Users
+const DEFAULT_USERS: User[] = [
+  { id: 'u1', username: 'hazem', name: 'Hazem Mohey El-Din', role: 'Admin', email: 'hazem8383@gmail.com' },
+  { id: 'u2', username: 'zaki', name: 'Zaki Makkawi', role: 'Reservationist', email: 'zaki@zumrahotels.com' },
+  { id: 'u3', username: 'yasmeen', name: 'Yasmeen Madani', role: 'Finance', email: 'yasmeen@zumrahotels.com' },
+];
+
+// LocalStorage helpers
+export function getSavedData<T>(key: string, defaults: T): T {
+  try {
+    const item = localStorage.getItem(`zumra_${key}`);
+    return item ? JSON.parse(item) : defaults;
+  } catch (e) {
+    return defaults;
+  }
+}
+
+export function saveGlobalData<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(`zumra_${key}`, JSON.stringify(data));
+  } catch (e) {
+    console.error('Error saving ' + key, e);
+  }
+}
+
+// Global Core DB wrapper
+export class ZumraDB {
+  static getHotels(): Hotel[] {
+    const list = getSavedData('hotels', DEFAULT_HOTELS);
+    saveGlobalData('hotels', list);
+    return list;
+  }
+
+  static saveHotels(list: Hotel[]): void {
+    saveGlobalData('hotels', list);
+  }
+
+  static getAgents(): Agent[] {
+    const list = getSavedData('agents', DEFAULT_AGENTS);
+    saveGlobalData('agents', list);
+    return list;
+  }
+
+  static saveAgents(list: Agent[]): void {
+    saveGlobalData('agents', list);
+  }
+
+  static getAllotments(): Allotment[] {
+    const list = getSavedData('allotments', DEFAULT_ALLOTMENTS);
+    saveGlobalData('allotments', list);
+    return list;
+  }
+
+  static saveAllotments(list: Allotment[]): void {
+    saveGlobalData('allotments', list);
+  }
+
+  static getReservations(): Reservation[] {
+    const list = getSavedData('reservations', DEFAULT_RESERVATIONS);
+    saveGlobalData('reservations', list);
+    return list;
+  }
+
+  static saveReservations(list: Reservation[]): void {
+    saveGlobalData('reservations', list);
+  }
+
+  static getAccounts(): Account[] {
+    const list = getSavedData('accounts', DEFAULT_ACCOUNTS);
+    saveGlobalData('accounts', list);
+    return list;
+  }
+
+  static saveAccounts(list: Account[]): void {
+    saveGlobalData('accounts', list);
+  }
+
+  static getTransactions(): Transaction[] {
+    const list = getSavedData('transactions', DEFAULT_TRANSACTIONS);
+    saveGlobalData('transactions', list);
+    return list;
+  }
+
+  static saveTransactions(list: Transaction[]): void {
+    saveGlobalData('transactions', list);
+  }
+
+  static getExternalTransfers(): ExternalTransfer[] {
+    const list = getSavedData('external_transfers', []);
+    saveGlobalData('external_transfers', list);
+    return list;
+  }
+
+  static saveExternalTransfers(list: ExternalTransfer[]): void {
+    saveGlobalData('external_transfers', list);
+  }
+
+  static getUsers(): User[] {
+    const list = getSavedData('users', DEFAULT_USERS);
+    // Ensure uniqueness by ID just in case data got corrupted
+    const uniqueList = list.filter((user, index, self) =>
+      index === self.findIndex((u) => u.id === user.id)
+    );
+    saveGlobalData('users', uniqueList);
+    return uniqueList;
+  }
+
+  static saveUsers(list: User[]): void {
+    saveGlobalData('users', list);
+  }
+
+  static getCurrentUser(): User {
+    const defUser = DEFAULT_USERS[0];
+    const user = getSavedData('current_user', defUser);
+    saveGlobalData('current_user', user);
+    return user;
+  }
+
+  static setCurrentUser(user: User): void {
+    saveGlobalData('current_user', user);
+  }
+
+  static getFollowUps(): FollowUp[] {
+    const list = getSavedData('followups', [] as FollowUp[]);
+    saveGlobalData('followups', list);
+    return list;
+  }
+
+  static saveFollowUps(list: FollowUp[]): void {
+    saveGlobalData('followups', list);
+  }
+
+  static getMessages(): any[] {
+    return getSavedData('messages', [] as any[]);
+  }
+
+  static saveMessages(list: any[]): void {
+    saveGlobalData('messages', list);
+  }
+}
+
+export function getAgentActualBalance(agent: Agent, reservations: Reservation[], transactions: Transaction[]): number {
+  const isSupplier = agent.type === 'Supplier';
+  
+  let lifetimeTxSum = 0;
+  transactions.forEach(tr => {
+    if (tr.agentId === agent.id) {
+      if (!isSupplier && tr.type === 'ClientPayment') {
+        lifetimeTxSum += tr.amount;
+      } else if (isSupplier && tr.type === 'SupplierPayment') {
+        lifetimeTxSum += tr.amount;
+      }
+    }
+  });
+
+  const originalOpeningBalance = isSupplier 
+    ? (agent.balance + lifetimeTxSum) 
+    : (agent.balance - lifetimeTxSum);
+
+  let actualBalance = originalOpeningBalance;
+
+  reservations.forEach(res => {
+    if (!isSupplier && res.clientId === agent.id) {
+      const { totalSell } = getReservationTotals(res);
+      actualBalance += totalSell; 
+    }
+    if (isSupplier && res.supplierId === agent.id) {
+      const { totalBuy } = getReservationTotals(res);
+      actualBalance += totalBuy; 
+    }
+  });
+
+  transactions.forEach(tr => {
+    if (tr.agentId === agent.id) {
+      if (!isSupplier && tr.type === 'ClientPayment') {
+        actualBalance -= tr.amount; 
+      } else if (isSupplier && tr.type === 'SupplierPayment') {
+        actualBalance -= tr.amount; 
+      }
+    }
+  });
+
+  return actualBalance;
+}
+
+// Helper to auto-calculate room pax from roomType name
+export function getPaxForRoomType(type: string): number {
+  const norm = type.toLowerCase();
+  if (norm.includes('single')) return 1;
+  if (norm.includes('double')) return 2;
+  if (norm.includes('triple')) return 3;
+  if (norm.includes('quad')) return 4;
+  if (norm.includes('quint') || norm.includes('quintuple')) return 5;
+  return 2; // Default to Double if unrecognized
+}
+
+// Calculate total selling rate and buying rate for a Reservation object
+export function getReservationTotals(res: Reservation) {
+  let totalSell = 0;
+  let totalBuy = 0;
+
+  res.rooms.forEach((room) => {
+    // Multi-night rates support either flat number or dictionary
+    let roomSellNights = 0;
+    let roomBuyNights = 0;
+
+    for (let index = 0; index < res.nights; index++) {
+      // Selling Night Rate
+      if (typeof room.nightlyRates === 'number') {
+        roomSellNights += room.nightlyRates;
+      } else {
+        // Find by night index or grab first key
+        const keys = Object.keys(room.nightlyRates);
+        const rateVal = room.nightlyRates[keys[index]] || room.nightlyRates[keys[0]] || 0;
+        roomSellNights += rateVal;
+      }
+
+      // Buying Night Rate
+      if (typeof room.buyRate === 'number' || typeof room.buyRate === 'undefined') {
+        roomBuyNights += (room.buyRate as number) || 0;
+      } else {
+        const keys = Object.keys(room.buyRate);
+        const rateVal = room.buyRate[keys[index]] || room.buyRate[keys[0]] || 0;
+        roomBuyNights += rateVal;
+      }
+    }
+
+    // Room base price
+    const baseRoomSell = roomSellNights * room.qty;
+    const baseRoomBuy = roomBuyNights * room.qty;
+
+    // Meal Plan Pricing
+    let mealSell = 0;
+    let mealBuy = 0;
+    if (room.hasSeparateMealRate) {
+      // Total meal cost = mealRate * room pax * nights * room qty
+      const paxCount = getPaxForRoomType(room.roomType);
+      mealSell = (room.mealRate || 0) * paxCount * res.nights * room.qty;
+      mealBuy = (room.mealBuyRate || 0) * paxCount * res.nights * room.qty;
+    }
+
+    // Extra Bed
+    let extraBedSell = 0;
+    let extraBedBuy = 0;
+    if (room.hasExtraBed) {
+      extraBedSell = (room.extraBedRate || 0) * res.nights * room.qty;
+      extraBedBuy = (room.extraBedBuyRate || 0) * res.nights * room.qty;
+    }
+
+    totalSell += baseRoomSell + mealSell + extraBedSell;
+    totalBuy += baseRoomBuy + mealBuy + extraBedBuy;
+  });
+
+  const profit = totalSell - totalBuy;
+  const vat = totalSell * 0.15; // 15% VAT
+  const totalWithVat = totalSell + vat;
+
+  return {
+    totalSell,
+    totalBuy,
+    profit,
+    vat,
+    totalWithVat
+  };
+}
+
+// Help abbreviate selected meal plans to high-end standards
+export function abbreviateMealPlan(mealPlan: string): string {
+  if (!mealPlan) return '';
+  const norm = mealPlan.trim().toLowerCase();
+  if (norm === 'breakfast' || norm === 'b.b' || norm === 'bb') return 'B.B';
+  if (norm === 'room only' || norm === 'r.o' || norm === 'ro') return 'R.O';
+  if (norm === 'half board' || norm === 'h.b' || norm === 'hb') return 'H.B';
+  if (norm === 'full board' || norm === 'f.b' || norm === 'fb') return 'F.B';
+  if (norm === 'full board asian' || norm === 'f.b asian' || norm === 'fb asian') return 'F.B Asian';
+  
+  // Fuzzy substring matches or cleanups
+  if (norm.includes('breakfast')) return 'B.B';
+  if (norm.includes('room only')) return 'R.O';
+  if (norm.includes('half board')) return 'H.B';
+  if (norm.includes('full board')) {
+    if (norm.includes('asian')) return 'F.B Asian';
+    return 'F.B';
+  }
+  return mealPlan;
+}
+
+export function exportToCSV(filename: string, rows: object[]) {
+  if (!rows || !rows.length) return;
+  const separator = ',';
+  const keys = Object.keys(rows[0]);
+  const csvContent =
+    keys.join(separator) +
+    '\n' +
+    rows.map(row => {
+      return keys.map(k => {
+        let cell = row[k as keyof typeof row] === null || row[k as keyof typeof row] === undefined ? '' : row[k as keyof typeof row];
+        cell = String(cell).replace(/"/g, '""');
+        if (cell.search(/("|,|\n)/g) >= 0) {
+          cell = `"${cell}"`;
+        }
+        return cell;
+      }).join(separator);
+    }).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+

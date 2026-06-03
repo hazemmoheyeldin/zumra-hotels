@@ -1,0 +1,6 @@
+{
+  "name": "Zumra Hotels",
+  "description": "Comprehensive B2B hotel reservation and financial operations management system for Makkah and Madinah hotels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

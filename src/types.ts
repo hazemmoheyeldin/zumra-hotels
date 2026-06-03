@@ -1,0 +1,180 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export interface Hotel {
+  id: string;
+  name: string;
+  city: 'Makkah' | 'Madinah';
+  stars: number;
+  address: string;
+  contact: string;
+  roomTypes: string[];
+  views: string[];
+  mealPlans: string[];
+  suppliers?: string[]; // Supplier agent IDs who have/provide this hotel
+}
+
+export type AgentType = 'Customer' | 'Supplier' | 'Both';
+
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+}
+
+export interface Agent {
+  id: string;
+  agentNumber: number; // For Agent # column (sequential auto-incrementing)
+  name: string;
+  companyName: string;
+  country: string;
+  type: AgentType;
+  phone: string;
+  email: string;
+  address: string;
+  balance: number;
+  auditLogs: AuditLogEntry[];
+}
+
+export interface Allotment {
+  id: string;
+  hotelId: string;
+  roomType: string;
+  supplierId: string;
+  startDate: string;
+  endDate: string;
+  totalRooms: number;
+  bookedRooms: number;
+}
+
+export interface RoomLine {
+  id: string;
+  roomType: string; // Single, Double, Triple, Quad, Quint
+  qty: number;
+  nightlyRates: number | { [date: string]: number }; // Selling rate(s) per night
+  buyRate: number | { [date: string]: number };      // Buying rate(s) per night
+  mealPlan: string;
+  hasSeparateMealRate: boolean;
+  mealRate: number; // sell meal rate per person per night
+  mealBuyRate?: number; // buy meal rate per person per night
+  hasExtraBed?: boolean;
+  extraBedRate?: number; // sell extra bed rate
+  extraBedBuyRate?: number; // buy extra bed rate
+  pax: number;      // auto calculated based on roomType
+  view?: string;
+}
+
+export type ReservationStatus = 'Tentative' | 'Confirmed' | 'Cancelled';
+
+export interface Reservation {
+  id: number; // Auto-incrementing RSV #
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  clientId: string; // Client agent ID
+  hotelId: string;
+  guestName: string;
+  guestNationality: string;
+  clientOptionDate?: string;
+  termsAndConditions?: string;
+  supplierId: string;
+  supplierVoucher?: string;
+  supplierOptionDate?: string;
+  rooms: RoomLine[];
+  status: ReservationStatus;
+  agreementNo?: string;
+  agreementConfirmed?: boolean;
+  agreementStatus?: 'Approved' | 'Pending' | 'Declined';
+  hotelConfirmationNo?: string;
+  bankAccountId?: string;
+  amountPaidByClient: number; // Paid on this specific booking
+  amountPaidToSupplier: number; // Paid to supplier on this specific booking
+  createdBy: string;
+  createdAt: string;
+  cancellationFee?: number;
+  cancellationReason?: string;
+  roomingList?: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+  type: 'Cash' | 'Bank';
+  balance: number;
+  code?: string;
+  currency?: string;
+}
+
+export interface Transaction {
+  id: string;
+  docNo: string; // Counter-based
+  date: string;
+  type: 'ClientPayment' | 'SupplierPayment' | 'Transfer';
+  amount: number;
+  fromAccountId?: string;
+  toAccountId?: string;
+  reservationId?: string; // Optional linked reservation
+  agentId?: string;       // Client or supplier agent ID
+  description: string;
+  attachmentDataUrl?: string;
+  paymentMethod: 'Cash' | 'Bank Transfer';
+  voucherNo: string;      // Receipt voucher code
+  createdBy: string;
+  originalCurrency?: 'SAR' | 'EGP';
+  originalAmount?: number;
+  exchangeRate?: number;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  jobTitle?: string;
+  role: 'Admin' | 'Sales' | 'Finance' | 'Reservationist';
+  email: string;
+  password?: string;
+}
+
+export interface FollowUp {
+  id: string;
+  clientId: string;
+  date: string;
+  topic: string;
+  notes: string;
+  status: 'Pending' | 'Completed';
+  createdBy: string;
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface ExternalTransferPart {
+  amount: number;
+  fxRate?: number;
+  attachmentDataUrl?: string; // Optional image/pdf trace
+}
+
+export interface ExternalTransfer {
+  id: string;
+  date: string;
+  bookingRef: string;
+  clientName: string;
+  supplierName: string;
+  amountSAR: number;
+  parts: ExternalTransferPart[];
+  currency?: string;
+  totalAmountPaidEGP?: number; 
+  amountRemainingEGP?: number; 
+  status: 'Pending' | 'Done';
+}
