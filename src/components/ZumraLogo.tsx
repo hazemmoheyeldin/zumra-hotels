@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import logoUrl from '../assets/zumra-logo.png';
 
 interface ZumraLogoProps {
   className?: string;
@@ -21,18 +22,16 @@ export default function ZumraLogo({ className = '', size = 'md', variant = 'gold
     xxl: { h: 120, printH: 140 },
   };
 
-  const { h, printH } = sizeMap[size] || sizeMap.md;
+  const { h } = sizeMap[size] || sizeMap.md;
 
   return (
     <div className={`flex items-center select-none ${className}`}>
       <img
-        src="/zumra-logo.png"
+        src={logoUrl}
         alt="Zumra Hotels - زمرة للفنادق"
         className="object-contain w-auto"
         style={{ height: `${h}px` }}
-        /* Print-safe inline height override */
-        // @ts-ignore CSS custom property for print media
-        data-print-height={`${printH}px`}
+        crossOrigin="anonymous"
       />
     </div>
   );
