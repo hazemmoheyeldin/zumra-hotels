@@ -19,7 +19,7 @@ export default function ZumraLogo({ className = '', size = 'md', variant = 'gold
     md:  { h: 56,  printH: 72 },
     lg:  { h: 72,  printH: 90 },
     xl:  { h: 96,  printH: 120 },
-    xxl: { h: 140, printH: 160 },
+    xxl: { h: 180, printH: 200 },
   };
 
   const { h } = sizeMap[size] || sizeMap.md;

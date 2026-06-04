@@ -19,7 +19,9 @@
   }
 }
 
-/* Print CSS - show only the report area */
+/* ============================================
+   PRINT CSS
+   ============================================ */
 @media print {
   body {
     background: white !important;
@@ -28,7 +30,7 @@
     padding: 0 !important;
   }
 
-  /* Hide everything by default when printing */
+  /* Always hide no-print elements */
   .no-print {
     display: none !important;
   }
@@ -37,47 +39,55 @@
     display: block !important;
   }
 
-  /* When in report-print mode, hide everything except print-area */
-  body.printing-report * {
-    visibility: hidden !important;
+  /* ---- Report Print Mode (triggered by Print button) ---- */
+  /* Hide ALL content except the cloned print area on body */
+  body.printing-report > *:not(#print-area-clone) {
+    display: none !important;
   }
 
-  body.printing-report #print-area,
-  body.printing-report #print-area * {
-    visibility: visible !important;
-  }
-
-  body.printing-report #print-area {
-    position: fixed !important;
-    left: 0 !important;
-    top: 0 !important;
+  /* Show only the clone */
+  body.printing-report #print-area-clone {
+    display: block !important;
+    position: static !important;
     width: 100% !important;
     max-height: none !important;
     overflow: visible !important;
-    padding: 20px !important;
+    padding: 15px !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
     background: white !important;
-    z-index: 999999 !important;
+    z-index: auto !important;
   }
 
-  /* When NOT in report mode (Ctrl+P from main app), still respect no-print */
+  /* ---- Regular Ctrl+P (no report mode) ---- */
+  /* Just hide no-print class items, show everything else */
   body:not(.printing-report) .no-print {
     display: none !important;
   }
 
-  /* Ensure logo prints at proper size matching company name */
+  /* ---- Logo sizing for all print modes ---- */
   img[alt*="Zumra"] {
-    height: 120px !important;
+    height: 160px !important;
+    width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
 
-  /* Print background colors */
+  /* Force print background colors and gradients */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Ensure tables print properly */
+  table {
+    page-break-inside: auto !important;
+  }
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
 }
 
