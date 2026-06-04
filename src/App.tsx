@@ -174,6 +174,8 @@ export default function App() {
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState<string>('Dashboard');
   const [activeFilters, setActiveFilters] = useState<any>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // App Master States
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -185,6 +187,7 @@ export default function App() {
   const [externalTransfers, setExternalTransfers] = useState<ExternalTransfer[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  // Start as null to always require login
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   // Theme states
@@ -236,7 +239,7 @@ export default function App() {
     setTransactions(ZumraDB.getTransactions());
     setExternalTransfers(ZumraDB.getExternalTransfers());
     setUsers(ZumraDB.getUsers());
-    setCurrentUser(ZumraDB.getCurrentUser());
+    // Do NOT auto-login - always show login screen
     setFollowUps(ZumraDB.getFollowUps());
 
     // Helper to safely fetch and sync state if changed structurally
@@ -278,10 +281,7 @@ export default function App() {
           const fresh = ZumraDB.getFollowUps();
           return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
         });
-        setCurrentUser(prev => {
-          const fresh = ZumraDB.getCurrentUser();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
+        setCurrentUser(prev => prev); // Keep current state, don't auto-login
         setActiveThemeId(prev => {
           const fresh = localStorage.getItem('zumra_theme') || 'liquid-navy';
           return fresh !== prev ? fresh : prev;
@@ -762,8 +762,13 @@ export default function App() {
         <option value="Jordan"></option>
       </datalist>
 
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className={`w-full md:w-64 flex-shrink-0 ${currentTheme.sidebarBg} text-white flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder}`}>
+      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 w-64 md:w-64 flex-shrink-0 ${currentTheme.sidebarBg} text-white flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className={`p-5 flex flex-row md:flex-col items-center justify-between md:justify-center border-b ${currentTheme.sidebarBorder} gap-3`}>
           <div className="flex items-center gap-3 md:flex-col">
             <div className={`flex items-center justify-center transition-transform hover:scale-105 bg-white p-2 rounded-xl`}>
@@ -787,7 +792,7 @@ export default function App() {
         </div>
 
         {/* Navigation list */}
-        <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-1.5 px-3 flex flex-row md:flex-col gap-1 md:gap-0 overflow-x-auto">
+        <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-1.5 px-3 flex flex-col gap-0 overflow-x-auto">
           {permittedNavItems.map((item) => {
             const isActive = activeTab === item.name;
             return (
@@ -796,6 +801,7 @@ export default function App() {
                 onClick={() => {
                   setActiveFilters(null);
                   setActiveTab(item.name);
+                  setSidebarOpen(false); // Close sidebar on mobile
                 }}
                 className={`flex items-center gap-2 px-3 py-2 md:py-2.5 rounded-xl text-xs font-extrabold transition-all duration-150 whitespace-nowrap md:w-full ${
                   isActive
@@ -810,7 +816,7 @@ export default function App() {
           })}
           {/* Mobile logout trigger */}
           <button
-            onClick={() => handleSetCurrentUser(null as any)}
+            onClick={() => { setSidebarOpen(false); handleSetCurrentUser(null as any); }}
             className="flex md:hidden items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 text-rose-300 hover:bg-rose-950/30"
           >
             <span>🚪</span>
@@ -848,6 +854,20 @@ export default function App() {
         
         {/* Top Header Row */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-8 flex-shrink-0 shadow-sm no-print">
+          {/* Mobile hamburger toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition text-slate-600"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              {sidebarOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
+
           <div className="flex items-center gap-2">
             <h2 className="text-sm md:text-base font-extrabold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
               {activeTab} Management
@@ -924,10 +944,81 @@ export default function App() {
               )}
             </div>
 
+            {/* User Icon & Dropdown Menu */}
             {currentUser && (
-              <div className={`md:hidden flex items-center gap-1.5 ${currentTheme.badgeBg} px-2.5 py-1 rounded-lg border ${currentTheme.sidebarBorder}`}>
-                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                <span className="text-[10px] font-bold font-mono uppercase text-slate-800">{currentUser.name}</span>
+              <div className="relative" onMouseLeave={() => setIsUserMenuOpen(false)}>
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  className="flex items-center gap-2 hover:bg-slate-100 rounded-full transition p-1.5 cursor-pointer"
+                >
+                  <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-xs text-white shadow-sm`}>
+                    {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                  </div>
+                  <div className="hidden md:block text-left">
+                    <p className="text-[10px] font-bold text-slate-800 leading-none">{currentUser.name}</p>
+                    <p className="text-[9px] text-slate-500 leading-tight">{currentUser.role}</p>
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden">
+                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 border-b border-slate-200">
+                      <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
+                      <p className="text-[10px] text-slate-500">{currentUser.email}</p>
+                      <span className={`inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
+                        {currentUser.role}
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          setActiveTab('Users');
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <span>👤</span> My Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          const newPassword = prompt('Enter new password (min 6 chars):');
+                          if (newPassword && newPassword.length >= 6) {
+                            handleAddUser({ ...currentUser, password: newPassword });
+                            alert('Password updated successfully.');
+                          } else if (newPassword) {
+                            alert('Password too short.');
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <span>🔑</span> Change Password
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          setActiveTab('Users');
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <span>⚙️</span> User Settings
+                      </button>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          handleSetCurrentUser(null as any);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <span>🚪</span> Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             
@@ -952,7 +1043,7 @@ export default function App() {
                 setActiveFilters(null);
                 setActiveTab('Reservations');
               }}
-              className={`${currentTheme.btnPrimary} font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer`}
+              className={`${currentTheme.btnPrimary} font-bold px-3.5 py-2 rounded-xl text-xs hidden sm:flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer`}
             >
               <span className="text-sm">📅</span>
               <span>New Reservation</span>

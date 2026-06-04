@@ -19,22 +19,71 @@
   }
 }
 
-/* Custom print transitions */
+/* Print CSS - show only the report area */
 @media print {
   body {
-    background: white;
-    color: black;
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
+
+  /* Hide everything by default when printing */
   .no-print {
     display: none !important;
   }
+
   .print-only {
     display: block !important;
   }
-  /* Ensure logo prints at proper document size */
+
+  /* When in report-print mode, hide everything except print-area */
+  body.printing-report * {
+    visibility: hidden !important;
+  }
+
+  body.printing-report #print-area,
+  body.printing-report #print-area * {
+    visibility: visible !important;
+  }
+
+  body.printing-report #print-area {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 20px !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    z-index: 999999 !important;
+  }
+
+  /* When NOT in report mode (Ctrl+P from main app), still respect no-print */
+  body:not(.printing-report) .no-print {
+    display: none !important;
+  }
+
+  /* Ensure logo prints at proper size matching company name */
   img[alt*="Zumra"] {
-    height: 110px !important;
+    height: 120px !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  /* Print background colors */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Responsive base utilities */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
   }
 }

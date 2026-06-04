@@ -15,11 +15,11 @@ interface ZumraLogoProps {
 export default function ZumraLogo({ className = '', size = 'md', variant = 'gold' }: ZumraLogoProps) {
   // Size mapping: height in pixels for each variant
   const sizeMap: Record<string, { h: number; printH: number }> = {
-    sm:  { h: 40,  printH: 48 },
-    md:  { h: 56,  printH: 64 },
-    lg:  { h: 72,  printH: 80 },
-    xl:  { h: 96,  printH: 104 },
-    xxl: { h: 120, printH: 140 },
+    sm:  { h: 40,  printH: 56 },
+    md:  { h: 56,  printH: 72 },
+    lg:  { h: 72,  printH: 90 },
+    xl:  { h: 96,  printH: 120 },
+    xxl: { h: 140, printH: 160 },
   };
 
   const { h } = sizeMap[size] || sizeMap.md;
@@ -31,7 +31,6 @@ export default function ZumraLogo({ className = '', size = 'md', variant = 'gold
         alt="Zumra Hotels - زمرة للفنادق"
         className="object-contain w-auto"
         style={{ height: `${h}px` }}
-        crossOrigin="anonymous"
       />
     </div>
   );

@@ -82,10 +82,9 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
 
         {/* Informative credentials ledger */}
         <div className="bg-slate-950/80 p-3.5 rounded-xl border border-amber-900/20 text-left space-y-1.5 leading-relaxed text-[10px]">
-          <span className="font-bold text-amber-500 text-[9px] uppercase tracking-wider block">🔑 Registered Operators Index:</span>
-          <p className="text-zinc-400 font-mono"><span className="text-white font-bold">Admin:</span> username: <span className="text-amber-200">hazem</span> • password: <span className="text-amber-200">hazem123</span></p>
-          <p className="text-zinc-400 font-mono"><span className="text-white font-bold">Reservationist:</span> username: <span className="text-amber-200">zaki</span> • password: <span className="text-amber-200">zaki123</span></p>
-          <p className="text-zinc-400 font-mono"><span className="text-white font-bold">Finance:</span> username: <span className="text-amber-200">yasmeen</span> • password: <span className="text-amber-200">yasmeen123</span></p>
+          <span className="font-bold text-amber-500 text-[9px] uppercase tracking-wider block">🔑 Login Instructions:</span>
+          <p className="text-zinc-400 font-mono">Use the <span className="text-white font-bold">username</span> or <span className="text-white font-bold">email</span> and <span className="text-white font-bold">password</span> assigned to you by the system administrator.</p>
+          <p className="text-zinc-400 font-mono mt-1">Contact your admin if you need an account or forgot your password.</p>
         </div>
 
         {/* Error indicators */}
