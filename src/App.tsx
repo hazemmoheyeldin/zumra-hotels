@@ -206,6 +206,7 @@ export default function App() {
   const getAlerts = () => {
     let alerts: {id: string, type: string, message: string, resId: string}[] = [];
     const nowStr = getEgyptTime().toISOString().split('T')[0];
+    const nowDate = new Date(nowStr);
     reservations.forEach(res => {
       const { totalBuy, totalSell } = getReservationTotals(res);
       const isPastCheckIn = res.checkIn < nowStr;
@@ -220,6 +221,20 @@ export default function App() {
           message: `Late payment for RSV-${res.id} (${res.guestName})`,
           resId: res.id.toString(),
         });
+      }
+
+      // 14-day pre-checkin unpaid notification for confirmed bookings
+      if (res.status === 'Confirmed' && !isPastCheckIn) {
+        const checkInDate = new Date(res.checkIn);
+        const daysUntilCheckIn = Math.ceil((checkInDate.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysUntilCheckIn <= 14 && daysUntilCheckIn >= 0 && clientOwes > 0) {
+          alerts.push({
+            id: `unpaid_14d_${res.id}`,
+            type: 'Upcoming Unpaid',
+            message: `RSV-${res.id} (${res.guestName}) check-in in ${daysUntilCheckIn} days - Client owes ${clientOwes.toLocaleString()} SAR`,
+            resId: res.id.toString(),
+          });
+        }
       }
     });
     return alerts;
@@ -573,7 +588,10 @@ export default function App() {
             users={users}
             followUps={followUps}
             onNavigate={handleNavigate}
-            onQuickReservation={() => setActiveTab('Reservations')}
+            onQuickReservation={() => {
+              setActiveFilters({ showNewForm: true });
+              setActiveTab('Reservations');
+            }}
           />
         );
       case 'Reservations':
@@ -589,6 +607,7 @@ export default function App() {
             onDeleteReservation={handleDeleteReservation}
             accounts={accounts}
             onSaveTransaction={handleSaveTransaction}
+            transactions={transactions}
           />
         );
       case 'Hotels':
@@ -1022,13 +1041,13 @@ export default function App() {
               </div>
             )}
             
-            {/* Theme switcher */}
-            <div className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-xl transition">
-              <span className="text-[9px] font-bold text-slate-500 uppercase px-1 hidden md:inline">Theme:</span>
+            {/* Theme switcher (compact) */}
+            <div className="flex items-center gap-0.5 bg-slate-100 hover:bg-slate-200/80 px-1.5 py-0.5 rounded-lg transition">
               <select
                 value={activeThemeId}
                 onChange={(e) => handleSetTheme(e.target.value)}
-                className="bg-transparent text-slate-800 font-extrabold py-1 border-none text-[11px] focus:outline-none focus:ring-0 cursor-pointer text-xs"
+                className="bg-transparent text-slate-800 font-extrabold py-0.5 border-none text-[10px] focus:outline-none focus:ring-0 cursor-pointer max-w-[90px]"
+                title="Change Theme"
               >
                 {THEMES.map(t => (
                   <option key={t.id} value={t.id} className="font-sans text-xs">
@@ -1037,17 +1056,6 @@ export default function App() {
                 ))}
               </select>
             </div>
-
-            <button 
-              onClick={() => {
-                setActiveFilters(null);
-                setActiveTab('Reservations');
-              }}
-              className={`${currentTheme.btnPrimary} font-bold px-3.5 py-2 rounded-xl text-xs hidden sm:flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer`}
-            >
-              <span className="text-sm">📅</span>
-              <span>New Reservation</span>
-            </button>
           </div>
         </header>
 

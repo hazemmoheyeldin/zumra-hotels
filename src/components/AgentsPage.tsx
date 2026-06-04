@@ -283,7 +283,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 <th className="py-3 px-3">Country</th>
                 <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-3 font-mono">Phone / Email</th>
-                <th className="py-3 px-3 text-right">Pre-Bal (SAR)</th>
+                <th className="py-3 px-3 text-right">Actual Balance (SAR)</th>
                 <th className="py-3 px-3 text-center">Actions</th>
               </tr>
             </thead>

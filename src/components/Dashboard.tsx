@@ -105,6 +105,19 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     return false;
   });
 
+  // Confirmed bookings with unpaid client amounts, check-in within 14 days
+  const unpaidUpcoming = reservations.filter(res => {
+    if (res.status !== 'Confirmed') return false;
+    const { totalSell } = getReservationTotals(res);
+    const clientOwes = totalSell - (res.amountPaidByClient || 0);
+    if (clientOwes <= 0) return false;
+    const checkInDate = new Date(res.checkIn);
+    const today = new Date(todayStr);
+    const diffTime = checkInDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 14 && diffDays >= 0;
+  }).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+
   return (
     <div className="space-y-6">
       
@@ -167,6 +180,50 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
           >
             Open Sales CRM →
           </button>
+        </div>
+      )}
+
+      {/* Alert Block for Unpaid Upcoming Bookings (within 14 days of check-in) */}
+      {unpaidUpcoming.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-xl p-3 px-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in slide-in-from-top-2 no-print">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base animate-pulse">💰</span>
+            <div>
+              <p className="font-semibold text-amber-900">
+                <span>Unpaid Bookings Before Check-In ({unpaidUpcoming.length}) / حجوزات غير مدفوعة قبل الوصول</span>
+              </p>
+              <p className="text-[10.5px] text-amber-700 font-medium">Confirmed bookings with outstanding client payments due within 14 days of check-in.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-1">
+              {unpaidUpcoming.slice(0, 3).map(res => {
+                const { totalSell } = getReservationTotals(res);
+                const owes = totalSell - (res.amountPaidByClient || 0);
+                return (
+                  <button 
+                    key={res.id}
+                    onClick={() => onNavigate('Reservations', { viewReservationId: res.id })}
+                    title={`RSV-${res.id} - Client owes ${owes.toLocaleString()} SAR`}
+                    className="bg-white hover:bg-amber-100/50 text-amber-900 text-[10px] font-mono font-bold px-2 py-1 rounded-lg border border-amber-200/60 transition cursor-pointer flex items-center gap-1"
+                  >
+                    🔍 RSV-{res.id} ({owes.toLocaleString()} SAR)
+                  </button>
+                );
+              })}
+              {unpaidUpcoming.length > 3 && (
+                <span className="bg-amber-200 text-amber-900 text-[10px] font-bold px-2 py-1 rounded-lg">
+                  +{unpaidUpcoming.length - 3} more
+                </span>
+              )}
+            </div>
+            <button 
+              onClick={() => onNavigate('Reservations')} 
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10.5px] px-3 py-1 rounded-lg shadow-xs transition-transform hover:scale-[1.02] cursor-pointer whitespace-nowrap"
+            >
+              Review Payments →
+            </button>
+          </div>
         </div>
       )}
 
@@ -233,11 +290,11 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             />
           </div>
           <button 
-            onClick={onQuickReservation}
+            onClick={() => onNavigate('Reservations', { showNewForm: true })}
             className="bg-blue-600 font-bold hover:bg-blue-700 text-white px-4 py-1.5 rounded-xl text-xs transition flex items-center gap-1 shadow-lg hover:scale-[1.02] active:scale-95 cursor-pointer"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            Quick Reservation
+            New Reservation
           </button>
         </div>
       </div>

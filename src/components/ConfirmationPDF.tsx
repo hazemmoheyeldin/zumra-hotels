@@ -122,7 +122,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
         {/* PRINTABLE PAPER CONTAINER (A4 Layout) */}
         <div 
           id="print-area" 
-          className="bg-white p-10 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[75vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full"
+          className="bg-white p-8 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full"
         >
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
@@ -220,8 +220,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                 </div>
               </div>
 
-              {/* Page marker A4 footer */}
-              <div className="flex justify-between items-center border-t border-slate-150 pt-5 mt-16 text-[10px] text-slate-400">
+              {/* Page marker A4 footer - screen only */}
+              <div className="flex justify-between items-center border-t border-slate-150 pt-5 mt-16 text-[10px] text-slate-400 no-print">
                 <div>Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 <div className="font-mono text-right font-bold text-slate-505">Page 1 of 1</div>
               </div>
@@ -428,22 +428,12 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Thanks & Regards Section */}
-              <div className="flex justify-between items-end border-t border-slate-150 pt-5 mt-6 text-xs text-slate-500 font-sans">
-                <div className="font-mono text-[9px] text-slate-400">
-                  <p>Operator: {creatorName || reservation.createdBy}</p>
-                  <p>Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-                
+              <div className="flex justify-end items-end border-t border-slate-150 pt-5 mt-6 text-xs text-slate-500 font-sans">
                 <div className="text-right">
                   <p className="font-bold text-slate-700 italic">Thanks, and Best Regards</p>
                   <p className="text-sm font-bold text-slate-900 mt-2 block uppercase font-sans">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
-                  <p className="text-[10px] text-slate-450 font-medium">{creatorJobTitle}, Zumra Hotels solutions</p>
+                  <p className="text-[10px] text-slate-450 font-medium">{creatorJobTitle}, Zumra Hotels</p>
                 </div>
-              </div>
-
-              {/* Page marker at bottom right */}
-              <div className="text-right text-[10px] text-slate-400 mt-6 no-print">
-                Page 1 of 1
               </div>
             </div>
           )}

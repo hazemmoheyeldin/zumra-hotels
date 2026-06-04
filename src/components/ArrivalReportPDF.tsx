@@ -173,10 +173,10 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
             </table>
           </div>
 
-          {/* Report Metadata signatures exactly like target */}
-          <div className="flex justify-between items-center border-t border-slate-200 mt-10 pt-4 text-[10px] text-slate-500 font-sans">
+          {/* Report Metadata signatures - screen only */}
+          <div className="flex justify-between items-center border-t border-slate-200 mt-10 pt-4 text-[10px] text-slate-500 font-sans no-print">
             <div className="text-left leading-relaxed">
-              <span className="font-semibold text-slate-700">Hazem Mohey El-Din</span> - System Printed on Egypt Server Zone - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB')}
+              <span className="font-semibold text-slate-700">Prepared by: Zumra Hotels</span> - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB')}
             </div>
             <div className="text-right font-semibold font-mono uppercase text-slate-600">
               Page 1 of 1

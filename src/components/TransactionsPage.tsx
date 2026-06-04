@@ -24,6 +24,11 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment'>('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterAgentId, setFilterAgentId] = useState('');
+  const [filterMethod, setFilterMethod] = useState<'' | 'Cash' | 'Bank Transfer'>('');
+  const [viewingAttachment, setViewingAttachment] = useState<{url: string, label: string} | null>(null);
   
   // Form type
   const [type, setType] = useState<'ClientPayment' | 'SupplierPayment'>('ClientPayment');
@@ -154,9 +159,13 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
   const filteredTransactions = transactions.filter(tr => {
     const term = searchTerm.toLowerCase();
-    const searchMatch = !searchTerm || tr.docNo?.toLowerCase().includes(term) || tr.voucherNo?.toLowerCase().includes(term) || tr.description?.toLowerCase().includes(term) || getAgentLabel(tr.agentId).toLowerCase().includes(term);
+    const searchMatch = !searchTerm || tr.docNo?.toLowerCase().includes(term) || tr.voucherNo?.toLowerCase().includes(term) || tr.description?.toLowerCase().includes(term) || getAgentLabel(tr.agentId).toLowerCase().includes(term) || tr.reservationId?.includes(term);
     const typeMatch = !filterType || tr.type === filterType;
-    return searchMatch && typeMatch;
+    const dateFromMatch = !filterDateFrom || tr.date >= filterDateFrom;
+    const dateToMatch = !filterDateTo || tr.date <= filterDateTo;
+    const agentMatch = !filterAgentId || tr.agentId === filterAgentId;
+    const methodMatch = !filterMethod || tr.paymentMethod === filterMethod;
+    return searchMatch && typeMatch && dateFromMatch && dateToMatch && agentMatch && methodMatch;
   });
 
   const handleExportCSV = () => {
@@ -198,23 +207,78 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       </div>
 
       {!showAddForm && (
-        <div className="mb-4 flex flex-col md:flex-row gap-3 items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-          <input
-            type="text"
-            placeholder="Search voucher, doc, desc, agent..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs flex-1 w-full"
-          />
-          <select
-            value={filterType}
-            onChange={e => setFilterType(e.target.value as any)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-48"
-          >
-            <option value="">All Transactions</option>
-            <option value="ClientPayment">Client Payments Received</option>
-            <option value="SupplierPayment">Supplier Payments Sent</option>
-          </select>
+        <div className="mb-4 space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+          {/* Row 1: Search + Type */}
+          <div className="flex flex-col md:flex-row gap-3 items-center">
+            <input
+              type="text"
+              placeholder="Search voucher, doc, desc, agent, RSV#..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs flex-1 w-full"
+            />
+            <select
+              value={filterType}
+              onChange={e => setFilterType(e.target.value as any)}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-48"
+            >
+              <option value="">All Transactions</option>
+              <option value="ClientPayment">Client Payments Received</option>
+              <option value="SupplierPayment">Supplier Payments Sent</option>
+            </select>
+            <select
+              value={filterMethod}
+              onChange={e => setFilterMethod(e.target.value as any)}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-40"
+            >
+              <option value="">All Methods</option>
+              <option value="Cash">Cash</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          </div>
+          {/* Row 2: Date range + Agent */}
+          <div className="flex flex-col md:flex-row gap-3 items-center">
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">From:</label>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={e => setFilterDateFrom(e.target.value)}
+                className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs flex-1 md:w-36"
+              />
+            </div>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">To:</label>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={e => setFilterDateTo(e.target.value)}
+                className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs flex-1 md:w-36"
+              />
+            </div>
+            <select
+              value={filterAgentId}
+              onChange={e => setFilterAgentId(e.target.value)}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-52"
+            >
+              <option value="">All Agents</option>
+              {agents.map(a => (
+                <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
+              ))}
+            </select>
+            {(filterType || filterDateFrom || filterDateTo || filterAgentId || filterMethod || searchTerm) && (
+              <button
+                onClick={() => { setSearchTerm(''); setFilterType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterAgentId(''); setFilterMethod(''); }}
+                className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100 transition whitespace-nowrap"
+              >
+                ✕ Clear Filters
+              </button>
+            )}
+          </div>
+          {/* Results count */}
+          <div className="text-[10px] text-slate-400 font-medium">
+            Showing {filteredTransactions.length} of {transactions.length} transactions
+          </div>
         </div>
       )}
 
@@ -450,9 +514,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   </td>
                   <td className="py-3 px-3 text-center">
                     {tr.attachmentDataUrl ? (
-                      <a href={tr.attachmentDataUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold underline" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => setViewingAttachment({ url: tr.attachmentDataUrl!, label: `${tr.voucherNo || tr.docNo} - Attachment` })}
+                        className="text-indigo-600 hover:text-indigo-800 text-[10px] font-bold underline cursor-pointer"
+                      >
                         View
-                      </a>
+                      </button>
                     ) : '—'}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono font-bold ${
@@ -509,6 +576,34 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
           reservation={reservations.find(r => r.id.toString() === printingVoucher.reservationId)}
           onClose={() => setPrintingVoucher(null)}
         />
+      )}
+
+      {/* Attachment Viewer Modal */}
+      {viewingAttachment && (
+        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4" onClick={() => setViewingAttachment(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
+              <div className="flex items-center gap-2">
+                <a href={viewingAttachment.url} download className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg transition">⬇️ Download</a>
+                <button onClick={() => setViewingAttachment(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold w-8 h-8 rounded-lg text-sm flex items-center justify-center transition">✕</button>
+              </div>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-slate-100">
+              {viewingAttachment.url.startsWith('data:image/') ? (
+                <img src={viewingAttachment.url} alt={viewingAttachment.label} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow" />
+              ) : viewingAttachment.url.startsWith('data:application/pdf') ? (
+                <iframe src={viewingAttachment.url} className="w-full h-[80vh] border-0 rounded-lg" title={viewingAttachment.label} />
+              ) : (
+                <div className="text-center text-slate-500 py-10">
+                  <p className="text-4xl mb-3">📎</p>
+                  <p className="text-sm font-semibold">Preview not available for this file type.</p>
+                  <a href={viewingAttachment.url} download className="mt-3 inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold">Download File</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

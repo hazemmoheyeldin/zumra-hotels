@@ -193,8 +193,8 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             </div>
           </div>
 
-          <div className="text-center font-mono text-[9px] text-slate-400 mt-10">
-            System Printed on Egypt Time Standard Server Area - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB')}
+          <div className="text-center font-mono text-[9px] text-slate-400 mt-10 no-print">
+            Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB')}
           </div>
 
         </div>

@@ -39,6 +39,7 @@ interface ReservationsPageProps {
   onDeleteReservation: (id: string) => void;
   accounts?: Account[];
   onSaveTransaction?: (tr: Transaction) => void;
+  transactions?: Transaction[];
 }
 
 export default function ReservationsPage({
@@ -51,7 +52,8 @@ export default function ReservationsPage({
   onSaveReservation,
   onDeleteReservation,
   accounts = [],
-  onSaveTransaction
+  onSaveTransaction,
+  transactions = []
 }: ReservationsPageProps) {
   
   // View states
@@ -121,6 +123,11 @@ export default function ReservationsPage({
     if (initialFilters?.viewReservationId) {
       setViewingId(String(initialFilters.viewReservationId));
       setSearchTerm(String(initialFilters.viewReservationId));
+    }
+    if (initialFilters?.showNewForm) {
+      setShowForm(true);
+      setEditingId(null);
+      setViewingId(null);
     }
   }, [initialFilters]);
 
@@ -493,10 +500,29 @@ export default function ReservationsPage({
   // Filter application blocks
   const filteredReservations = reservations.filter(res => {
     const client = agents.find(a => a.id === res.clientId);
-    const matchesSearch = res.guestName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          (client && client.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                          res.id.toString().includes(searchTerm.replace(/RSV-/i, '')) ||
-                          res.checkIn.includes(searchTerm);
+    const supplier = agents.find(a => a.id === res.supplierId);
+    const hotel = hotels.find(h => h.id === res.hotelId);
+    
+    // Smart search: if search is a pure number or RSV-XXXX, show ONLY that exact reservation
+    const cleanSearch = searchTerm.trim();
+    const isExactIdSearch = /^\d+$/.test(cleanSearch) || /^RSV-?\d+$/i.test(cleanSearch);
+    
+    let matchesSearch = true;
+    if (cleanSearch) {
+      if (isExactIdSearch) {
+        const idNum = cleanSearch.replace(/[^0-9]/g, '');
+        matchesSearch = res.id.toString() === idNum;
+      } else {
+        matchesSearch = res.guestName.toLowerCase().includes(cleanSearch.toLowerCase()) || 
+                        (client && (client.name.toLowerCase().includes(cleanSearch.toLowerCase()) || (client.companyName || '').toLowerCase().includes(cleanSearch.toLowerCase()))) ||
+                        (supplier && supplier.name.toLowerCase().includes(cleanSearch.toLowerCase())) ||
+                        (hotel && hotel.name.toLowerCase().includes(cleanSearch.toLowerCase())) ||
+                        res.id.toString().includes(cleanSearch) ||
+                        res.checkIn.includes(cleanSearch) ||
+                        res.checkOut.includes(cleanSearch) ||
+                        (res.hotelConfirmationNo || '').toLowerCase().includes(cleanSearch.toLowerCase());
+      }
+    }
     
     let matchesCustom = true;
     const todayStr = getEgyptTime().toISOString().split('T')[0];
@@ -697,19 +723,28 @@ export default function ReservationsPage({
         </div>
 
           {/* Filtering row */}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Search ID / Guest</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Search RSV# / Guest / Hotel</label>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="e.g. RSV-100 หรือ Hazem"
-                className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs select-none"
+                placeholder="RSV-1001 or guest name"
+                className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs"
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Agent / Operator</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Check-In Date</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-full bg-white px-2 py-1.5 border border-slate-200 rounded text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Client / Agent</label>
               <select
                 value={filterAgentId}
                 onChange={(e) => setFilterAgentId(e.target.value)}
@@ -733,15 +768,6 @@ export default function ReservationsPage({
                 <option value="Confirmed">Confirmed (مؤكد)</option>
                 <option value="Cancelled">Cancelled (ملغي)</option>
               </select>
-            </div>
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Option Date</label>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full bg-white px-2 py-1.5 border border-slate-200 rounded text-xs select-none"
-              />
             </div>
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Sort By</label>
@@ -1337,8 +1363,9 @@ export default function ReservationsPage({
                 <th className="py-2.5 px-3 text-left">Hotel</th>
                 <th className="py-2.5 px-3 font-mono">Dates & Nights</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-right">What Paid / المحصل</th>
-                <th className="py-2.5 px-3 text-right text-indigo-950">Sale & Cost & Profit</th>
+                <th className="py-2.5 px-3 text-right">Client Payment</th>
+                <th className="py-2.5 px-3 text-right">Supplier Payment</th>
+                <th className="py-2.5 px-3 text-right text-indigo-950">Profit</th>
                 <th className="py-2.5 px-3 text-center">Actions</th>
               </tr>
             </thead>
@@ -1368,7 +1395,19 @@ export default function ReservationsPage({
                     <td className="py-3 px-3 text-center">
                       <select 
                         value={res.status}
-                        onChange={(e) => onSaveReservation({...res, status: e.target.value as any})}
+                        onChange={(e) => {
+                          const newStatus = e.target.value as any;
+                          if (newStatus === 'Confirmed' && !(res.amountPaidByClient && res.amountPaidByClient > 0)) {
+                            if (!confirm(`⚠️ WARNING: No client payment recorded for RSV-${res.id} (${res.guestName}).
+
+Are you sure you want to confirm this booking without receiving any payment from the client?
+
+Click OK to confirm anyway, or Cancel to go back.`)) {
+                              return;
+                            }
+                          }
+                          onSaveReservation({...res, status: newStatus});
+                        }}
                         className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold outline-none cursor-pointer border ${
                           res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
                           res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800 border-rose-100' :
@@ -1381,16 +1420,31 @@ export default function ReservationsPage({
                       </select>
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap">
-                      <div className="font-mono font-bold text-slate-800">{clientPaid.toLocaleString()} SAR</div>
-                      <div className="text-[9px] text-slate-400 font-bold">Of {totalSell.toLocaleString()} SAR ({paidPercent}%)</div>
-                      <div className="w-16 bg-slate-100 h-1 rounded-full mt-1 ml-auto overflow-hidden">
-                        <div className="bg-emerald-500 h-full" style={{ width: `${Math.min(paidPercent, 100)}%` }}></div>
+                      <div className="font-mono font-bold text-emerald-700">{clientPaid.toLocaleString()} <span className="text-[8px] text-slate-400">SAR</span></div>
+                      <div className="text-[9px] text-slate-400 font-bold">of {totalSell.toLocaleString()} ({paidPercent}%)</div>
+                      <div className="w-16 bg-slate-100 h-1.5 rounded-full mt-1 ml-auto overflow-hidden">
+                        <div className={`h-full rounded-full ${paidPercent >= 100 ? 'bg-emerald-500' : paidPercent > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${Math.min(paidPercent, 100)}%` }}></div>
                       </div>
+                      {paidPercent < 100 && totalSell > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalSell - clientPaid).toLocaleString()}</div>}
                     </td>
-                    <td className="py-3 px-3 text-right whitespace-nowrap bg-emerald-50/5">
-                      <div className="font-mono text-emerald-800 text-[11px] font-semibold"><span className="text-[9px] text-slate-400">Sale:</span> {totalSell.toLocaleString()} SAR</div>
-                      <div className="font-mono text-amber-900 text-[10px]"><span className="text-[8px] text-slate-450">Cost:</span> {totalBuy.toLocaleString()} SAR</div>
-                      <div className="font-mono mt-0.5 text-[10px]"><span className="text-[8px] text-slate-450">Profit:</span> <span className={`font-bold ${profit >= 0 ? 'text-indigo-805' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span></div>
+                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                      {(() => {
+                        const suppPaid = res.amountPaidToSupplier || 0;
+                        const suppPercent = totalBuy > 0 ? Math.round((suppPaid / totalBuy) * 100) : 0;
+                        return (
+                          <>
+                            <div className="font-mono font-bold text-indigo-700">{suppPaid.toLocaleString()} <span className="text-[8px] text-slate-400">SAR</span></div>
+                            <div className="text-[9px] text-slate-400 font-bold">of {totalBuy.toLocaleString()} ({suppPercent}%)</div>
+                            <div className="w-16 bg-slate-100 h-1.5 rounded-full mt-1 ml-auto overflow-hidden">
+                              <div className={`h-full rounded-full ${suppPercent >= 100 ? 'bg-emerald-500' : suppPercent > 0 ? 'bg-blue-400' : 'bg-slate-200'}`} style={{ width: `${Math.min(suppPercent, 100)}%` }}></div>
+                            </div>
+                            {suppPercent < 100 && totalBuy > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalBuy - suppPaid).toLocaleString()}</div>}
+                          </>
+                        );
+                      })()}
+                    </td>
+                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                      <div className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</div>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <div className="flex justify-center gap-1">
@@ -1438,7 +1492,7 @@ export default function ReservationsPage({
               })}
               {filteredReservations.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-450 italic">No bookings found satisfying filters.</td>
+                  <td colSpan={10} className="py-12 text-center text-slate-450 italic">No bookings found satisfying filters.</td>
                 </tr>
               )}
             </tbody>
@@ -1523,24 +1577,92 @@ export default function ReservationsPage({
                 </div>
               </div>
 
-              {/* Financial Balance sheet of this reservation */}
-              <div className="bg-slate-50/80 rounded-xl p-4 mt-4 border border-slate-150 grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-xs">
-                <div>
-                  <span className="font-bold text-slate-400 uppercase text-[9px] block">Total Invoiced (Sell)</span>
-                  <span className="font-mono font-bold text-emerald-800 text-sm">{totalSell.toLocaleString()} SAR</span>
+              {/* Financial Balance sheet with payment status */}
+              <div className="bg-slate-50/80 rounded-xl p-4 mt-4 border border-slate-150 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-3">
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Total Sale</span>
+                    <span className="font-mono font-bold text-emerald-800 text-sm">{totalSell.toLocaleString()} SAR</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Supplier Cost</span>
+                    <span className="font-mono font-bold text-amber-900 text-sm">{totalBuy.toLocaleString()} SAR</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Net Profit</span>
+                    <span className={`font-mono font-bold text-sm ${profit >= 0 ? 'text-indigo-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Status</span>
+                    <span className={`font-mono font-bold text-sm ${resObj.status === 'Confirmed' ? 'text-emerald-700' : resObj.status === 'Cancelled' ? 'text-rose-600' : 'text-amber-600'}`}>{resObj.status}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-slate-400 uppercase text-[9px] block">Supplier Cost (Buy)</span>
-                  <span className="font-mono font-bold text-amber-900 text-sm">{totalBuy.toLocaleString()} SAR</span>
+                {/* Client & Supplier Payment Progress Bars */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-white rounded-lg p-3 border border-slate-150">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase">Client Payment</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        (resObj.amountPaidByClient || 0) >= totalSell ? 'bg-emerald-100 text-emerald-800' :
+                        (resObj.amountPaidByClient || 0) > 0 ? 'bg-amber-100 text-amber-800' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {(resObj.amountPaidByClient || 0) >= totalSell ? 'Fully Paid' :
+                         (resObj.amountPaidByClient || 0) > 0 ? 'Partially Paid' : 'Unpaid'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-1">
+                      <div className={`h-full rounded-full ${(resObj.amountPaidByClient || 0) >= totalSell ? 'bg-emerald-500' : (resObj.amountPaidByClient || 0) > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${totalSell > 0 ? Math.min(((resObj.amountPaidByClient || 0) / totalSell) * 100, 100) : 0}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono">
+                      <span className="text-emerald-700 font-bold">{((resObj.amountPaidByClient || 0)).toLocaleString()} SAR</span>
+                      <span className="text-slate-400">of {totalSell.toLocaleString()}</span>
+                    </div>
+                    {totalSell - (resObj.amountPaidByClient || 0) > 0 && <div className="text-[9px] text-rose-500 font-bold mt-0.5">Remaining: {(totalSell - (resObj.amountPaidByClient || 0)).toLocaleString()} SAR</div>}
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-slate-150">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold text-slate-600 uppercase">Supplier Payment</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        (resObj.amountPaidToSupplier || 0) >= totalBuy ? 'bg-emerald-100 text-emerald-800' :
+                        (resObj.amountPaidToSupplier || 0) > 0 ? 'bg-blue-100 text-blue-800' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {(resObj.amountPaidToSupplier || 0) >= totalBuy ? 'Fully Paid' :
+                         (resObj.amountPaidToSupplier || 0) > 0 ? 'Partially Paid' : 'Unpaid'}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-1">
+                      <div className={`h-full rounded-full ${(resObj.amountPaidToSupplier || 0) >= totalBuy ? 'bg-emerald-500' : (resObj.amountPaidToSupplier || 0) > 0 ? 'bg-blue-400' : 'bg-slate-200'}`} style={{ width: `${totalBuy > 0 ? Math.min(((resObj.amountPaidToSupplier || 0) / totalBuy) * 100, 100) : 0}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono">
+                      <span className="text-indigo-700 font-bold">{((resObj.amountPaidToSupplier || 0)).toLocaleString()} SAR</span>
+                      <span className="text-slate-400">of {totalBuy.toLocaleString()}</span>
+                    </div>
+                    {totalBuy - (resObj.amountPaidToSupplier || 0) > 0 && <div className="text-[9px] text-rose-500 font-bold mt-0.5">Remaining: {(totalBuy - (resObj.amountPaidToSupplier || 0)).toLocaleString()} SAR</div>}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-slate-400 uppercase text-[9px] block">Operator Deposit</span>
-                  <span className="font-mono font-bold text-slate-800 text-sm">{(resObj.amountPaidByClient || 0).toLocaleString()} SAR</span>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-400 uppercase text-[9px] block">Estimated Profit</span>
-                  <span className="font-mono font-bold text-indigo-650 text-sm">{profit.toLocaleString()} SAR</span>
-                </div>
+                {/* Related transactions for this booking */}
+                {(() => {
+                  const relatedTrs = transactions.filter(t => t.reservationId === resObj.id.toString());
+                  if (relatedTrs.length === 0) return null;
+                  return (
+                    <div className="mt-3 border-t border-slate-150 pt-2">
+                      <h5 className="text-[9px] font-bold text-slate-500 uppercase mb-1">Payment History ({relatedTrs.length} transactions)</h5>
+                      <div className="max-h-24 overflow-y-auto space-y-1">
+                        {relatedTrs.map(tr => (
+                          <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-2 py-1 rounded">
+                            <span className="font-mono text-slate-500">{tr.date}</span>
+                            <span className={`font-bold ${tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-indigo-700'}`}>
+                              {tr.type === 'ClientPayment' ? 'Client' : 'Supplier'}: +{tr.amount.toLocaleString()} SAR
+                            </span>
+                            <span className="text-slate-400 font-mono">{tr.voucherNo}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* TWO PANEL ADD-ON: Editable metadata and interactive payments */}

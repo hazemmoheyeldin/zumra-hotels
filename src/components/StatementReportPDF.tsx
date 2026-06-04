@@ -341,10 +341,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
             Invoices and statement of accounts will be presumed to be accurate unless EST Zumra Hotels FOR HOTEL OPERATION receives a written notification of any errors within 10 days of receipt date.
           </div>
 
-          {/* Footer with stamp operator name exactly like target PDF */}
-          <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-10 select-none leading-none font-sans pt-4">
+          {/* Footer - screen only */}
+          <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-10 select-none leading-none font-sans pt-4 no-print">
             <div className="text-left">
-              <span className="font-semibold text-slate-700">Hazem Mohey El-Din</span> - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span className="font-semibold text-slate-700">Prepared by: Zumra Hotels</span> - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
             <div className="font-mono text-right uppercase text-slate-600 font-extrabold">
               Page 1 of 1
