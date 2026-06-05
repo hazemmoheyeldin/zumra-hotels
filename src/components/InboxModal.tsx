@@ -40,8 +40,8 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[2000] p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[600px] flex overflow-hidden border border-slate-200">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[2000] p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[600px] flex overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
         
         {/* Users List Sidebar */}
         <div className="w-1/3 bg-slate-50 border-r border-slate-150 flex flex-col">

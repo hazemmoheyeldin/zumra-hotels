@@ -1954,8 +1954,8 @@ export default function ReservationsPage({
         const relatedTrs = transactions.filter(t => t.reservationId === resObj.id.toString());
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
-            <div className="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full my-0 md:my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden max-h-[100vh] md:max-h-[95vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto" onClick={() => setViewingId(null)}>
+            <div className="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full my-0 md:my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden max-h-[100vh] md:max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
 
               {/* Header Bar */}
               <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center">

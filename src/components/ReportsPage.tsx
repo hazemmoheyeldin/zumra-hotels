@@ -565,8 +565,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         const unpaidSupp = totalBuy - (resObj.amountPaidToSupplier || 0);
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-0 md:p-4">
-            <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 text-xs text-slate-800">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-0 md:p-4" onClick={() => setSelectedReminderRes(null)}>
+            <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 text-xs text-slate-800" onClick={(e) => e.stopPropagation()}>
               
               <div className="border-b border-slate-150 pb-3 flex justify-between items-center mb-4">
                 <h4 className="font-bold text-slate-800 uppercase flex items-center gap-1.5">

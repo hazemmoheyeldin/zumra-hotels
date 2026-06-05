@@ -49,8 +49,8 @@ export default function CancellationReportPDF({ reservations, agents, hotels, fr
   }, 0);
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0">
-      <div className="bg-white rounded-xl shadow-2xl max-w-[95%] w-full p-6 animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-[95%] w-full p-6 animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none" onClick={(e) => e.stopPropagation()}>
         
         {/* Actions bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4 font-sans no-print">

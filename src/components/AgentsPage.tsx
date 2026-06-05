@@ -457,8 +457,8 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
 
       {/* Viewing details overlay */}
       {viewingAgent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
-          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-md w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4" onClick={() => setViewingAgent(null)}>
+          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-md w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2.5">Agent Specifications</h3>
             <div className="mt-4 space-y-2.5 text-xs text-slate-600">
               <p><span className="font-bold text-slate-500 uppercase text-[9px] block">Agent ID Number:</span> {viewingAgent.agentNumber}</p>
@@ -481,8 +481,8 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
 
       {/* Auditing logging details overlay */}
       {auditingAgent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
-          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4" onClick={() => setAuditingAgent(null)}>
+          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2.5">Audit Security Logs — Agent ID# {auditingAgent.agentNumber}</h3>
             <div className="mt-4 space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar text-xs">
               {auditingAgent.auditLogs && auditingAgent.auditLogs.length > 0 ? (

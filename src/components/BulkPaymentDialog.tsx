@@ -137,8 +137,8 @@ export default function BulkPaymentDialog({ client, reservations, accounts, curr
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
-      <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-2xl w-full p-4 md:p-6 animate-in fade-in zoom-in-95 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-2xl w-full p-4 md:p-6 animate-in fade-in zoom-in-95 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
         <div className="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
