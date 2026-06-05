@@ -105,8 +105,15 @@ tbody tr {
 
 /* ============================================
    PRINT CSS
+   The pdfGenerator.ts injects dynamic styles at
+   runtime (fixed 900px clone + zoom scaling).
+   These base rules handle common print needs.
    ============================================ */
 @media print {
+
+  @page {
+    margin: 10mm;
+  }
 
   body {
     background: white !important;
@@ -125,46 +132,16 @@ tbody tr {
   }
 
   /* ---- Report Print Mode (triggered by Print button) ---- */
-  /* Hide ALL content except the cloned print area on body */
+  /* The pdfGenerator injects body.printing-report class and dynamic
+     styles that set the clone to 900px fixed width + body zoom.
+     These rules provide baseline hiding/showing behavior. */
   body.printing-report > *:not(#print-area-clone) {
     display: none !important;
     visibility: hidden !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
   }
 
-  /* Show only the clone, fully isolated (position: absolute for mobile compat) */
-  body.printing-report #print-area-clone {
-    display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-    padding: 15mm !important;
-    margin: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: white !important;
-    z-index: 999999 !important;
-  }
-
-  /* ---- Regular Ctrl+P (no report mode) ---- */
-  /* Just hide no-print class items, show everything else */
-  body:not(.printing-report) .no-print {
-    display: none !important;
-  }
-
-  /* Ensure no underlying content bleeds through during print */
   body.printing-report {
     background: white !important;
-  }
-  body.printing-report > *:not(#print-area-clone) {
-    visibility: hidden !important;
-    display: none !important;
   }
 
   /* ---- Logo sizing for all print modes ---- */
@@ -184,15 +161,10 @@ tbody tr {
     max-height: none !important;
   }
 
-  /* Ensure the clone never overflows to a second page */
+  /* Ensure the clone never overflows to a second page unintentionally */
   #print-area-clone {
     min-height: auto !important;
     height: auto !important;
-  }
-
-  /* Hide any scrollbars during print */
-  body.printing-report {
-    overflow: hidden !important;
   }
 
   /* Force print background colors and gradients */
@@ -202,7 +174,7 @@ tbody tr {
     color-adjust: exact !important;
   }
 
-  /* Ensure tables print properly */
+  /* Ensure tables print properly with page breaks between rows */
   table {
     page-break-inside: auto !important;
   }
@@ -302,43 +274,4 @@ tbody tr {
   table {
     min-width: 100%;
   }
-}
-
-/* Mobile print improvements */
-@media print and (max-width: 768px) {
-  @page {
-    margin: 0;
-  }
-  body.printing-report #print-area-clone {
-    padding: 5mm !important;
-    font-size: 8px !important;
-    position: absolute !important;
-  }
-  body.printing-report #print-area-clone table {
-    font-size: 7px !important;
-    width: 100% !important;
-    min-width: auto !important;
-    table-layout: auto !important;
-  }
-  body.printing-report #print-area-clone table th,
-  body.printing-report #print-area-clone table td {
-    padding: 2px 4px !important;
-    word-break: break-word !important;
-  }
-  /* Landscape scaling for mobile to fit wide tables */
-  body.printing-report #print-area-clone {
-    transform: scale(0.85);
-    transform-origin: top left;
-    width: 117.6%;
-  }
-  /* Logo stays large on mobile print */
-  body.printing-report #print-area-clone img[alt*="Zumra"],
-  #print-area img[alt*="Zumra"] {
-    height: 160px !important;
-    max-height: 160px !important;
-    width: auto !important;
-  }
-  /* Strip any visible URLs/links from PDF output on mobile */
-  a[href] { text-decoration: none !important; color: inherit !important; }
-  a[href]::after { content: none !important; display: none !important; }
 }

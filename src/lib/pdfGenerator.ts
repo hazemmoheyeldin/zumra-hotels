@@ -1,12 +1,18 @@
 /**
  * Print/PDF generator using browser's native print dialog.
  * Clones the print-area element to body level for clean output,
- * hiding all other page content.
+ * forcing a fixed desktop-width (900px) layout regardless of device screen size.
+ * This ensures responsive CSS classes always render in their desktop form,
+ * producing a consistent A4-style document on both desktop and mobile.
  */
 
 interface PDFOptions {
   landscape?: boolean;
 }
+
+// Fixed render width ensures Tailwind `md:` breakpoints always activate,
+// so PDFs always look like the desktop layout (no stacked mobile columns).
+const PDF_RENDER_WIDTH = 900;
 
 // Guard flag to prevent double-triggering and "blocked from printing" errors
 let isPrinting = false;
@@ -54,17 +60,20 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     anchor.parentNode?.replaceChild(span, anchor);
   });
 
-  // Use position: absolute instead of fixed for better mobile compatibility
-  // (position: fixed causes blank pages on mobile Safari)
+  // FIXED-WIDTH CLONE: Force desktop layout at 900px regardless of device.
+  // This prevents responsive Tailwind classes (sm:, md:, lg:) from collapsing
+  // into their mobile/stacked form on phones and tablets.
   clone.style.cssText = `
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
+    width: ${PDF_RENDER_WIDTH}px;
+    max-width: ${PDF_RENDER_WIDTH}px;
+    min-width: ${PDF_RENDER_WIDTH}px;
     max-height: none;
     height: auto;
     overflow: visible;
-    padding: 20px;
+    padding: 24px;
     margin: 0;
     border: none;
     box-shadow: none;
@@ -78,9 +87,15 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     transform: none;
     font-family: inherit;
     color: #1e293b;
+    box-sizing: border-box;
   `;
 
-  // Inject dynamic @page style for landscape/portrait + mobile print fixes
+  // Calculate zoom to fit the fixed-width clone onto the A4 page.
+  // A4 printable width ≈ 210mm (portrait) / 297mm (landscape) at 96dpi.
+  // The browser's print engine handles final page fitting; zoom gives a good baseline.
+  const baseZoom = landscape ? 1.05 : 0.78;
+
+  // Inject dynamic @page style for landscape/portrait
   const pageStyleId = 'dynamic-page-style';
   let pageStyle = document.getElementById(pageStyleId) as HTMLStyleElement | null;
   if (!pageStyle) {
@@ -91,13 +106,25 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   const pageSize = landscape ? 'A4 landscape' : 'A4 portrait';
   pageStyle.textContent = `
     @media print {
-      @page { size: ${pageSize}; margin: 0; }
-      html, body {
-        overflow: hidden !important;
-        height: auto !important;
-        background: white !important;
-        width: 100% !important;
+      @page {
+        size: ${pageSize};
+        margin: 10mm;
       }
+      html {
+        overflow: visible !important;
+      }
+      body {
+        overflow: visible !important;
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      /* Scale the fixed-width clone to fit the printed page */
+      body.printing-report {
+        zoom: ${baseZoom};
+        overflow: hidden !important;
+      }
+      /* Hide ALL content except the cloned print area */
       body.printing-report > *:not(#print-area-clone) {
         display: none !important;
         visibility: hidden !important;
@@ -105,20 +132,31 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         height: 0 !important;
         overflow: hidden !important;
       }
-      #print-area-clone {
+      /* Show only the clone at fixed desktop width */
+      body.printing-report #print-area-clone {
         display: block !important;
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
-        width: 100% !important;
+        width: ${PDF_RENDER_WIDTH}px !important;
+        max-width: ${PDF_RENDER_WIDTH}px !important;
+        min-width: ${PDF_RENDER_WIDTH}px !important;
         max-height: none !important;
         height: auto !important;
         background: white !important;
         z-index: 999999 !important;
+        overflow: visible !important;
       }
       /* Strip any visible URLs/links from PDF output */
-      a[href] { text-decoration: none !important; color: inherit !important; pointer-events: none !important; }
-      a[href]::after { content: none !important; display: none !important; }
+      a[href] {
+        text-decoration: none !important;
+        color: inherit !important;
+        pointer-events: none !important;
+      }
+      a[href]::after {
+        content: none !important;
+        display: none !important;
+      }
     }
   `;
 
@@ -146,9 +184,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     document.body.classList.remove('printing-report');
     const cloneEl = document.getElementById('print-area-clone');
     if (cloneEl) cloneEl.remove();
-    // Restore original title
     document.title = originalTitle;
-    // Remove dynamic page style
     const ps = document.getElementById(pageStyleId);
     if (ps) ps.remove();
     // Release print guard after a short cooldown (allow sequential printing)
@@ -173,11 +209,11 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   };
   window.addEventListener('focus', onFocusReturn);
 
-  // Wait for images then print - increased delay for mobile rendering
+  // Wait for images then print
   Promise.all(imagePromises).then(() => {
-    // Mobile needs more time to render the cloned DOM
+    // Longer delay on mobile to ensure the clone renders at full desktop width
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const printDelay = isMobile ? 1000 : 500;
+    const printDelay = isMobile ? 800 : 400;
     setTimeout(() => {
       try {
         window.print();
