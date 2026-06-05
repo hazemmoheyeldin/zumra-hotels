@@ -15,11 +15,11 @@ interface ZumraLogoProps {
 export default function ZumraLogo({ className = '', size = 'md', variant = 'gold' }: ZumraLogoProps) {
   // Size mapping: height in pixels for each variant
   const sizeMap: Record<string, { h: number; printH: number }> = {
-    sm:  { h: 40,  printH: 56 },
-    md:  { h: 56,  printH: 72 },
-    lg:  { h: 72,  printH: 90 },
-    xl:  { h: 96,  printH: 120 },
-    xxl: { h: 180, printH: 200 },
+    sm:  { h: 48,  printH: 64 },
+    md:  { h: 64,  printH: 80 },
+    lg:  { h: 80,  printH: 100 },
+    xl:  { h: 150, printH: 150 },
+    xxl: { h: 200, printH: 220 },
   };
 
   const { h } = sizeMap[size] || sizeMap.md;

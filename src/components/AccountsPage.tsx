@@ -21,7 +21,9 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
   const [balance, setBalance] = useState<number>(0);
   const [accountHolderName, setAccountHolderName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [accountType, setAccountType] = useState<'Cash' | 'Bank'>('Bank');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [filterType, setFilterType] = useState<'' | 'Cash' | 'Bank'>('');
 
   // Transfer state
   const [transferAmount, setTransferAmount] = useState<number>(0);
@@ -35,6 +37,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     setBalance(0);
     setAccountHolderName('');
     setAccountNumber('');
+    setAccountType('Bank');
     setEditingId(null);
     setShowAddForm(false);
   };
@@ -46,6 +49,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     setBalance(acc.balance);
     setAccountHolderName(acc.accountHolderName || '');
     setAccountNumber(acc.accountNumber || '');
+    setAccountType(acc.type);
     setShowAddForm(true);
     setShowTransferForm(false);
   };
@@ -65,7 +69,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
       balance,
       accountHolderName,
       accountNumber,
-      type: 'Bank'
+      type: accountType
     };
 
     onSaveAccount(newAcc);
@@ -102,9 +106,39 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     alert('💸 Account transfer settled successfully!');
   };
 
+  // Compute KPIs
+  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
+  const bankAccounts = accounts.filter(a => a.type === 'Bank');
+  const cashAccounts = accounts.filter(a => a.type === 'Cash');
+  const bankBalance = bankAccounts.reduce((s, a) => s + a.balance, 0);
+  const cashBalance = cashAccounts.reduce((s, a) => s + a.balance, 0);
+  const filteredAccounts = filterType ? accounts.filter(a => a.type === filterType) : accounts;
+
   return (
-    <div className="space-y-6 text-xs">
+    <div className="space-y-5 text-xs">
       
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Balance</div>
+          <div className="text-xl font-black text-slate-900">{totalBalance.toLocaleString()} SAR</div>
+        </div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Bank Accounts</div>
+          <div className="text-xl font-black text-indigo-800">{bankAccounts.length}</div>
+          <div className="text-[9px] text-indigo-500 font-mono mt-0.5">{bankBalance.toLocaleString()} SAR</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Cash Safes</div>
+          <div className="text-xl font-black text-amber-800">{cashAccounts.length}</div>
+          <div className="text-[9px] text-amber-500 font-mono mt-0.5">{cashBalance.toLocaleString()} SAR</div>
+        </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Total Accounts</div>
+          <div className="text-xl font-black text-emerald-800">{accounts.length}</div>
+        </div>
+      </div>
+
       {/* Upper header action blocks */}
       <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
         <div className="border-b border-slate-100 pb-4 mb-4 flex flex-wrap justify-between items-center gap-3">
@@ -139,6 +173,17 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
           <form onSubmit={handleAddAccount} className="bg-slate-50 border border-slate-200/60 p-4 rounded-xl max-w-xl space-y-3 mb-4 animate-in fade-in duration-200">
             <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Add Account Specs</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Type</label>
+                <select
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-bold"
+                >
+                  <option value="Bank">🏛️ Bank Account</option>
+                  <option value="Cash">💵 Cash Safe</option>
+                </select>
+              </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Label</label>
                 <input
@@ -260,14 +305,37 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
           </form>
         )}
 
-        {/* Visual accounts card flow */}
+        {/* Visual accounts card flow with filter */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setFilterType('')}
+            className={`py-1.5 px-3 rounded-lg text-[10px] font-bold uppercase transition ${!filterType ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            All ({accounts.length})
+          </button>
+          <button
+            onClick={() => setFilterType('Bank')}
+            className={`py-1.5 px-3 rounded-lg text-[10px] font-bold uppercase transition ${filterType === 'Bank' ? 'bg-indigo-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            🏛️ Banks ({bankAccounts.length})
+          </button>
+          <button
+            onClick={() => setFilterType('Cash')}
+            className={`py-1.5 px-3 rounded-lg text-[10px] font-bold uppercase transition ${filterType === 'Cash' ? 'bg-amber-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}
+          >
+            💵 Cash ({cashAccounts.length})
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {accounts.map((acc) => (
+          {filteredAccounts.map((acc) => (
             <div key={acc.id} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/40 hover:shadow-md transition text-xs flex flex-col justify-between group">
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-mono text-[9px] uppercase tracking-wider font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
                     CODE {acc.code}
+                  </span>
+                  <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded ${acc.type === 'Bank' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {acc.type === 'Bank' ? '🏛️ Bank' : '💵 Cash'}
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] uppercase font-mono font-bold text-slate-400">{acc.currency} Wallet</span>

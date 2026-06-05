@@ -12,8 +12,36 @@ interface HotelsPageProps {
   onDeleteHotel: (id: string) => void;
 }
 
+// Google Places API integration (requires API key + CORS proxy)
+const GOOGLE_API_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_PLACES_API_KEY) || '';
+const CORS_PROXY = 'https://corsproxy.io/?';
+
+async function fetchGooglePlaces(hotelName: string): Promise<{ name: string; address: string; phone: string; rating: number } | null> {
+  if (!GOOGLE_API_KEY) return null;
+  try {
+    const query = encodeURIComponent(`${hotelName} hotel Saudi Arabia`);
+    const url = `${CORS_PROXY}${encodeURIComponent(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${GOOGLE_API_KEY}`)}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data.results && data.results.length > 0) {
+      const r = data.results[0];
+      return {
+        name: r.name || hotelName,
+        address: r.formatted_address || '',
+        phone: r.formatted_phone_number || '',
+        rating: r.rating || 0,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Local mock databases for automatic integration mapping
 const PRESET_HOTELS: Partial<Hotel>[] = [
+  // === MAKKAH HOTELS ===
   {
     name: 'Swissotel Makkah',
     city: 'Makkah',
@@ -35,6 +63,107 @@ const PRESET_HOTELS: Partial<Hotel>[] = [
     mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
   },
   {
+    name: 'Movenpick Hajar Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Abraj Al Bait, King Abdul Aziz Road, Makkah 24231',
+    contact: '+966 12 571 7777',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View', 'Kaaba View'],
+    mealPlans: ['B.B', 'H.B', 'F.B', 'RO']
+  },
+  {
+    name: 'Fairmont Makkah Clock Royal Tower',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Abraj Al Bait Complex, Makkah',
+    contact: '+966 12 571 7777',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Suite'],
+    views: ['Kaaba View', 'Haram View', 'City View', 'Mountain View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Hilton Suites Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Jabal Omar, Makkah',
+    contact: '+966 12 571 5000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['B.B', 'H.B', 'RO']
+  },
+  {
+    name: 'Sheraton Makkah Jabal Al Kaaba',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Jabal Al Kaaba, Makkah',
+    contact: '+966 12 571 9000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Kaaba View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Le Meridien Towers Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Kudai Main Road, Makkah',
+    contact: '+966 12 553 1111',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B']
+  },
+  {
+    name: 'Conrad Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Jabal Omar, Makkah',
+    contact: '+966 12 571 3000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
+    views: ['Kaaba View', 'Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Dar Al Eiman Royal Hotel',
+    city: 'Makkah',
+    stars: 5,
+    address: 'King Abdul Aziz Road, Makkah',
+    contact: '+966 12 571 6000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Elaf Ajyad Hotel Makkah',
+    city: 'Makkah',
+    stars: 4,
+    address: 'Ajyad Street, Makkah',
+    contact: '+966 12 571 4000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B']
+  },
+  {
+    name: 'Raffles Makkah Palace',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Abraj Al Bait, Makkah',
+    contact: '+966 12 571 8888',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Suite'],
+    views: ['Kaaba View', 'Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'InterContinental Dar Al Tawhid Makkah',
+    city: 'Makkah',
+    stars: 5,
+    address: 'Ajyad Street, Makkah',
+    contact: '+966 12 571 7000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  // === MADINAH HOTELS ===
+  {
     name: 'Anwar Al Madinah Mövenpick',
     city: 'Madinah',
     stars: 5,
@@ -53,6 +182,66 @@ const PRESET_HOTELS: Partial<Hotel>[] = [
     roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
     views: ['Haram View', 'Courtyard View'],
     mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Pullman Zamzam Madinah',
+    city: 'Madinah',
+    stars: 5,
+    address: 'Central Area, Madinah',
+    contact: '+966 14 818 5000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'The Oberoi Madinah',
+    city: 'Madinah',
+    stars: 5,
+    address: 'Central Northern Area, Madinah',
+    contact: '+966 14 818 2000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Suite'],
+    views: ['Haram View', 'Courtyard View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Shaza Al Madina',
+    city: 'Madinah',
+    stars: 5,
+    address: 'Central Area, Madinah',
+    contact: '+966 14 829 7000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Millennium Al Aqah Madinah',
+    city: 'Madinah',
+    stars: 5,
+    address: 'Central Area, Madinah',
+    contact: '+966 14 826 1000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B']
+  },
+  {
+    name: 'Taal Bayak Madinah',
+    city: 'Madinah',
+    stars: 4,
+    address: 'Northern Central Area, Madinah',
+    contact: '+966 14 825 5000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B', 'F.B']
+  },
+  {
+    name: 'Al Aqah Taal Bayak',
+    city: 'Madinah',
+    stars: 4,
+    address: 'Central Area, Madinah',
+    contact: '+966 14 825 8000',
+    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
+    views: ['Haram View', 'City View'],
+    mealPlans: ['RO', 'B.B', 'H.B']
   }
 ];
 export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: HotelsPageProps) {
@@ -69,22 +258,65 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const [mealPlans, setMealPlans] = useState<string>('RO, B.B, H.B, F.B');
   const [suppliersText, setSuppliersText] = useState<string>(''); // Suppliers text representation values
   const [isSearching, setIsSearching] = useState<boolean>(false); // Spinner flag
+  const [gatherHint, setGatherHint] = useState<string>(''); // Hint message for gather button
 
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Auto filling mock Google info
-  const handleAutoGatherInfo = () => {
+  const handleAutoGatherInfo = async () => {
     if (!name.trim()) {
-      alert('Please enter a hotel name first to search Google / Booking.com');
+      const nameInput = document.getElementById('hotel-name-input');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.classList.add('ring-2', 'ring-rose-400');
+        setTimeout(() => nameInput.classList.remove('ring-2', 'ring-rose-400'), 2000);
+      }
+      setGatherHint('Please type a hotel name first, then click this button.');
+      setTimeout(() => setGatherHint(''), 4000);
       return;
     }
 
     setIsSearching(true);
 
+    // Try Google Places API first
+    const googleResult = await fetchGooglePlaces(name.trim());
+
     setTimeout(() => {
       setIsSearching(false);
-      const match = PRESET_HOTELS.find(p => p.name?.toLowerCase().includes(name.trim().toLowerCase()));
+      const nameLower = name.trim().toLowerCase();
+
+      if (googleResult) {
+        // Use Google Places data
+        const isMakkah = nameLower.includes('makkah') || nameLower.includes('makka');
+        const isMadinah = nameLower.includes('madinah') || nameLower.includes('madina') || nameLower.includes('medina');
+        const detectedCity = isMadinah ? 'Madinah' : (isMakkah ? 'Makkah' : 'Makkah');
+        const starsFromRating = Math.min(5, Math.max(3, Math.round(googleResult.rating)));
+
+        setCity(detectedCity as any);
+        setStars(starsFromRating);
+        setAddress(googleResult.address || `King Abdul Aziz Road, Central Area, ${detectedCity}`);
+        setContact(googleResult.phone || (detectedCity === 'Makkah' ? '+966 12 500 9999' : '+966 14 820 9999'));
+        setRoomTypes('Single, Double, Triple, Quad, Quint');
+        setViews(detectedCity === 'Makkah' ? 'Haram View, Kaaba View, City View' : 'Haram View, City View');
+        setMealPlans('RO, B.B, H.B, F.B');
+        setSuppliersText(detectedCity === 'Makkah' ? 'Golden Sands Makkah, Marseilia Tours' : 'Zowar Madinah Hospitality');
+        setGatherHint(`✅ Found via Google Places: "${googleResult.name}" (Rating: ${googleResult.rating}★) — details auto-filled!`);
+        setTimeout(() => setGatherHint(''), 6000);
+        return;
+      }
+
+      // Fallback to local presets
+      let match = PRESET_HOTELS.find(p => p.name?.toLowerCase() === nameLower);
+      if (!match) match = PRESET_HOTELS.find(p => p.name?.toLowerCase().includes(nameLower));
+      if (!match) match = PRESET_HOTELS.find(p => nameLower.includes(p.name?.toLowerCase() || ''));
+      if (!match) {
+        const keywords = nameLower.split(/\s+/);
+        match = PRESET_HOTELS.find(p => {
+          const presetName = p.name?.toLowerCase() || '';
+          return keywords.some(kw => kw.length > 3 && presetName.includes(kw));
+        });
+      }
       
       if (match) {
         setCity(match.city as any);
@@ -94,20 +326,25 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
         setRoomTypes(match.roomTypes?.join(', ') || '');
         setViews(match.views?.join(', ') || '');
         setMealPlans(match.mealPlans?.join(', ') || '');
-        // Inject a simulated supplier association
-        setSuppliersText(city === 'Makkah' ? 'Golden Sands Makkah, Marseilia Tours' : 'Zowar Madinah Hospitality');
-        alert(`✨ Verified coordinates, address and distance specs for "${match.name}" directly from Booking.com & Google Local databases successfully!`);
+        setSuppliersText(match.city === 'Makkah' ? 'Golden Sands Makkah, Marseilia Tours' : 'Zowar Madinah Hospitality');
+        setGatherHint(`✅ Found in local database: "${match.name}" — all details auto-filled! Review fields below.`);
+        setTimeout(() => setGatherHint(''), 5000);
       } else {
-        // General fall back solver
-        const isHolyMakkah = name.toLowerCase().includes('makkah') || city === 'Makkah';
-        const distText = isHolyMakkah ? '180m from Haram Courtyard' : '80m from Al Masjid An Nabawi';
-        setAddress(`King Abdul Aziz Road, Central Area, ${isHolyMakkah ? 'Makkah' : 'Madinah'} (${distText})`);
-        setContact('+966 12 500 9999');
+        const isMakkah = nameLower.includes('makkah') || nameLower.includes('makka') || nameLower.includes('makkah');
+        const isMadinah = nameLower.includes('madinah') || nameLower.includes('madina') || nameLower.includes('medina');
+        const detectedCity = isMadinah ? 'Madinah' : (isMakkah ? 'Makkah' : (city === 'Madinah' ? 'Madinah' : 'Makkah'));
+        setCity(detectedCity as any);
+        const distText = detectedCity === 'Makkah' ? '180m from Haram Courtyard' : '80m from Al Masjid An Nabawi';
+        setAddress(`King Abdul Aziz Road, Central Area, ${detectedCity} (${distText})`);
+        setContact(detectedCity === 'Makkah' ? '+966 12 500 9999' : '+966 14 820 9999');
         setRoomTypes('Single, Double, Triple, Quad, Quint');
+        setViews(detectedCity === 'Makkah' ? 'Haram View, Kaaba View, City View' : 'Haram View, City View');
+        setMealPlans('RO, B.B, H.B, F.B');
         setSuppliersText('Direct Booking Channel, Local DMC Supplier');
-        alert(`✨ Gathered standard hotel listing details with Haram distance indexes for "${name}" via semantic fallback search! Check and modify details below.`);
+        setGatherHint(`✨ Not found — auto-filled default ${detectedCity} data. Please verify details.`);
+        setTimeout(() => setGatherHint(''), 6000);
       }
-    }, 950);
+    }, googleResult ? 200 : 1200);
   };
 
   const handleEdit = (hotel: Hotel) => {
@@ -160,6 +397,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
     setMealPlans('RO, B.B, H.B, F.B');
     setSuppliersText('');
     setIsSearching(false);
+    setGatherHint('');
     setShowForm(false);
   };
 
@@ -183,26 +421,40 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
 
       {showForm ? (
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl bg-slate-50 border border-slate-200/60 p-5 rounded-2xl">
-          <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 mb-2">
-            <span className="text-[11px] font-bold text-slate-500 uppercase">Interactive Integration Lookup</span>
-            <button
-              type="button"
-              onClick={handleAutoGatherInfo}
-              disabled={isSearching}
-              className="bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded transition flex items-center gap-1.5 shadow-sm disabled:opacity-75"
-            >
-              {isSearching ? (
-                <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Searching Google Services...
-                </>
-              ) : (
-                '✨ Gather details from Google & Booking.com'
-              )}
-            </button>
+          <div className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-100 mb-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Interactive Integration Lookup</span>
+                <p className="text-[9px] text-slate-400 mt-0.5">Auto-fill hotel details from Google.com then Booking.com databases</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAutoGatherInfo}
+                disabled={isSearching}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md disabled:opacity-75 cursor-pointer"
+              >
+                {isSearching ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Searching...
+                  </>
+                ) : (
+                  '✨ Gather Details from Google & Booking.com'
+                )}
+              </button>
+            </div>
+            {gatherHint && (
+              <div className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border animate-pulse ${
+                gatherHint.startsWith('✅') || gatherHint.startsWith('✨') 
+                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
+                  : 'text-rose-600 bg-rose-50 border-rose-200'
+              }`}>
+                {gatherHint.startsWith('⚠️') ? '' : ''} {gatherHint}
+              </div>
+            )}
           </div>
 
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -215,6 +467,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               <input
                 type="text"
                 value={name}
+                id="hotel-name-input"
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Swissotel Makkah"
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"

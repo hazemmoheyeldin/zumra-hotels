@@ -7,6 +7,7 @@ import React from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
+import { usePageBreaks } from '../lib/usePageBreaks';
 
 interface ArrivalReportPDFProps {
   reservations: Reservation[];
@@ -18,7 +19,8 @@ interface ArrivalReportPDFProps {
 }
 
 export default function ArrivalReportPDF({ reservations, agents, hotels, fromDate, toDate, onClose }: ArrivalReportPDFProps) {
-  
+  const { renderInsertZone, PageBreakToggle } = usePageBreaks();
+
   const getAgentName = (id: string): string => {
     const a = agents.find(agent => agent.id === id);
     return a ? a.name : 'N/A';
@@ -43,8 +45,8 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
   };
 
   const handlePrint = () => {
-    const dStr = fromDate && toDate ? `${fromDate}-to-${toDate}` : 'All';
-    downloadPDF('print-area', `Arrivals-${dStr}.pdf`);
+    const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
+    downloadPDF('print-area', `Arrivals During ${dStr}.pdf`, { landscape: true });
   };
 
   return (
@@ -60,6 +62,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <PageBreakToggle />
             <button
               onClick={handlePrint}
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
@@ -77,15 +80,15 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
         </div>
 
         {/* Printable Paper Area (Landscape) */}
-        <div id="print-area" className="bg-white p-10 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex flex-col text-left font-sans gap-1 flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center mb-1">
+            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
@@ -95,16 +98,16 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-4"></div>
+          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
 
           {/* Report Title Section */}
-          <div className="flex justify-between items-baseline mb-6 mt-2 border-b border-slate-200 pb-2">
-            <h1 className="text-2xl font-extrabold text-[#0f172a] font-sans tracking-wide">Arrival During Period</h1>
-            <h1 className="text-2xl font-bold text-[#0f172a] font-serif">الوصول خلال فترة</h1>
+          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">Arrival During Period</h1>
+            <h1 className="text-xl font-bold text-[#0f172a] font-serif">الوصول خلال فترة</h1>
           </div>
 
           {/* Period Details Bar */}
-          <div className="grid grid-cols-4 gap-4 text-[11px] bg-slate-50 border border-slate-150 p-3 rounded-lg mb-6 text-slate-700 text-left font-sans print:bg-slate-50">
+          <div className="grid grid-cols-4 gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50">
             <div><span className="font-bold text-slate-900">Arrival From:</span> {new Date(fromDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">Arrival To:</span> {new Date(toDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">In House:</span> False</div>
@@ -113,54 +116,57 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
 
           {/* Arrivals Matrix Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
-            <table className="w-full text-left border-collapse text-[10.5px] whitespace-nowrap">
+            <table className="w-full text-left border-collapse text-[9px]">
               <thead>
                 <tr className="bg-slate-100/85 text-slate-700 border-b border-slate-200 font-extrabold">
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-center font-mono">SN</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-center">Status</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-center">Sent</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 font-mono"># Rsv</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">From</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">To</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 font-mono">Agent #</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">Agent</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">V.No</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">Hotel</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200"># Conf</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">Agreement No</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">Guest</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200">Nationality</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-center font-mono">Pax</th>
-                  <th className="py-2.5 px-2">Room / MP</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">SN</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">Status</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">Sent</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono"># Rsv</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">From</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">To</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono">Agent #</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">Agent</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">V.No</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">Hotel</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200"># Conf</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">Agreement</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">Guest</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">Nat.</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">Pax</th>
+                  <th className="py-1.5 px-1.5">Room / MP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 text-slate-800 font-medium font-sans">
                 {reservations.length > 0 ? (
                   reservations.map((res, index) => (
-                    <tr key={res.id} className="bg-white hover:bg-slate-50/50">
-                      <td className="py-2 px-2 border-r border-slate-200 text-center font-mono">{index + 1}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-center">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                    <React.Fragment key={res.id}>
+                      {renderInsertZone(index)}
+                      <tr className="bg-white hover:bg-slate-50/50">
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{index + 1}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center">
+                        <span className={`inline-block px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
                           res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-705 border border-emerald-200' :
                           res.status === 'Cancelled' ? 'bg-rose-50 text-rose-705 border border-rose-200' :
                           'bg-amber-50 text-amber-705 border border-amber-200'
                         }`}>{res.status}</span>
                       </td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-center text-slate-400 font-mono text-[9px]">False</td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-semibold font-mono text-slate-900">{res.id}-1</td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-mono">{new Date(res.checkIn).toLocaleDateString('en-GB')}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-mono">{new Date(res.checkOut).toLocaleDateString('en-GB')}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-mono text-center">{getAgentNum(res.clientId)}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-bold text-slate-900 max-w-[140px] truncate">{getAgentName(res.clientId)}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-slate-400 font-mono"></td>
-                      <td className="py-2 px-2 border-r border-slate-200 font-bold text-slate-905 max-w-[140px] truncate">{getHotelName(res.hotelId)}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-slate-900 font-mono font-extrabold">{res.hotelConfirmationNo || '-'}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-slate-500 font-mono">{res.agreementNo || '-'}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 uppercase text-slate-950 font-black tracking-wide max-w-[140px] truncate">{res.guestName}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-center">{res.guestNationality || 'Egypt'}</td>
-                      <td className="py-2 px-2 border-r border-slate-200 text-center font-bold font-mono text-slate-900">{getPaxCount(res)}</td>
-                      <td className="py-2 px-2 text-[10px] text-amber-900 font-bold font-sans max-w-[180px] truncate">{getRoomsSummary(res)}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center text-slate-400 font-mono text-[8px]">False</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-semibold font-mono text-slate-900">{res.id}-1</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{new Date(res.checkIn).toLocaleDateString('en-GB')}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{new Date(res.checkOut).toLocaleDateString('en-GB')}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-center">{getAgentNum(res.clientId)}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-bold text-slate-900 max-w-[120px] truncate">{getAgentName(res.clientId)}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-400 font-mono"></td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-bold text-slate-905 max-w-[120px] truncate">{getHotelName(res.hotelId)}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 font-mono font-extrabold">{res.hotelConfirmationNo || '-'}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-500 font-mono">{res.agreementNo || '-'}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 uppercase text-slate-950 font-black tracking-wide max-w-[120px] truncate">{res.guestName}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center">{res.guestNationality || 'Egypt'}</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-bold font-mono text-slate-900">{getPaxCount(res)}</td>
+                      <td className="py-1.5 px-1.5 text-[9px] text-amber-900 font-bold font-sans max-w-[160px] truncate">{getRoomsSummary(res)}</td>
                     </tr>
+                    </React.Fragment>
                   ))
                 ) : (
                   <tr>

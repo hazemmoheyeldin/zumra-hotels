@@ -39,6 +39,11 @@ export interface Agent {
   auditLogs: AuditLogEntry[];
 }
 
+export interface AllotmentDay {
+  total: number;
+  booked: number;
+}
+
 export interface Allotment {
   id: string;
   hotelId: string;
@@ -48,6 +53,7 @@ export interface Allotment {
   endDate: string;
   totalRooms: number;
   bookedRooms: number;
+  dailyAvailability?: { [date: string]: AllotmentDay };
 }
 
 export interface RoomLine {
@@ -65,6 +71,17 @@ export interface RoomLine {
   extraBedBuyRate?: number; // buy extra bed rate
   pax: number;      // auto calculated based on roomType
   view?: string;
+  hasViewSupplement?: boolean;
+  viewSupplementRate?: number; // sell view supplement per room per night
+  viewSupplementBuyRate?: number; // buy view supplement per room per night
+  hasExtraMeal1?: boolean;
+  extraMeal1Label?: string; // e.g. "Dinner" or "Lunch"
+  extraMeal1Rate?: number; // sell rate per pax per night
+  extraMeal1BuyRate?: number; // buy rate per pax per night
+  hasExtraMeal2?: boolean;
+  extraMeal2Label?: string; // e.g. "Dinner" or "Lunch"
+  extraMeal2Rate?: number; // sell rate per pax per night
+  extraMeal2BuyRate?: number; // buy rate per pax per night
 }
 
 export type ReservationStatus = 'Tentative' | 'Confirmed' | 'Cancelled';
@@ -114,7 +131,7 @@ export interface Transaction {
   id: string;
   docNo: string; // Counter-based
   date: string;
-  type: 'ClientPayment' | 'SupplierPayment' | 'Transfer';
+  type: 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund' | 'Transfer';
   amount: number;
   fromAccountId?: string;
   toAccountId?: string;
@@ -146,8 +163,17 @@ export interface FollowUp {
   date: string;
   topic: string;
   notes: string;
-  status: 'Pending' | 'Completed';
+  status: 'Pending' | 'Completed' | 'Closed';
   createdBy: string;
+  activityLog?: ActivityLogEntry[];
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+  detail: string;
 }
 
 export interface Message {

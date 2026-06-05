@@ -68,8 +68,49 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     setShowAddForm(true);
   };
 
+  // KPI counts
+  const adminCount = users.filter(u => u.role === 'Admin').length;
+  const salesCount = users.filter(u => u.role === 'Sales').length;
+  const financeCount = users.filter(u => u.role === 'Finance').length;
+  const resCount = users.filter(u => u.role === 'Reservationist').length;
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'Admin': return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'Sales': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+      case 'Finance': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'Reservationist': return 'bg-amber-100 text-amber-700 border-amber-200';
+      default: return 'bg-slate-100 text-slate-600 border-slate-200';
+    }
+  };
+
   return (
-    <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
+    <div className="space-y-5">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Users</div>
+          <div className="text-2xl font-black text-slate-900">{users.length}</div>
+        </div>
+        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Admins</div>
+          <div className="text-2xl font-black text-rose-800">{adminCount}</div>
+        </div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Sales</div>
+          <div className="text-2xl font-black text-indigo-800">{salesCount}</div>
+        </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Finance</div>
+          <div className="text-2xl font-black text-emerald-800">{financeCount}</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Reservationists</div>
+          <div className="text-2xl font-black text-amber-800">{resCount}</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
       <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap justify-between items-center gap-2">
         <div>
           <h2 className="text-lg font-bold text-slate-800">User accounts & Access Controls</h2>
@@ -221,7 +262,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                   }`}
                 >
                   <div className="w-full xl:w-auto">
-                    <span className="text-[10px] uppercase tracking-wide font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold">
+                    <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${getRoleColor(u.role)}`}>
                       {u.role}
                     </span>
                     <h4 className="font-bold text-slate-800 uppercase mt-1.5">{u.name}</h4>
@@ -272,6 +313,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

@@ -26,6 +26,17 @@ interface RoomSelection {
   hasSeparateMealRate?: boolean;
   mealRateBuyNum?: number;
   mealRateSellNum?: number;
+  hasViewSupplement?: boolean;
+  viewSuppBuyPriceNum?: number;
+  viewSuppSellPriceNum?: number;
+  hasExtraMeal1?: boolean;
+  extraMeal1Label?: string;
+  extraMeal1BuyNum?: number;
+  extraMeal1SellNum?: number;
+  hasExtraMeal2?: boolean;
+  extraMeal2Label?: string;
+  extraMeal2BuyNum?: number;
+  extraMeal2SellNum?: number;
 }
 
 interface ReservationsPageProps {
@@ -76,6 +87,7 @@ export default function ReservationsPage({
   const [payAccountId, setPayAccountId] = useState<string>('');
   const [payMethod, setPayMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
   const [payVoucher, setPayVoucher] = useState<string>('');
+  const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents'>('overview');
 
   // Trigger loading active reservation specifics
   React.useEffect(() => {
@@ -128,12 +140,21 @@ export default function ReservationsPage({
       setShowForm(true);
       setEditingId(null);
       setViewingId(null);
+      // Pre-populate default form values when coming from Dashboard
+      if (hotels.length > 0 && !hotelId) {
+        setHotelId(hotels[0].id);
+      }
+      const defaultClient = agents.find(a => a.type === 'Customer' || a.type === 'Both');
+      const defaultSupplier = agents.find(a => a.type === 'Supplier' || a.type === 'Both');
+      if (defaultClient && !clientId) setClientId(defaultClient.id);
+      if (defaultSupplier && !supplierId) setSupplierId(defaultSupplier.id);
     }
   }, [initialFilters]);
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAgentId, setFilterAgentId] = useState(initialFilters?.clientId || '');
+  const [filterSupplierId, setFilterSupplierId] = useState(initialFilters?.supplierId || '');
   const [filterStatus, setFilterStatus] = useState(initialFilters?.status || '');
   const [filterDate, setFilterDate] = useState(initialFilters?.dateFilter || '');
   const [filterCustom, setFilterCustom] = useState(initialFilters?.customFilter || '');
@@ -147,6 +168,8 @@ export default function ReservationsPage({
     }
     if (initialFilters?.status) setFilterStatus(initialFilters.status);
     if (initialFilters?.dateFilter) setFilterDate(initialFilters.dateFilter);
+    if (initialFilters?.supplierId) setFilterSupplierId(initialFilters.supplierId);
+    if (initialFilters?.clientId) setFilterAgentId(initialFilters.clientId);
   }, [initialFilters]);
 
   // Master Form states
@@ -200,6 +223,36 @@ export default function ReservationsPage({
     if (t.includes('quad')) return 4;
     if (t.includes('quint')) return 5;
     return 2; // default fallback solver
+  };
+
+  // Calculate the actual total rate across all nights (accounting for weekend rates)
+  const calcNightlyTotal = (baseRate: number, hasWeekend?: boolean, weekendRate?: number): number => {
+    const n = calculateNightsCount();
+    if (!hasWeekend || weekendRate === undefined || !checkIn) return baseRate * n;
+    let total = 0;
+    const [y, m, d] = checkIn.split('-');
+    const start = new Date(Number(y), Number(m) - 1, Number(d));
+    for (let i = 0; i < n; i++) {
+      const curr = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+      const day = curr.getDay();
+      total += (day === 4 || day === 5) ? weekendRate : baseRate;
+    }
+    return total;
+  };
+
+  // Full room total including all supplements (buy or sell)
+  const roomFullTotal = (rm: RoomSelection, side: 'buy' | 'sell'): number => {
+    const n = calculateNightsCount();
+    const p = rm.pax || 2;
+    const base = side === 'buy'
+      ? calcNightlyTotal(rm.buyPriceNum, rm.hasWeekend, rm.weekendBuyPriceNum) * rm.qty
+      : calcNightlyTotal(rm.sellPriceNum, rm.hasWeekend, rm.weekendSellPriceNum) * rm.qty;
+    const eb = rm.hasExtraBed ? ((side === 'buy' ? rm.extraBedBuyPriceNum : rm.extraBedSellPriceNum) || 0) * n * rm.qty : 0;
+    const vs = rm.hasViewSupplement ? ((side === 'buy' ? rm.viewSuppBuyPriceNum : rm.viewSuppSellPriceNum) || 0) * n * rm.qty : 0;
+    const ml = rm.hasSeparateMealRate ? ((side === 'buy' ? rm.mealRateBuyNum : rm.mealRateSellNum) || 0) * p * n * rm.qty : 0;
+    const em1 = rm.hasExtraMeal1 ? ((side === 'buy' ? rm.extraMeal1BuyNum : rm.extraMeal1SellNum) || 0) * p * n * rm.qty : 0;
+    const em2 = rm.hasExtraMeal2 ? ((side === 'buy' ? rm.extraMeal2BuyNum : rm.extraMeal2SellNum) || 0) * p * n * rm.qty : 0;
+    return base + eb + vs + ml + em1 + em2;
   };
 
   const handleAddRoomRow = () => {
@@ -303,7 +356,18 @@ export default function ReservationsPage({
         extraBedSellPriceNum: rm.extraBedRate || 0,
         hasSeparateMealRate: rm.hasSeparateMealRate || false,
         mealRateBuyNum: rm.mealBuyRate || 0,
-        mealRateSellNum: rm.mealRate || 0
+        mealRateSellNum: rm.mealRate || 0,
+        hasViewSupplement: rm.hasViewSupplement || false,
+        viewSuppBuyPriceNum: rm.viewSupplementBuyRate || 0,
+        viewSuppSellPriceNum: rm.viewSupplementRate || 0,
+        hasExtraMeal1: rm.hasExtraMeal1 || false,
+        extraMeal1Label: rm.extraMeal1Label || '',
+        extraMeal1BuyNum: rm.extraMeal1BuyRate || 0,
+        extraMeal1SellNum: rm.extraMeal1Rate || 0,
+        hasExtraMeal2: rm.hasExtraMeal2 || false,
+        extraMeal2Label: rm.extraMeal2Label || '',
+        extraMeal2BuyNum: rm.extraMeal2BuyRate || 0,
+        extraMeal2SellNum: rm.extraMeal2Rate || 0
       };
     }));
     setShowForm(true);
@@ -367,6 +431,17 @@ export default function ReservationsPage({
         hasExtraBed: !!rm.hasExtraBed,
         extraBedRate: rm.extraBedSellPriceNum || 0,
         extraBedBuyRate: rm.extraBedBuyPriceNum || 0,
+        hasViewSupplement: !!rm.hasViewSupplement,
+        viewSupplementRate: rm.viewSuppSellPriceNum || 0,
+        viewSupplementBuyRate: rm.viewSuppBuyPriceNum || 0,
+        hasExtraMeal1: !!rm.hasExtraMeal1,
+        extraMeal1Label: rm.extraMeal1Label || '',
+        extraMeal1Rate: rm.extraMeal1SellNum || 0,
+        extraMeal1BuyRate: rm.extraMeal1BuyNum || 0,
+        hasExtraMeal2: !!rm.hasExtraMeal2,
+        extraMeal2Label: rm.extraMeal2Label || '',
+        extraMeal2Rate: rm.extraMeal2SellNum || 0,
+        extraMeal2BuyRate: rm.extraMeal2BuyNum || 0,
         pax: rm.pax,
         view: rm.view
       })),
@@ -377,7 +452,7 @@ export default function ReservationsPage({
       clientOptionDate: status === 'Tentative' ? clientOptionDate : undefined,
       supplierOptionDate: status === 'Tentative' ? supplierOptionDate : undefined,
       hotelConfirmationNo: status === 'Confirmed' ? hotelConfirmationNo : undefined,
-      bankAccountId: status === 'Confirmed' ? bankAccountId : undefined,
+      bankAccountId: bankAccountId || undefined,
       agreementNo,
       supplierVoucher,
       createdAt: editingId ? (reservations.find(r => r.id === editingId)?.createdAt || getEgyptTime().toISOString().replace('T', ' ').substring(0, 19)) : getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
@@ -538,10 +613,11 @@ export default function ReservationsPage({
     }
 
     const matchesAgent = !filterAgentId || res.clientId === filterAgentId;
+    const matchesSupplier = !filterSupplierId || res.supplierId === filterSupplierId;
     const matchesStatus = !filterStatus || res.status === filterStatus;
     const matchesDate = !filterDate || res.checkIn === filterDate || res.checkOut === filterDate || res.clientOptionDate === filterDate;
 
-    return matchesSearch && matchesAgent && matchesStatus && matchesDate && matchesCustom;
+    return matchesSearch && matchesAgent && matchesSupplier && matchesStatus && matchesDate && matchesCustom;
   });
 
   const sortedReservations = [...filteredReservations].sort((a, b) => {
@@ -788,551 +864,385 @@ export default function ReservationsPage({
 
       {/* Main Form content or Table list view */}
       {showForm ? (
-        <form onSubmit={handleSubmit} className="bg-slate-50 border border-slate-200 rounded-[24px] p-6 shadow-xl space-y-6 animate-in fade-in slide-in-from-bottom-4 leading-relaxed text-xs max-w-6xl mx-auto">
+        <form onSubmit={handleSubmit} className="bg-slate-50 border border-slate-200 rounded-[24px] p-6 shadow-xl space-y-5 animate-in fade-in slide-in-from-bottom-4 leading-relaxed text-xs max-w-6xl mx-auto">
           
+          {/* Form Header */}
           <div className="flex justify-between items-center border-b border-slate-200 pb-4">
             <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
               <span className="p-2 bg-amber-100 text-amber-700 rounded-xl">🏨</span>
               {editingId ? `Edit Booking RSV-${editingId}` : 'New Reservation'}
             </h3>
-            <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition shadow-sm">✕ Close</button>
+            <div className="flex items-center gap-3">
+              {/* Live Pricing Summary Badge */}
+              {selectedHotelObj && checkIn && checkOut && (
+                <div className="flex items-center gap-4 text-[10px] bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+                  <span className="text-slate-500">Nights: <strong className="text-slate-800">{calculateNightsCount()}</strong></span>
+                                  <span className="text-red-600">Cost: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'buy'), 0).toLocaleString()}</strong></span>
+                                  <span className="text-emerald-700">Sell: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0).toLocaleString()}</strong></span>
+                                  <span className="text-amber-700">Profit: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + (roomFullTotal(rm, 'sell') - roomFullTotal(rm, 'buy')), 0).toLocaleString()}</strong></span>
+                </div>
+              )}
+              <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition shadow-sm">✕ Close</button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Left Column: Primary Details */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm space-y-4">
-                <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-2 border-b border-slate-100 pb-2">Core Assignment</h4>
-                
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Customer / Agent</label>
-                  <select
-                    value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors"
-                    required
-                  >
-                    <option value="">-- Choose Customer --</option>
-                    {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
-                      <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier</label>
-                  <select
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors"
-                    required
-                  >
-                    <option value="">-- Choose Supplier --</option>
-                    {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Destination Hotel</label>
-                  <select
-                    value={hotelId}
-                    onChange={(e) => {
-                      setHotelId(e.target.value);
-                      const matchedH = hotels.find(h => h.id === e.target.value);
-                      if (matchedH) {
-                        setRooms([{
-                          roomType: matchedH.roomTypes[0] || 'Double',
-                          view: matchedH.views[0] || 'City View',
-                          mealPlan: matchedH.mealPlans[0] || 'B.B',
-                          qty: 1,
-                          pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'),
-                          buyPriceNum: 100,
-                          sellPriceNum: 150
-                        }]);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-amber-500 transition-colors"
-                    required
-                  >
-                    <option value="">-- Select Partner Hotel --</option>
-                    {hotels.map(h => (
-                      <option key={h.id} value={h.id}>{h.city === 'Makkah' ? '🕋' : '🕌'} {h.name}</option>
-                    ))}
-                  </select>
-                </div>
+          {/* Section 1: Booking Details */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
+            <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <span className="text-amber-600">●</span> Booking Assignment
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">👤 Customer / Agent</label>
+                <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
+                  <option value="">-- Choose Customer --</option>
+                  {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
+                    <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
+                  ))}
+                </select>
               </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm space-y-4">
-                <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-2 border-b border-slate-100 pb-2">Stay Info</h4>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block">Check-In</label>
-                    <input
-                      type="date"
-                      value={checkIn}
-                      onChange={(e) => setCheckIn(e.target.value)}
-                      className="w-full bg-slate-50 font-mono px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block flex justify-between">
-                      Check-Out
-                      {checkIn && checkOut && (
-                        <span className="text-emerald-600 font-extrabold">{calculateNightsCount()}N</span>
-                      )}
-                    </label>
-                    <input
-                      type="date"
-                      value={checkOut}
-                      onChange={(e) => setCheckOut(e.target.value)}
-                      className="w-full bg-slate-50 font-mono px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Lead Guest Name</label>
-                  <input
-                    type="text"
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    placeholder="MOHAMED AL-AHMADI"
-                    className="w-full bg-slate-50 px-3 py-2 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white transition-colors"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Nationality</label>
-                  <input
-                    type="text"
-                    list="nationalities"
-                    value={guestNationality}
-                    onChange={(e) => setGuestNationality(e.target.value)}
-                    placeholder="Saudi"
-                    className="w-full bg-slate-50 px-3 py-2 border border-slate-200 rounded-xl text-sm uppercase focus:bg-white transition-colors"
-                  />
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">🏭 Supplier</label>
+                <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
+                  <option value="">-- Choose Supplier --</option>
+                  {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">🏨 Destination Hotel</label>
+                <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); const matchedH = hotels.find(h => h.id === e.target.value); if (matchedH) { setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]); } }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-amber-500 transition-colors" required>
+                  <option value="">-- Select Partner Hotel --</option>
+                  {hotels.map(h => (
+                    <option key={h.id} value={h.id}>{h.city === 'Makkah' ? '🕋' : '🕌'} {h.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📅 Check-In</label>
+                <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="w-full bg-slate-50 font-mono px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white" required />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📅 Check-Out {checkIn && checkOut && <span className="text-emerald-600 font-extrabold ml-1">({calculateNightsCount()} nights)</span>}</label>
+                <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="w-full bg-slate-50 font-mono px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white" required />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">🧳 Lead Guest Name</label>
+                <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="MOHAMED AL-AHMADI" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white transition-colors" required />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">🌍 Nationality</label>
+                <input type="text" list="nationalities" value={guestNationality} onChange={(e) => setGuestNationality(e.target.value)} placeholder="Saudi" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm uppercase focus:bg-white transition-colors" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5">📊 Booking Status</label>
+                <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-xl">
+                  {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => (
+                    <button key={s} type="button" onClick={() => {
+                      if (s === 'Confirmed' && status !== 'Confirmed') {
+                        const formTotalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
+                        if (amountPaidByClient < formTotalSell && formTotalSell > 0) {
+                          const owed = formTotalSell - amountPaidByClient;
+                          if (!confirm(`\u26a0\ufe0f Client has not fully paid yet.\n\nPaid: ${amountPaidByClient.toLocaleString()} SAR\nTotal: ${formTotalSell.toLocaleString()} SAR\nOutstanding: ${owed.toLocaleString()} SAR\n\nDo you want to confirm this booking anyway?`)) {
+                            return;
+                          }
+                        }
+                      }
+                      setStatus(s);
+                      if (s !== 'Cancelled') { setCancellationFee(0); setCancellationReason(''); }
+                      else { setCancellationReason('Customer requested cancellation (\u0637\u0644\u0628 \u0627\u0644\u0639\u0645\u064a\u0644)'); }
+                      if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
+                    }} className={`flex-1 py-2.5 px-2 rounded-lg text-xs font-extrabold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1.5 ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-md' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-md' : 'bg-amber-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
+                      <span className="text-sm leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{s}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Right Column: Rooms & Options */}
-            <div className="lg:col-span-8 space-y-4 flex flex-col">
-              
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm flex-1">
-                <div className="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
-                  <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px]">Room Configuration</h4>
-                  <button
-                    type="button"
-                    onClick={handleAddRoomRow}
-                    className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1"
-                  >
-                    + Add Room Line
-                  </button>
-                </div>
+          {/* Section 2: Room Configuration */}
+          {selectedHotelObj && (
+            <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
+              <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+                <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
+                  <span className="text-amber-600">●</span> Room Configuration
+                </h4>
+                <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">+ Add Room Line</button>
+              </div>
 
-                <div className="space-y-3">
-                {rooms.map((rm, idx) => (
-                  <div key={idx} className="grid grid-cols-2 lg:grid-cols-8 gap-2 items-end bg-white border border-slate-100 p-3 rounded-lg text-xs">
-                    
-                    <div className="col-span-2">
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Room Type</label>
-                      <select
-                        value={rm.roomType}
-                        onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })}
-                        className="w-full px-2.5 py-1 border border-slate-200 bg-slate-50/50 rounded"
-                      >
-                        {selectedHotelObj.roomTypes.map((t, i) => (
-                          <option key={i} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </div>
+              <div className="space-y-3">
+                {rooms.map((rm, idx) => {
+                  const roomBuyTotal = roomFullTotal(rm, 'buy');
+                  const roomSellTotal = roomFullTotal(rm, 'sell');
+                  const roomProfit = roomSellTotal - roomBuyTotal;
+                  return (
+                    <div key={idx} className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+                      <div className="grid grid-cols-2 md:grid-cols-8 gap-3 items-end">
+                        <div className="col-span-2">
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Room Type</label>
+                          <select value={rm.roomType} onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })} className="w-full px-2.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold">
+                            {selectedHotelObj.roomTypes.map((t, i) => (<option key={i} value={t}>{t}</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">View</label>
+                          <select value={rm.view} onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
+                            {selectedHotelObj.views.map((v, i) => (<option key={i} value={v}>{v}</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Meal Plan</label>
+                          <select value={rm.mealPlan} onChange={(e) => handleUpdateRoomRow(idx, { mealPlan: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
+                            {selectedHotelObj.mealPlans.map((mp, i) => (<option key={i} value={mp}>{mp}</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Qty</label>
+                          <input type="number" min={1} value={rm.qty} onChange={(e) => handleUpdateRoomRow(idx, { qty: Number(e.target.value) })} className="w-full px-2 py-2 border border-slate-200 rounded-lg font-bold font-mono text-xs text-center" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Pax</label>
+                          {rm.roomType.toLowerCase().includes('suite') ? (
+                            <select value={rm.pax || 2} onChange={(e) => handleUpdateRoomRow(idx, { pax: Number(e.target.value) })} className="w-full bg-white px-1 py-2 border border-slate-200 rounded-lg text-[11px] font-mono font-bold text-center">
+                              {[2,3,4,5,6].map(n => (<option key={n} value={n}>{n} Pax</option>))}
+                            </select>
+                          ) : (
+                            <span className="w-full bg-slate-100 font-mono text-[11px] font-bold block text-center py-2 border border-slate-200 rounded-lg select-none">{rm.pax} Pax</span>
+                          )}
+                        </div>
+                        <div className="flex items-end justify-end">
+                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="Delete Room Line">🗑️</button>
+                        </div>
+                      </div>
 
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">View</label>
-                      <select
-                        value={rm.view}
-                        onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })}
-                        className="w-full px-2.5 py-1 border border-slate-200 bg-slate-50/50 rounded"
-                      >
-                        {selectedHotelObj.views.map((v, i) => (
-                          <option key={i} value={v}>{v}</option>
-                        ))}
-                      </select>
-                    </div>
+                      {/* Pricing Row */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200">
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-red-500 block mb-0.5">Buy Rate / Night</label>
+                          <input type="number" value={rm.buyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { buyPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-red-200 rounded-lg text-red-700 font-bold font-mono text-xs bg-red-50/30" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-0.5">Sell Rate / Night</label>
+                          <input type="number" value={rm.sellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-emerald-800 font-bold font-mono text-xs bg-emerald-50/30" />
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
+                          <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Room Totals ({calculateNightsCount()}N × {rm.qty} rooms)</div>
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-red-600 font-mono font-bold">-{roomBuyTotal.toLocaleString()}</span>
+                            <span className="text-emerald-700 font-mono font-bold">+{roomSellTotal.toLocaleString()}</span>
+                            <span className={`font-mono font-extrabold ${roomProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>{roomProfit.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasWeekend || false} onChange={(e) => handleUpdateRoomRow(idx, { hasWeekend: e.target.checked })} className="rounded text-amber-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Weekend Rate</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasExtraBed || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraBed: e.target.checked })} className="rounded text-indigo-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Bed</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasSeparateMealRate || false} onChange={(e) => handleUpdateRoomRow(idx, { hasSeparateMealRate: e.target.checked })} className="rounded text-rose-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Separate Meal</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasViewSupplement || false} onChange={(e) => handleUpdateRoomRow(idx, { hasViewSupplement: e.target.checked })} className="rounded text-sky-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">View Supplement</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasExtraMeal1 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal1: e.target.checked })} className="rounded text-orange-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Meal 1</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={rm.hasExtraMeal2 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal2: e.target.checked })} className="rounded text-teal-600 w-3 h-3" />
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Meal 2</span>
+                          </label>
+                        </div>
+                      </div>
 
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Meal Plan</label>
-                      <select
-                        value={rm.mealPlan}
-                        onChange={(e) => handleUpdateRoomRow(idx, { mealPlan: e.target.value })}
-                        className="w-full px-2.5 py-1 border border-slate-200 bg-slate-50/50 rounded"
-                      >
-                        {selectedHotelObj.mealPlans.map((mp, i) => (
-                          <option key={i} value={mp}>{mp}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Qty / الغرف</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={rm.qty}
-                        onChange={(e) => handleUpdateRoomRow(idx, { qty: Number(e.target.value) })}
-                        className="w-full px-2.5 py-1 border border-slate-200 rounded font-bold font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Pax / الأفراد</label>
-                      {rm.roomType.toLowerCase().includes('suite') ? (
-                        <select
-                          value={rm.pax || 2}
-                          onChange={(e) => handleUpdateRoomRow(idx, { pax: Number(e.target.value) })}
-                          className="w-full bg-white px-1 py-1 border border-slate-200 rounded text-[11px] font-mono font-bold text-center"
-                        >
-                          <option value={2}>2 Pax</option>
-                          <option value={3}>3 Pax</option>
-                          <option value={4}>4 Pax</option>
-                          <option value={5}>5 Pax</option>
-                          <option value={6}>6 Pax</option>
-                        </select>
-                      ) : (
-                        <span className="w-full bg-slate-100 font-mono text-[11px] font-bold block text-center py-1 border border-slate-200 rounded select-none">
-                          {rm.pax} Pax
-                        </span>
+                      {/* Expandable option rows */}
+                      {rm.hasWeekend && (
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-amber-200 bg-amber-50/30 py-2 mt-3 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Buy/Night (Thu-Fri)</label><input type="number" value={rm.weekendBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Sell/Night (Thu-Fri)</label><input type="number" value={rm.weekendSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+                      {rm.hasExtraBed && (
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-indigo-200 bg-indigo-50/30 py-2 mt-2 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Buy/Night</label><input type="number" value={rm.extraBedBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Sell/Night</label><input type="number" value={rm.extraBedSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+                      {rm.hasSeparateMealRate && (
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-rose-200 bg-rose-50/30 py-2 mt-2 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Buy/Pax/Night</label><input type="number" value={rm.mealRateBuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateBuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Sell/Pax/Night</label><input type="number" value={rm.mealRateSellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateSellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+                      {rm.hasViewSupplement && (
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-sky-200 bg-sky-50/30 py-2 mt-2 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">View Supp. Buy/Room/Night</label><input type="number" value={rm.viewSuppBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">View Supp. Sell/Room/Night</label><input type="number" value={rm.viewSuppSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+                      {rm.hasExtraMeal1 && (
+                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-orange-200 bg-orange-50/30 py-2 mt-2 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Meal Label</label><input type="text" value={rm.extraMeal1Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-slate-800 font-bold text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Buy/Pax/Night</label><input type="number" value={rm.extraMeal1BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Sell/Pax/Night</label><input type="number" value={rm.extraMeal1SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+                      {rm.hasExtraMeal2 && (
+                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-teal-200 bg-teal-50/30 py-2 mt-2 rounded-r">
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Meal Label</label><input type="text" value={rm.extraMeal2Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-slate-800 font-bold text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Buy/Pax/Night</label><input type="number" value={rm.extraMeal2BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Sell/Pax/Night</label><input type="number" value={rm.extraMeal2SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
                       )}
                     </div>
-
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Buy/Night (Cost)</label>
-                      <input
-                        type="number"
-                        value={rm.buyPriceNum || ''}
-                        onChange={(e) => handleUpdateRoomRow(idx, { buyPriceNum: Number(e.target.value) })}
-                        className="w-full px-2.5 py-1 border border-slate-200 rounded text-red-600 font-bold font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Sell/Night (Sales)</label>
-                      <input
-                        type="number"
-                        value={rm.sellPriceNum || ''}
-                        onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })}
-                        className="w-full px-2.5 py-1 border border-slate-200 rounded text-emerald-800 font-bold font-mono"
-                      />
-                    </div>
-                    
-                    <div className="col-span-2 lg:col-span-1 flex flex-col justify-center gap-2">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rm.hasWeekend || false}
-                          onChange={(e) => handleUpdateRoomRow(idx, { hasWeekend: e.target.checked })}
-                          className="rounded text-amber-600 focus:ring-amber-500 w-3 h-3"
-                        />
-                        <span className="text-[9px] font-bold text-slate-500 uppercase whitespace-nowrap">Weekend Rate</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rm.hasExtraBed || false}
-                          onChange={(e) => handleUpdateRoomRow(idx, { hasExtraBed: e.target.checked })}
-                          className="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3"
-                        />
-                        <span className="text-[9px] font-bold text-slate-500 uppercase whitespace-nowrap">Extra Bed</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={rm.hasSeparateMealRate || false}
-                          onChange={(e) => handleUpdateRoomRow(idx, { hasSeparateMealRate: e.target.checked })}
-                          className="rounded text-rose-600 focus:ring-rose-500 w-3 h-3"
-                        />
-                        <span className="text-[9px] font-bold text-slate-500 uppercase whitespace-nowrap">Separate Meal</span>
-                      </label>
-                    </div>
-
-                    {rm.hasWeekend && (
-                      <div className="col-span-2 lg:col-span-5 grid grid-cols-2 gap-3 pl-4 border-l-2 border-amber-200 bg-amber-50/30 py-2 mt-1 rounded-r">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Buy/Night (Thu-Fri)</label>
-                          <input
-                            type="number"
-                            value={rm.weekendBuyPriceNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { weekendBuyPriceNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-amber-200 bg-amber-50 rounded text-red-600 font-bold font-mono"
-                            placeholder="Cost on weekend"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Sell/Night (Thu-Fri)</label>
-                          <input
-                            type="number"
-                            value={rm.weekendSellPriceNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { weekendSellPriceNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-amber-200 bg-amber-50 rounded text-emerald-800 font-bold font-mono"
-                            placeholder="Sale on weekend"
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {rm.hasExtraBed && (
-                      <div className="col-span-2 lg:col-span-5 grid grid-cols-2 gap-3 pl-4 border-l-2 border-indigo-200 bg-indigo-50/30 py-2 mt-1 rounded-r">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Buy/Night</label>
-                          <input
-                            type="number"
-                            value={rm.extraBedBuyPriceNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { extraBedBuyPriceNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-indigo-200 bg-indigo-50 rounded text-red-600 font-bold font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Sell/Night</label>
-                          <input
-                            type="number"
-                            value={rm.extraBedSellPriceNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { extraBedSellPriceNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-indigo-200 bg-indigo-50 rounded text-emerald-800 font-bold font-mono"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {rm.hasSeparateMealRate && (
-                      <div className="col-span-2 lg:col-span-5 grid grid-cols-2 gap-3 pl-4 border-l-2 border-rose-200 bg-rose-50/30 py-2 mt-1 rounded-r">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Buy/Pax</label>
-                          <input
-                            type="number"
-                            value={rm.mealRateBuyNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { mealRateBuyNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-rose-200 bg-rose-50 rounded text-red-600 font-bold font-mono"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Sell/Pax</label>
-                          <input
-                            type="number"
-                            value={rm.mealRateSellNum || ''}
-                            onChange={(e) => handleUpdateRoomRow(idx, { mealRateSellNum: Number(e.target.value) })}
-                            className="w-full px-2.5 py-1 border border-rose-200 bg-rose-50 rounded text-emerald-800 font-bold font-mono"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end col-span-2 lg:col-span-1 items-end pb-1 pb-safe">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRoomRow(idx)}
-                        className="text-red-600 hover:bg-rose-50 p-1.5 rounded"
-                        title="Delete Room Line"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm mt-4">
-                <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-2 border-b border-slate-100 pb-2">Status & Options</h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            </div>
+          )}
+
+          {/* Section 3: Status-Specific Fields & References */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
+            <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+              <span className="text-amber-600">●</span> References & Status Details
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Option Dates - visible for Tentative */}
+              {status === 'Tentative' && (
+                <>
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Reservation Status</label>
-                    <select
-                      value={status}
-                      onChange={(e) => {
-                        const val = e.target.value as any;
-                        setStatus(val);
-                        if (val !== 'Cancelled') {
-                          setCancellationFee(0);
-                          setCancellationReason('');
-                        } else {
-                          setCancellationReason('Customer requested cancellation (طلب العميل)');
-                        }
-                        if (val === 'Confirmed') {
-                          setClientOptionDate('');
-                          setSupplierOptionDate('');
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:bg-white"
-                    >
-                      <option value="Tentative">Tentative (معلق)</option>
-                      <option value="Confirmed">Confirmed (مؤكد)</option>
-                      <option value="Cancelled">Cancelled (ملغي)</option>
-                    </select>
+                    <label className="text-[10px] uppercase font-bold text-rose-800 block mb-1 font-serif">⏰ Client Option Expire</label>
+                    <input type="date" value={clientOptionDate} onChange={(e) => setClientOptionDate(e.target.value)} className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-xs bg-rose-50/50 font-semibold text-rose-900 focus:bg-white" required />
                   </div>
-
-            {/* Option Date selection: disappears/hidden IF status is Confirmed */}
-            {status !== 'Confirmed' && (
-              <>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-rose-800 block mb-1 font-serif">Client Option Expire Date</label>
-                  <input
-                    type="date"
-                    value={clientOptionDate}
-                    onChange={(e) => setClientOptionDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-rose-200 rounded-xl text-xs bg-rose-50/50 font-semibold text-rose-900 focus:bg-white"
-                    required={status === 'Tentative'}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-red-800 block mb-1 font-serif">Supplier Option Expire Date</label>
-                  <input
-                    type="date"
-                    value={supplierOptionDate}
-                    onChange={(e) => setSupplierOptionDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-red-200 rounded-xl text-xs bg-red-50/50 font-semibold text-red-900 focus:bg-white"
-                    required={status === 'Tentative'}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Hotel Confirmation display ONLY if status is Confirmed */}
-            {status === 'Confirmed' && (
-              <>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-emerald-800 block mb-1">Hotel Confirmation #</label>
-                  <input
-                    type="text"
-                    value={hotelConfirmationNo}
-                    onChange={(e) => setHotelConfirmationNo(e.target.value)}
-                    placeholder="CONF-559021"
-                    className="w-full px-3 py-2 border border-emerald-200 rounded-xl text-sm font-bold focus:bg-white font-mono bg-emerald-50/30 text-emerald-900"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-indigo-800 block mb-1">Bank for Confirmation</label>
-                  <select
-                    value={bankAccountId}
-                    onChange={(e) => setBankAccountId(e.target.value)}
-                    className="w-full px-3 py-2 border border-indigo-200 bg-indigo-50/30 rounded-xl text-xs font-semibold focus:bg-white text-indigo-900"
-                  >
-                    <option value="">Default/No Bank</option>
-                    {accounts?.filter(a => a.type === 'Bank').map(acc => (
-                      <option key={acc.id} value={acc.id}>{acc.name} ({acc.currency || 'SAR'})</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
-            {status === 'Cancelled' && (
-              <>
-                <div>
-                  <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">Cancellation Penalty (SAR)</label>
-                  <input
-                    type="number"
-                    value={cancellationFee || ''}
-                    onChange={(e) => setCancellationFee(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-rose-200 bg-rose-50/30 rounded-xl text-sm font-mono font-bold text-rose-700"
-                  />
-                </div>
-
-                <div className="col-span-1 md:col-span-2 space-y-2">
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">Reason / سبب الإلغاء</label>
-                    <select
-                      value={cancellationReason.startsWith('Other') ? 'Other' : cancellationReason}
-                      onChange={(e) => {
-                        const sel = e.target.value;
-                        if (sel === 'Other') {
-                          setCancellationReason('Other: ');
-                        } else {
-                          setCancellationReason(sel);
-                        }
-                      }}
-                      className="w-full px-3 py-2 border border-rose-200 bg-rose-50/30 rounded-xl text-xs font-medium focus:bg-white"
-                    >
+                    <label className="text-[10px] uppercase font-bold text-red-800 block mb-1 font-serif">⏰ Supplier Option Expire</label>
+                    <input type="date" value={supplierOptionDate} onChange={(e) => setSupplierOptionDate(e.target.value)} className="w-full px-3 py-2.5 border border-red-200 rounded-xl text-xs bg-red-50/50 font-semibold text-red-900 focus:bg-white" required />
+                  </div>
+                </>
+              )}
+
+              {/* Confirmed fields */}
+              {status === 'Confirmed' && (
+                <>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-emerald-800 block mb-1">✅ Hotel Confirmation #</label>
+                    <input type="text" value={hotelConfirmationNo} onChange={(e) => setHotelConfirmationNo(e.target.value)} placeholder="CONF-559021" className="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm font-bold focus:bg-white font-mono bg-emerald-50/30 text-emerald-900" required />
+                  </div>
+                </>
+              )}
+
+              {/* Cancelled fields */}
+              {status === 'Cancelled' && (
+                <>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">💰 Cancellation Penalty (SAR)</label>
+                    <input type="number" value={cancellationFee || ''} onChange={(e) => setCancellationFee(Number(e.target.value))} className="w-full px-3 py-2.5 border border-rose-200 bg-rose-50/30 rounded-xl text-sm font-mono font-bold text-rose-700" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">📝 Reason / سبب الإلغاء</label>
+                    <select value={cancellationReason.startsWith('Other') ? 'Other' : cancellationReason} onChange={(e) => { const sel = e.target.value; if (sel === 'Other') { setCancellationReason('Other: '); } else { setCancellationReason(sel); } }} className="w-full px-3 py-2.5 border border-rose-200 bg-rose-50/30 rounded-xl text-xs font-medium focus:bg-white">
                       <option value="Customer requested cancellation (طلب العميل)">Customer requested cancellation</option>
                       <option value="Supplier unable to confirm allotment (المورد غير قادر على التأكيد)">Supplier unable to confirm</option>
-                      <option value="Expiry of Option Date without deposit (انتهاء مهلة الحجز)">Expiry of Option Date without deposit</option>
+                      <option value="Expiry of Option Date without deposit (انتهاء مهلة الحجز)">Expiry of Option Date</option>
                       <option value="Duplicate booking reservation (حجز مكرر)">Duplicate booking</option>
                       <option value="Pricing discrepancy / agreement dispute (خلاف في السعر)">Pricing discrepancy</option>
                       <option value="Other">Other reason (سبب آخر)</option>
                     </select>
+                    {cancellationReason.startsWith('Other') && (
+                      <input type="text" value={cancellationReason.replace('Other: ', '')} onChange={(e) => setCancellationReason('Other: ' + e.target.value)} placeholder="Describe exact reason..." className="w-full mt-2 px-3 py-2 border border-rose-200 bg-white rounded-xl text-xs font-semibold focus:border-rose-400" required />
+                    )}
                   </div>
+                </>
+              )}
 
-                  {cancellationReason.startsWith('Other') && (
-                    <div>
-                      <input
-                        type="text"
-                        value={cancellationReason.replace('Other: ', '')}
-                        onChange={(e) => setCancellationReason('Other: ' + e.target.value)}
-                        placeholder="Describe exact reason..."
-                        className="w-full px-3 py-2 border border-rose-200 bg-white rounded-xl text-xs font-semibold focus:border-rose-400"
-                        required
-                      />
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Agreement No</label>
-              <input
-                type="text"
-                value={agreementNo}
-                onChange={(e) => setAgreementNo(e.target.value)}
-                placeholder="Contract No"
-                className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white"
-              />
+              {/* Common reference fields */}
+              <div>
+                <label className="text-[10px] uppercase font-bold text-indigo-800 block mb-1">🏛️ Bank Account (Confirmation PDF)</label>
+                <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className="w-full px-3 py-2.5 border border-indigo-200 bg-indigo-50/30 rounded-xl text-xs font-semibold focus:bg-white text-indigo-900">
+                  <option value="">Default Bank Info</option>
+                  {accounts?.filter(a => a.type === 'Bank').map(acc => (<option key={acc.id} value={acc.id}>{acc.name} ({acc.currency || 'SAR'})</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📋 Agreement No</label>
+                <input type="text" value={agreementNo} onChange={(e) => setAgreementNo(e.target.value)} placeholder="Contract No" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">🧾 Supplier Voucher</label>
+                <input type="text" value={supplierVoucher} onChange={(e) => setSupplierVoucher(e.target.value)} placeholder="Supplier Ref" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">💳 Client Downpay (SAR)</label>
+                <input type="number" value={amountPaidByClient || ''} onChange={(e) => setAmountPaidByClient(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">💸 Supplier Downpay (SAR)</label>
+                <input type="number" value={amountPaidToSupplier || ''} onChange={(e) => setAmountPaidToSupplier(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
             </div>
+          </div>
 
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier V.No</label>
-              <input
-                type="text"
-                value={supplierVoucher}
-                onChange={(e) => setSupplierVoucher(e.target.value)}
-                placeholder="Supplier Ref"
-                className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white"
-              />
+          {/* Section 4: Financial Summary */}
+          {selectedHotelObj && checkIn && checkOut && (
+            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm">
+              <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+                <span className="text-amber-600">●</span> Financial Summary
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+                {(() => {
+                  const totalBuy = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'buy'), 0);
+                  const totalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
+                  const totalPax = rooms.reduce((acc, rm) => acc + (rm.qty * rm.pax), 0);
+                  const totalRooms = rooms.reduce((acc, rm) => acc + rm.qty, 0);
+                  const profit = totalSell - totalBuy;
+                  const clientOutstanding = totalSell - amountPaidByClient;
+                  return (
+                    <>
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Cost</div>
+                        <div className="text-sm font-extrabold font-mono text-red-600">{totalBuy.toLocaleString()} SAR</div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Sell</div>
+                        <div className="text-sm font-extrabold font-mono text-emerald-700">{totalSell.toLocaleString()} SAR</div>
+                      </div>
+                      <div className={`rounded-xl p-3 border ${profit >= 0 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'}`}>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Profit</div>
+                        <div className={`text-sm font-extrabold font-mono ${profit >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Rooms / Pax</div>
+                        <div className="text-sm font-extrabold font-mono text-slate-800">{totalRooms} / {totalPax}</div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Client Paid</div>
+                        <div className="text-sm font-extrabold font-mono text-indigo-700">{amountPaidByClient.toLocaleString()} SAR</div>
+                        {clientOutstanding > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {clientOutstanding.toLocaleString()}</div>}
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Supplier Paid</div>
+                        <div className="text-sm font-extrabold font-mono text-indigo-700">{amountPaidToSupplier.toLocaleString()} SAR</div>
+                        {(totalBuy - amountPaidToSupplier) > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalBuy - amountPaidToSupplier).toLocaleString()}</div>}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
+          )}
 
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Client Downpay (SAR)</label>
-              <input
-                type="number"
-                value={amountPaidByClient || ''}
-                onChange={(e) => setAmountPaidByClient(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white"
-              />
-            </div>
 
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier Downpay (SAR)</label>
-              <input
-                type="number"
-                value={amountPaidToSupplier || ''}
-                onChange={(e) => setAmountPaidToSupplier(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white"
-              />
-            </div>
-
-            </div>
-
-            </div>
-          </div> {/* Close Status & Options box */}
-
-          </div> {/* Close Right Column lg:col-span-8 space-y-4 */}
-          </div> {/* Close grid grid-cols-1 lg:grid-cols-12 gap-6 */}
 
           <div className="flex gap-2.5 pt-4 border-t border-slate-100">
             <button
@@ -1456,6 +1366,36 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           🔍 Details & Pay
                         </button>
                         <button
+                          onClick={() => {
+                            const outstanding = totalSell - (res.amountPaidByClient || 0);
+                            if (outstanding <= 0) { alert('Client has fully paid this booking.'); return; }
+                            if (confirm(`Quick-record full client payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`)) {
+                              setViewingId(res.id.toString());
+                              setActiveDetailTab('payment');
+                              setPayAmount(outstanding);
+                            }
+                          }}
+                          className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-1.5 py-1 rounded border border-emerald-200 text-[9px] whitespace-nowrap"
+                          title="Quick record client payment"
+                        >
+                          💰 Client Pay
+                        </button>
+                        <button
+                          onClick={() => {
+                            const outstanding = totalBuy - (res.amountPaidToSupplier || 0);
+                            if (outstanding <= 0) { alert('Supplier has been fully paid.'); return; }
+                            if (confirm(`Quick-record full supplier payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`)) {
+                              setViewingId(res.id.toString());
+                              setActiveDetailTab('payment');
+                              setPayAmount(outstanding);
+                            }
+                          }}
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-1.5 py-1 rounded border border-blue-200 text-[9px] whitespace-nowrap"
+                          title="Quick record supplier payment"
+                        >
+                          🏦 Supplier Pay
+                        </button>
+                        <button
                           onClick={() => setPrintingDoc({ res: res, isVoucher: false })}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] whitespace-nowrap hidden lg:block"
                           title="Print Client Confirmation PDF"
@@ -1500,7 +1440,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
         </div>
       )}
 
-      {/* Detailed Reservation overlay card */}
+      {/* Detailed Reservation overlay card - Redesigned with tabs */}
       {viewingId && (() => {
         const resObj = reservations.find(r => r.id.toString() === viewingId);
         if (!resObj) return null;
@@ -1508,440 +1448,531 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
         const { totalSell, totalBuy } = getReservationTotals(resObj);
         const nightsLocal = resObj.nights;
         const profit = totalSell - totalBuy;
+        const clientPaid = resObj.amountPaidByClient || 0;
+        const supplierPaid = resObj.amountPaidToSupplier || 0;
+        const clientRemaining = Math.max(totalSell - clientPaid, 0);
+        const supplierRemaining = Math.max(totalBuy - supplierPaid, 0);
+        const clientPct = totalSell > 0 ? Math.min(Math.round((clientPaid / totalSell) * 100), 100) : 0;
+        const supplierPct = totalBuy > 0 ? Math.min(Math.round((supplierPaid / totalBuy) * 100), 100) : 0;
+        const relatedTrs = transactions.filter(t => t.reservationId === resObj.id.toString());
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 my-10 text-xs">
-              
-              <div className="border-b border-slate-100 pb-3 flex justify-between items-center mb-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden">
+
+              {/* Header Bar */}
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center">
                 <div>
-                  <h3 className="font-bold text-slate-850 text-sm uppercase">Booking Details Ledger & Payments (RSV-{resObj.id})</h3>
-                  <p className="text-[10px] text-zinc-400 font-mono">Created by: <span className="font-bold text-amber-700">{resObj.createdBy || 'Hazem'}</span></p>
+                  <h3 className="font-extrabold text-base flex items-center gap-2">
+                    <span className="bg-amber-400 text-slate-900 px-2 py-0.5 rounded-lg text-[10px] font-black">RSV-{resObj.id}</span>
+                    {resObj.guestName}
+                  </h3>
+                  <p className="text-[10px] text-slate-300 font-mono mt-0.5">
+                    {hotelObj?.name} &bull; {resObj.checkIn} → {resObj.checkOut} ({nightsLocal}N) &bull; By <span className="text-amber-400 font-bold">{resObj.createdBy || 'Hazem'}</span>
+                  </p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] uppercase shadow-sm">✏️ Edit Booking</button>
-                  <button onClick={() => setViewingId(null)} className="text-slate-450 hover:text-slate-600 font-bold transition">✕ Close</button>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase border ${
+                    resObj.status === 'Confirmed' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' :
+                    resObj.status === 'Cancelled' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                    'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  }`}>{resObj.status}</span>
+                  <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-white/10 hover:bg-white/20 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition">✏️ Edit</button>
+                  <button onClick={() => setViewingId(null)} className="text-slate-400 hover:text-white text-lg transition">✕</button>
                 </div>
               </div>
 
-              {/* Two Column details specs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 border-b border-slate-100">
-                <div className="space-y-2.5 text-xs">
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Lead Guest:</span> <span className="font-bold text-slate-900 uppercase text-sm">{resObj.guestName}</span></p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Nationality:</span> {resObj.guestNationality}</p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Stay Period:</span> <span className="font-semibold text-indigo-950 font-serif">{resObj.checkIn}</span> to <span className="font-semibold text-indigo-950 font-serif">{resObj.checkOut}</span> ({nightsLocal} nights)</p>
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block mb-1">Status:</span>
-                    <div className="flex items-center gap-2">
-                      <select 
-                        value={resObj.status}
-                        onChange={(e) => onSaveReservation({...resObj, status: e.target.value as any})}
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold outline-none cursor-pointer border ${
-                          resObj.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-850 border-emerald-100' :
-                          resObj.status === 'Cancelled' ? 'bg-rose-50 text-rose-850 border-rose-100' :
-                          'bg-amber-50 text-amber-850 border-amber-100'
+              {/* Tab Navigation */}
+              <div className="flex border-b border-slate-200 bg-slate-50/50 px-4">
+                {([
+                  { key: 'overview' as const, label: 'Overview', icon: '📋' },
+                  { key: 'payment' as const, label: 'Record Payment', icon: '💳' },
+                  { key: 'agreements' as const, label: 'Agreements & Rooms', icon: '⚙️' },
+                  { key: 'documents' as const, label: 'Documents', icon: '📄' },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveDetailTab(tab.key)}
+                    className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all ${
+                      activeDetailTab === tab.key
+                        ? 'border-amber-500 text-amber-700 bg-white'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
+                    }`}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="p-6 max-h-[70vh] overflow-y-auto">
+
+                {/* ===== OVERVIEW TAB ===== */}
+                {activeDetailTab === 'overview' && (
+                  <div className="space-y-5">
+                    {/* Guest & Booking Info Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">Guest Information</h5>
+                        <div className="grid grid-cols-2 gap-y-1.5">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Lead Guest</span>
+                          <span className="font-bold text-slate-900 text-sm uppercase">{resObj.guestName}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Nationality</span>
+                          <span className="font-semibold text-slate-700">{resObj.guestNationality}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Stay Period</span>
+                          <span className="font-mono text-slate-700 text-[10px]">{resObj.checkIn} → {resObj.checkOut}</span>
+                        </div>
+                        {resObj.status === 'Tentative' && (
+                          <div className="mt-2 bg-rose-50 rounded-lg p-2.5 border border-rose-200 space-y-1">
+                            <div className="text-[9px] uppercase font-bold text-rose-400 mb-1">Option Deadlines</div>
+                            <div className="flex justify-between text-[10px] font-mono">
+                              <span className="text-rose-700">Client: {resObj.clientOptionDate || 'Not Set'}</span>
+                              <span className="text-rose-700">Supplier: {resObj.supplierOptionDate || 'Not Set'}</span>
+                            </div>
+                          </div>
+                        )}
+                        {resObj.status === 'Confirmed' && (
+                          <div className="mt-2 bg-emerald-50 rounded-lg p-2.5 border border-emerald-200">
+                            <div className="text-[9px] uppercase font-bold text-emerald-400">Hotel Confirmation #</div>
+                            <div className="font-mono font-bold text-emerald-800 text-sm">{resObj.hotelConfirmationNo || 'Pending'}</div>
+                          </div>
+                        )}
+                        {resObj.status === 'Cancelled' && (
+                          <div className="mt-2 bg-rose-50 rounded-lg p-2.5 border border-rose-200">
+                            <div className="text-[9px] uppercase font-bold text-rose-400">Cancellation</div>
+                            <div className="text-[10px] text-rose-700">{resObj.cancellationReason || 'N/A'}</div>
+                            {resObj.cancellationFee ? <div className="text-[10px] font-bold text-rose-800 mt-1">Penalty: {resObj.cancellationFee.toLocaleString()} SAR</div> : null}
+                          </div>
+                        )}
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">Booking Details</h5>
+                        <div className="grid grid-cols-2 gap-y-1.5">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Client</span>
+                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.clientId)?.companyName || 'N/A'}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Supplier</span>
+                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.supplierId)?.name || 'Direct'}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Hotel</span>
+                          <span className="font-semibold text-slate-800">{hotelObj?.name}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Agreement</span>
+                          <span className="font-mono text-slate-700">{resObj.agreementNo || 'Direct'}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Agreement Status</span>
+                          <span className="font-bold uppercase font-mono text-indigo-700">{resObj.agreementStatus || 'Pending'}</span>
+                        </div>
+                        <div className="mt-2 bg-indigo-50 rounded-lg p-2.5 border border-indigo-200">
+                          <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">Rooms</div>
+                          {resObj.rooms.map((rm, i) => (
+                            <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty}× {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
+                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-3">Financial Summary</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center mb-4">
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Sale</span>
+                          <span className="font-mono font-extrabold text-emerald-700 text-sm">{totalSell.toLocaleString()}</span>
+                          <span className="text-[8px] text-slate-400 block">SAR</span>
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Supplier Cost</span>
+                          <span className="font-mono font-extrabold text-amber-800 text-sm">{totalBuy.toLocaleString()}</span>
+                          <span className="text-[8px] text-slate-400 block">SAR</span>
+                        </div>
+                        <div className={`rounded-lg p-2.5 border ${profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Profit</span>
+                          <span className={`font-mono font-extrabold text-sm ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()}</span>
+                          <span className="text-[8px] text-slate-400 block">SAR</span>
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Client Due</span>
+                          <span className={`font-mono font-extrabold text-sm ${clientRemaining > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{clientRemaining.toLocaleString()}</span>
+                          <span className="text-[8px] text-slate-400 block">SAR</span>
+                        </div>
+                        <div className="bg-white rounded-lg p-2.5 border border-slate-200">
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Supplier Due</span>
+                          <span className={`font-mono font-extrabold text-sm ${supplierRemaining > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{supplierRemaining.toLocaleString()}</span>
+                          <span className="text-[8px] text-slate-400 block">SAR</span>
+                        </div>
+                      </div>
+
+                      {/* Payment Progress Bars */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-white rounded-lg p-3 border border-slate-200">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] font-bold text-slate-600">Client Payment</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${clientPct >= 100 ? 'bg-emerald-100 text-emerald-800' : clientPct > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'}`}>
+                              {clientPct >= 100 ? 'Paid' : clientPct > 0 ? 'Partial' : 'Unpaid'} {clientPct}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-1">
+                            <div className={`h-full rounded-full transition-all ${clientPct >= 100 ? 'bg-emerald-500' : clientPct > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${clientPct}%` }}></div>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-emerald-700 font-bold">{clientPaid.toLocaleString()} SAR</span>
+                            <span className="text-slate-400">of {totalSell.toLocaleString()} SAR</span>
+                          </div>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-slate-200">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] font-bold text-slate-600">Supplier Payment</span>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${supplierPct >= 100 ? 'bg-emerald-100 text-emerald-800' : supplierPct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-700'}`}>
+                              {supplierPct >= 100 ? 'Paid' : supplierPct > 0 ? 'Partial' : 'Unpaid'} {supplierPct}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-1">
+                            <div className={`h-full rounded-full transition-all ${supplierPct >= 100 ? 'bg-emerald-500' : supplierPct > 0 ? 'bg-blue-400' : 'bg-slate-200'}`} style={{ width: `${supplierPct}%` }}></div>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-indigo-700 font-bold">{supplierPaid.toLocaleString()} SAR</span>
+                            <span className="text-slate-400">of {totalBuy.toLocaleString()} SAR</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment History */}
+                    {relatedTrs.length > 0 && (
+                      <div className="bg-white rounded-xl p-4 border border-slate-200">
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">Payment History ({relatedTrs.length} transactions)</h5>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {relatedTrs.map(tr => (
+                            <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-3 py-1.5 rounded-lg">
+                              <span className="font-mono text-slate-500 w-20">{tr.date}</span>
+                              <span className={`font-bold px-2 py-0.5 rounded-full text-[9px] ${tr.type === 'ClientPayment' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                {tr.type === 'ClientPayment' ? 'Client' : 'Supplier'}
+                              </span>
+                              <span className={`font-bold font-mono ${tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-indigo-700'}`}>
+                                +{tr.amount.toLocaleString()} SAR
+                              </span>
+                              <span className="text-slate-400 font-mono w-24 text-right">{tr.voucherNo}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ===== PAYMENT TAB ===== */}
+                {activeDetailTab === 'payment' && (
+                  <div className="space-y-5">
+                    {/* Quick Pay Presets */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayAmount(clientRemaining);
+                          setPayAccountId('');
+                          setPayVoucher(`REC-${Date.now().toString().slice(-5)}`);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          clientRemaining > 0 ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
                         }`}
                       >
-                        <option value="Tentative">Tentative</option>
-                        <option value="Confirmed">Confirmed</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                      {resObj.status === 'Cancelled' && <span className="text-[9px] text-rose-600 font-bold">(Reason: {resObj.cancellationReason || 'N/A'})</span>}
-                    </div>
-                  </div>
-                  {resObj.status === 'Tentative' && (
-                    <div className="space-y-1 bg-rose-50/30 p-2 rounded border border-rose-100">
-                      <p className="text-rose-900 font-medium font-mono"><span className="font-bold uppercase text-[9px] block text-rose-450">Client Option Expire:</span> 📅 {resObj.clientOptionDate || 'Not Configured'}</p>
-                      <p className="text-red-900 font-medium font-mono"><span className="font-bold uppercase text-[9px] block text-red-400">Supplier Option Expire:</span> 📅 {resObj.supplierOptionDate || 'Not Configured'}</p>
-                    </div>
-                  )}
-                  {resObj.status === 'Confirmed' && (
-                    <p className="font-mono bg-emerald-50/40 p-2 rounded border border-emerald-100"><span className="font-bold text-emerald-800 uppercase text-[9px] block">Hotel Confirmation #:</span> {resObj.hotelConfirmationNo || 'Pending Allocation'}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2.5 text-xs">
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Tour Operator Client:</span> <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.clientId)?.companyName || 'N/A'}</span></p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Voucher Supplier Sponsor:</span> <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.supplierId)?.name || 'Direct Hotel'}</span></p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Hotel:</span> {hotelObj?.name}</p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Agreement Contract Code:</span> {resObj.agreementNo || 'Direct Standard'}</p>
-                  <p><span className="font-bold text-slate-400 uppercase text-[9px] block">Agreement Status:</span> <span className="font-bold uppercase font-mono text-indigo-750">{resObj.agreementStatus || 'Pending'}</span></p>
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block mb-1">Rooms Demanded:</span>
-                    <ul className="text-[10px] list-disc pl-4 text-indigo-900 font-medium">
-                      {resObj.rooms.map((rm, i) => (
-                        <li key={i}>{rm.qty}x {rm.roomType} ({rm.view} / {rm.mealPlan})</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              {/* Financial Balance sheet with payment status */}
-              <div className="bg-slate-50/80 rounded-xl p-4 mt-4 border border-slate-150 text-xs">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-3">
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Total Sale</span>
-                    <span className="font-mono font-bold text-emerald-800 text-sm">{totalSell.toLocaleString()} SAR</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Supplier Cost</span>
-                    <span className="font-mono font-bold text-amber-900 text-sm">{totalBuy.toLocaleString()} SAR</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Net Profit</span>
-                    <span className={`font-mono font-bold text-sm ${profit >= 0 ? 'text-indigo-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-400 uppercase text-[9px] block">Status</span>
-                    <span className={`font-mono font-bold text-sm ${resObj.status === 'Confirmed' ? 'text-emerald-700' : resObj.status === 'Cancelled' ? 'text-rose-600' : 'text-amber-600'}`}>{resObj.status}</span>
-                  </div>
-                </div>
-                {/* Client & Supplier Payment Progress Bars */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="bg-white rounded-lg p-3 border border-slate-150">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] font-bold text-slate-600 uppercase">Client Payment</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        (resObj.amountPaidByClient || 0) >= totalSell ? 'bg-emerald-100 text-emerald-800' :
-                        (resObj.amountPaidByClient || 0) > 0 ? 'bg-amber-100 text-amber-800' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
-                        {(resObj.amountPaidByClient || 0) >= totalSell ? 'Fully Paid' :
-                         (resObj.amountPaidByClient || 0) > 0 ? 'Partially Paid' : 'Unpaid'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-1">
-                      <div className={`h-full rounded-full ${(resObj.amountPaidByClient || 0) >= totalSell ? 'bg-emerald-500' : (resObj.amountPaidByClient || 0) > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${totalSell > 0 ? Math.min(((resObj.amountPaidByClient || 0) / totalSell) * 100, 100) : 0}%` }}></div>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono">
-                      <span className="text-emerald-700 font-bold">{((resObj.amountPaidByClient || 0)).toLocaleString()} SAR</span>
-                      <span className="text-slate-400">of {totalSell.toLocaleString()}</span>
-                    </div>
-                    {totalSell - (resObj.amountPaidByClient || 0) > 0 && <div className="text-[9px] text-rose-500 font-bold mt-0.5">Remaining: {(totalSell - (resObj.amountPaidByClient || 0)).toLocaleString()} SAR</div>}
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-slate-150">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] font-bold text-slate-600 uppercase">Supplier Payment</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        (resObj.amountPaidToSupplier || 0) >= totalBuy ? 'bg-emerald-100 text-emerald-800' :
-                        (resObj.amountPaidToSupplier || 0) > 0 ? 'bg-blue-100 text-blue-800' :
-                        'bg-rose-100 text-rose-700'
-                      }`}>
-                        {(resObj.amountPaidToSupplier || 0) >= totalBuy ? 'Fully Paid' :
-                         (resObj.amountPaidToSupplier || 0) > 0 ? 'Partially Paid' : 'Unpaid'}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-1">
-                      <div className={`h-full rounded-full ${(resObj.amountPaidToSupplier || 0) >= totalBuy ? 'bg-emerald-500' : (resObj.amountPaidToSupplier || 0) > 0 ? 'bg-blue-400' : 'bg-slate-200'}`} style={{ width: `${totalBuy > 0 ? Math.min(((resObj.amountPaidToSupplier || 0) / totalBuy) * 100, 100) : 0}%` }}></div>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono">
-                      <span className="text-indigo-700 font-bold">{((resObj.amountPaidToSupplier || 0)).toLocaleString()} SAR</span>
-                      <span className="text-slate-400">of {totalBuy.toLocaleString()}</span>
-                    </div>
-                    {totalBuy - (resObj.amountPaidToSupplier || 0) > 0 && <div className="text-[9px] text-rose-500 font-bold mt-0.5">Remaining: {(totalBuy - (resObj.amountPaidToSupplier || 0)).toLocaleString()} SAR</div>}
-                  </div>
-                </div>
-                {/* Related transactions for this booking */}
-                {(() => {
-                  const relatedTrs = transactions.filter(t => t.reservationId === resObj.id.toString());
-                  if (relatedTrs.length === 0) return null;
-                  return (
-                    <div className="mt-3 border-t border-slate-150 pt-2">
-                      <h5 className="text-[9px] font-bold text-slate-500 uppercase mb-1">Payment History ({relatedTrs.length} transactions)</h5>
-                      <div className="max-h-24 overflow-y-auto space-y-1">
-                        {relatedTrs.map(tr => (
-                          <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-2 py-1 rounded">
-                            <span className="font-mono text-slate-500">{tr.date}</span>
-                            <span className={`font-bold ${tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-indigo-700'}`}>
-                              {tr.type === 'ClientPayment' ? 'Client' : 'Supplier'}: +{tr.amount.toLocaleString()} SAR
-                            </span>
-                            <span className="text-slate-400 font-mono">{tr.voucherNo}</span>
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="text-[9px] font-bold uppercase text-emerald-600">Receive from Client</div>
+                            <div className="font-mono font-extrabold text-emerald-800 text-lg">{clientRemaining.toLocaleString()} SAR</div>
+                            <div className="text-[9px] text-slate-500">Outstanding balance from {agents.find(a => a.id === resObj.clientId)?.companyName || 'client'}</div>
                           </div>
-                        ))}
+                          <div className="text-3xl">📥</div>
+                        </div>
+                        <div className="mt-2 w-full bg-emerald-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${clientPct}%` }}></div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPayAmount(supplierRemaining);
+                          setPayAccountId('');
+                          setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
+                        }}
+                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                          supplierRemaining > 0 ? 'border-blue-200 bg-blue-50 hover:border-blue-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="text-[9px] font-bold uppercase text-blue-600">Pay Supplier</div>
+                            <div className="font-mono font-extrabold text-blue-800 text-lg">{supplierRemaining.toLocaleString()} SAR</div>
+                            <div className="text-[9px] text-slate-500">Outstanding to {agents.find(a => a.id === resObj.supplierId)?.name || 'supplier'}</div>
+                          </div>
+                          <div className="text-3xl">📤</div>
+                        </div>
+                        <div className="mt-2 w-full bg-blue-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${supplierPct}%` }}></div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Payment Form */}
+                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+                      <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
+                        <span className="text-amber-500">●</span> Payment Details
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Amount Section */}
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Payment Amount (SAR)</label>
+                            <input
+                              type="number"
+                              value={payAmount || ''}
+                              onChange={(e) => setPayAmount(Number(e.target.value))}
+                              className="w-full bg-slate-50 border border-slate-200 px-4 rounded-xl py-2.5 text-lg font-mono font-extrabold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-none focus:border-amber-500"
+                              placeholder="0.00"
+                              required
+                            />
+                          </div>
+
+                          {/* Currency Toggle */}
+                          <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+                            <button type="button" onClick={() => setPayCurrency('SAR')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payCurrency === 'SAR' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SAR</button>
+                            <button type="button" onClick={() => setPayCurrency('EGP')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payCurrency === 'EGP' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>EGP</button>
+                          </div>
+
+                          {payCurrency === 'EGP' && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">EGP Amount</label>
+                                <input type="number" value={payOriginalAmount || ''} onChange={(e) => setPayOriginalAmount(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-bold" required />
+                              </div>
+                              <div>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Exchange Rate</label>
+                                <input type="number" value={payExchangeRate || ''} step="0.01" onChange={(e) => setPayExchangeRate(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-bold" required />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Method & Account Section */}
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Payment Method</label>
+                            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+                              <button type="button" onClick={() => setPayMethod('Bank Transfer')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Bank Transfer' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>🏦 Bank Transfer</button>
+                              <button type="button" onClick={() => setPayMethod('Cash')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Cash' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>💵 Cash</button>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Treasury / Bank Account</label>
+                            <select value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500" required>
+                              <option value="">-- Select Account --</option>
+                              {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toLocaleString()} SAR)</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Voucher / Reference</label>
+                            <input type="text" value={payVoucher} onChange={(e) => setPayVoucher(e.target.value)} placeholder="REC-5509" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-semibold" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => handlePostBookingPayment(true)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
+                        >
+                          📥 Post Client Payment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePostBookingPayment(false)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
+                        >
+                          📤 Post Supplier Payment
+                        </button>
                       </div>
                     </div>
-                  );
-                })()}
-              </div>
 
-              {/* TWO PANEL ADD-ON: Editable metadata and interactive payments */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                
-                {/* Panel 1: Editable Confirmation Keys & Agreement Status */}
-                <div className="bg-slate-100/50 p-4 border border-slate-200 rounded-xl space-y-3">
-                  <h4 className="font-bold text-slate-800 text-xs uppercase flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
-                    ⚙️ Edit Confirmation Details & Agreements
-                  </h4>
+                    {/* Recent Payment Transactions */}
+                    {relatedTrs.length > 0 && (
+                      <div className="bg-white rounded-xl p-4 border border-slate-200">
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">Recent Transactions</h5>
+                        <div className="space-y-1">
+                          {relatedTrs.slice().reverse().map(tr => (
+                            <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
+                              <span className="font-mono text-slate-500 w-20">{tr.date}</span>
+                              <span className={`font-bold px-2 py-0.5 rounded-full text-[9px] ${tr.type === 'ClientPayment' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                {tr.type === 'ClientPayment' ? '📥 Client' : '📤 Supplier'}
+                              </span>
+                              <span className={`font-bold font-mono ${tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-indigo-700'}`}>
+                                +{tr.amount.toLocaleString()} SAR
+                              </span>
+                              <span className="text-slate-400 font-mono w-24 text-right">{tr.voucherNo}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                  <div className="space-y-2.5">
-                    <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Conf Number</label>
-                      <input
-                        type="text"
-                        value={localHotelConf}
-                        onChange={(e) => setLocalHotelConf(e.target.value)}
-                        placeholder="e.g. CONF-99201"
-                        className="w-full bg-white border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-semibold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Agreement / Contract ID</label>
-                      <input
-                        type="text"
-                        value={localAgreementNo}
-                        onChange={(e) => setLocalAgreementNo(e.target.value)}
-                        placeholder="e.g. CONTRACT-ZM502"
-                        className="w-full bg-white border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-semibold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Agreement Status</label>
-                      <div className="grid grid-cols-3 gap-1">
-                        {(['Approved', 'Pending', 'Declined'] as const).map((statusVal) => (
-                          <button
-                            key={statusVal}
-                            type="button"
-                            onClick={() => setLocalAgreementStatus(statusVal)}
-                            className={`px-2 py-1 text-[10px] font-bold rounded-md border transition-all ${
-                              localAgreementStatus === statusVal
-                                ? statusVal === 'Approved' ? 'bg-emerald-600 border-emerald-600 text-white' :
-                                  statusVal === 'Declined' ? 'bg-rose-600 border-rose-600 text-white' :
-                                  'bg-amber-500 border-amber-500 text-white'
-                                : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200'
-                            }`}
-                          >
-                            {statusVal}
-                          </button>
-                        ))}
+                {/* ===== AGREEMENTS & ROOMS TAB ===== */}
+                {activeDetailTab === 'agreements' && (
+                  <div className="space-y-5">
+                    {/* Confirmation Details */}
+                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+                      <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
+                        <span className="text-amber-500">●</span> Confirmation & Agreement Details
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Hotel Confirmation Number</label>
+                          <input type="text" value={localHotelConf} onChange={(e) => setLocalHotelConf(e.target.value)} placeholder="e.g. CONF-99201" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-mono font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Agreement / Contract ID</label>
+                          <input type="text" value={localAgreementNo} onChange={(e) => setLocalAgreementNo(e.target.value)} placeholder="e.g. CONTRACT-ZM502" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-mono font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-2">Agreement Status</label>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {(['Approved', 'Pending', 'Declined'] as const).map((statusVal) => (
+                              <button
+                                key={statusVal}
+                                type="button"
+                                onClick={() => setLocalAgreementStatus(statusVal)}
+                                className={`py-2.5 px-3 text-[10px] font-bold rounded-xl border-2 transition-all text-center ${
+                                  localAgreementStatus === statusVal
+                                    ? statusVal === 'Approved' ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' :
+                                      statusVal === 'Declined' ? 'bg-rose-600 border-rose-600 text-white shadow-md' :
+                                      'bg-amber-500 border-amber-500 text-white shadow-md'
+                                    : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
+                                }`}
+                              >
+                                {statusVal === 'Approved' ? '✅' : statusVal === 'Declined' ? '❌' : '⏳'} {statusVal}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div>
-                      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Rooming List / Guest Names</label>
-                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+
+                    {/* Rooming List */}
+                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+                      <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
+                        <span className="text-amber-500">●</span> Rooming List / Guest Names
+                      </h5>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
                         {localRoomDetails.map((rm, idx) => (
-                          <div key={idx} className="flex gap-2">
-                            <div className="flex bg-slate-100 rounded-lg px-2 items-center justify-center font-bold text-slate-400 text-xs w-8">
+                          <div key={idx} className="flex gap-2 items-center">
+                            <div className="flex bg-slate-100 rounded-lg px-2.5 items-center justify-center font-bold text-slate-400 text-xs w-8 h-8 shrink-0">
                               {idx + 1}
                             </div>
                             <input
                               type="text"
                               value={rm.name}
-                              onChange={(e) => {
-                                const newDetails = [...localRoomDetails];
-                                newDetails[idx].name = e.target.value;
-                                setLocalRoomDetails(newDetails);
-                              }}
+                              onChange={(e) => { const d = [...localRoomDetails]; d[idx].name = e.target.value; setLocalRoomDetails(d); }}
                               placeholder="Guest Name"
-                              className="flex-1 bg-white border border-slate-200 px-2 rounded-lg py-1.5 text-xs focus:outline-none focus:border-amber-400 font-semibold text-slate-800"
+                              className="flex-1 bg-slate-50 border border-slate-200 px-3 rounded-lg py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                             />
                             <input
                               type="text"
                               value={rm.confNo}
-                              onChange={(e) => {
-                                const newDetails = [...localRoomDetails];
-                                newDetails[idx].confNo = e.target.value;
-                                setLocalRoomDetails(newDetails);
-                              }}
+                              onChange={(e) => { const d = [...localRoomDetails]; d[idx].confNo = e.target.value; setLocalRoomDetails(d); }}
                               placeholder="Conf #"
-                              className="w-24 bg-white border border-slate-200 px-2 rounded-lg py-1.5 text-xs focus:outline-none focus:border-amber-400 font-mono text-slate-800"
+                              className="w-28 bg-slate-50 border border-slate-200 px-3 rounded-lg py-2 text-xs font-mono text-slate-800 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                             />
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        type="button"
-                        onClick={handleUpdateConfirmationSpecs}
-                        className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-xl transition text-[10px] uppercase tracking-wider shadow-sm cursor-pointer"
-                      >
-                        💾 Update Booking references
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <button type="button" onClick={handleUpdateConfirmationSpecs} className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-[10px] uppercase tracking-wider shadow-md flex items-center justify-center gap-2">
+                        💾 Save Confirmation Details
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const resObjToPrint = reservations.find(r => r.id.toString() === viewingId);
-                          if (resObjToPrint) setPrintingRoomingList(resObjToPrint);
-                        }}
-                        className="flex-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold py-2 rounded-xl transition text-[10px] uppercase tracking-wider shadow-sm cursor-pointer whitespace-nowrap"
+                        onClick={() => { const r = reservations.find(r => r.id.toString() === viewingId); if (r) setPrintingRoomingList(r); }}
+                        className="flex-1 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl transition text-[10px] uppercase tracking-wider flex items-center justify-center gap-2"
                       >
                         🖨️ Print Rooming List
                       </button>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* Panel 2: Ledger Transaction direct automation workspace */}
-                <div className="bg-amber-50/15 p-4 border border-amber-200 rounded-xl space-y-3">
-                  <h4 className="font-bold text-amber-900 text-xs uppercase flex items-center gap-1.5 border-b border-amber-200 pb-1.5">
-                    💳 Record Booking Payments to Transactions
-                  </h4>
-
-                  {/* Toggle payment destination type */}
-                  <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px]">
-                    <button
-                      type="button"
-                      id="opt-client-pay-trigger"
-                      onClick={() => {
-                        const outstanding = totalSell - (resObj.amountPaidByClient || 0);
-                        setPayAmount(outstanding > 0 ? outstanding : 0);
-                      }}
-                      className="bg-white py-1 font-bold rounded text-slate-800 border shadow-sm border-slate-200 text-center"
-                    >
-                      Client Received Info
-                    </button>
-                    <button
-                      type="button"
-                      id="opt-supp-pay-trigger"
-                      onClick={() => {
-                        const outstandingSupp = totalBuy - (resObj.amountPaidToSupplier || 0);
-                        setPayAmount(outstandingSupp > 0 ? outstandingSupp : 0);
-                      }}
-                      className="bg-white py-1 font-bold rounded text-slate-800 border shadow-sm border-slate-200 text-center"
-                    >
-                      What I Paid Supplier
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="col-span-2 flex gap-2">
-                      <div className="w-1/3">
-                        <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Currency</label>
-                        <select
-                          value={payCurrency}
-                          onChange={(e) => setPayCurrency(e.target.value as any)}
-                          className="w-full bg-white border border-slate-200 px-2 rounded-lg py-1 text-xs font-semibold focus:outline-none"
+                {/* ===== DOCUMENTS TAB ===== */}
+                {activeDetailTab === 'documents' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200 text-center hover:shadow-lg transition-shadow">
+                        <div className="text-4xl mb-3">📄</div>
+                        <h5 className="font-bold text-sm text-slate-800 mb-1">Agent Confirmation</h5>
+                        <p className="text-[10px] text-slate-500 mb-4">Official booking confirmation letter for the tour operator / client agent.</p>
+                        <button
+                          onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
                         >
-                          <option value="SAR">SAR</option>
-                          <option value="EGP">EGP</option>
-                        </select>
+                          Print Confirmation PDF
+                        </button>
                       </div>
-                      
-                      {payCurrency === 'SAR' ? (
-                        <div className="w-2/3">
-                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Amount (SAR)</label>
-                          <input
-                            type="number"
-                            value={payAmount || ''}
-                            onChange={(e) => setPayAmount(Number(e.target.value))}
-                            className="w-full bg-white border border-slate-200 px-2.5 rounded-lg py-1 text-xs font-mono font-bold text-slate-800 focus:ring-1 focus:ring-amber-500 focus:outline-none"
-                            required
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-1/3">
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">EGP Amount</label>
-                            <input
-                              type="number"
-                              value={payOriginalAmount || ''}
-                              onChange={(e) => setPayOriginalAmount(Number(e.target.value))}
-                              className="w-full bg-white border border-slate-200 px-2.5 rounded-lg py-1 text-xs font-mono font-bold text-indigo-700 focus:ring-1 focus:ring-amber-500 focus:outline-none"
-                              required
-                            />
-                          </div>
-                          <div className="w-1/3">
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Exch. Rate</label>
-                            <input
-                              type="number"
-                              value={payExchangeRate || ''}
-                              step="0.01"
-                              onChange={(e) => setPayExchangeRate(Number(e.target.value))}
-                              className="w-full bg-white border border-slate-200 px-2.5 rounded-lg py-1 text-xs font-mono font-bold text-indigo-700 focus:ring-1 focus:ring-amber-500 focus:outline-none"
-                              required
-                            />
-                          </div>
-                        </>
-                      )}
+                      <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 text-center hover:shadow-lg transition-shadow">
+                        <div className="text-4xl mb-3">🎫</div>
+                        <h5 className="font-bold text-sm text-slate-800 mb-1">Guest Card Voucher</h5>
+                        <p className="text-[10px] text-slate-500 mb-4">Hotel check-in voucher for the guest with booking and room details.</p>
+                        <button
+                          onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
+                        >
+                          Print Voucher PDF
+                        </button>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Payment Method</label>
-                      <select
-                        value={payMethod}
-                        onChange={(e) => setPayMethod(e.target.value as any)}
-                        className="w-full bg-white border border-slate-200 px-2 rounded-lg py-1 text-xs font-semibold"
-                      >
-                        <option value="Cash">Cash (كاش)</option>
-                        <option value="Bank Transfer">Bank Transfer (تحويل)</option>
-                      </select>
-                    </div>
-
-                    <div className="col-span-2">
-                      <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Voucher / Receipt Reference</label>
-                      <input
-                        type="text"
-                        value={payVoucher}
-                        onChange={(e) => setPayVoucher(e.target.value)}
-                        placeholder="REC-5509"
-                        className="w-full bg-white border border-slate-200 px-3 rounded-lg py-1 text-xs font-mono font-semibold"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-span-2">
-                      <label className="text-[9px] uppercase font-bold text-slate-500 block mb-0.5">Debit/Credit Treasury Bank Account</label>
-                      <select
-                        value={payAccountId}
-                        onChange={(e) => setPayAccountId(e.target.value)}
-                        className="w-full bg-white border border-slate-200 px-2.5 rounded-lg py-1.5 text-xs font-semibold"
-                        required
-                      >
-                        <option value="">-- Select Bank/Safe Account --</option>
-                        {accounts.map(acc => (
-                          <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toLocaleString()} SAR)</option>
-                        ))}
-                      </select>
+                    {/* Quick Actions */}
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-3">Quick Actions</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <button
+                          onClick={() => { setViewingId(null); handleEdit(resObj); }}
+                          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
+                        >
+                          ✏️ Edit Booking
+                        </button>
+                        <button
+                          onClick={() => { const r = reservations.find(r => r.id.toString() === viewingId); if (r) setPrintingRoomingList(r); }}
+                          className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
+                        >
+                          🖨️ Rooming List
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Delete reservation RSV-' + resObj.id + '? This cannot be undone.')) {
+                              onDeleteReservation(resObj.id.toString());
+                              setViewingId(null);
+                            }
+                          }}
+                          className="bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
+                        >
+                          🗑️ Delete Booking
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => handlePostBookingPayment(true)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl transition text-[10px] uppercase cursor-pointer"
-                    >
-                      📥 Post Client Pay
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePostBookingPayment(false)}
-                      className="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 rounded-xl transition text-[10px] uppercase cursor-pointer"
-                    >
-                      📤 Post Supplier Pay
-                    </button>
-                  </div>
-                </div>
+                )}
 
               </div>
 
-              {/* Triggering confirmation PDF prints buttons */}
-              <div className="flex flex-wrap gap-2 justify-between items-center border-t border-slate-150 mt-6 pt-4">
+              {/* Footer */}
+              <div className="border-t border-slate-200 px-6 py-3 bg-slate-50/50 flex justify-between items-center">
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })}
-                    className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition shadow text-xs"
-                  >
-                    📄 Print Agent Confirmation PDF
-                  </button>
-                  <button
-                    onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl transition shadow text-xs"
-                  >
-                    🎫 Print Guest Card Voucher
-                  </button>
+                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">📄 Confirmation</button>
+                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">🎫 Voucher</button>
                 </div>
-                <button
-                  onClick={() => setViewingId(null)}
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-2 rounded-xl transition text-xs"
-                >
-                  Close Detail Pane
-                </button>
+                <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">Close</button>
               </div>
 
             </div>

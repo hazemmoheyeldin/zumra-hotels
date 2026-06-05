@@ -23,6 +23,7 @@
    PRINT CSS
    ============================================ */
 @media print {
+
   body {
     background: white !important;
     color: black !important;
@@ -52,17 +53,27 @@
     width: 100% !important;
     max-height: none !important;
     overflow: visible !important;
-    padding: 15px !important;
+    padding: 15mm !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
     background: white !important;
     z-index: auto !important;
+    min-height: 100vh !important;
   }
 
   /* ---- Regular Ctrl+P (no report mode) ---- */
   /* Just hide no-print class items, show everything else */
   body:not(.printing-report) .no-print {
+    display: none !important;
+  }
+
+  /* Ensure no underlying content bleeds through during print */
+  body.printing-report {
+    background: white !important;
+  }
+  body.printing-report > *:not(#print-area-clone) {
+    visibility: hidden !important;
     display: none !important;
   }
 
@@ -72,6 +83,26 @@
     width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+
+  /* Prevent page breaks inside printable area */
+  #print-area-clone,
+  #print-area {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Ensure the clone never overflows to a second page */
+  #print-area-clone {
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Hide any scrollbars during print */
+  body.printing-report {
+    overflow: hidden !important;
   }
 
   /* Force print background colors and gradients */
@@ -89,6 +120,79 @@
     page-break-inside: avoid !important;
     page-break-after: auto !important;
   }
+
+  /* Footer/summary rows should stay with preceding content */
+  .keep-with-prev {
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
+
+  /* User-inserted page break markers */
+  .page-break-marker {
+    page-break-before: always !important;
+    break-before: page !important;
+    display: block !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+
+  /* Page break interactive controls (hidden during print) */
+  .pb-toggle-btn,
+  .pb-insert-zone {
+    display: none !important;
+  }
+}
+
+/* Page break marker - visible on screen when editing */
+.page-break-marker-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+.page-break-marker-screen .pb-line {
+  flex: 1;
+  border-top: 2px dashed #ef4444;
+  opacity: 0.7;
+}
+.page-break-marker-screen .pb-label {
+  padding: 0 8px;
+  font-size: 10px;
+  color: #ef4444;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+/* Insert zone hover indicator for page breaks */
+.pb-insert-zone {
+  height: 6px;
+  margin: -3px 0;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  cursor: crosshair;
+  position: relative;
+}
+.pb-insert-zone:hover {
+  height: 14px;
+  margin: -7px 0;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px dashed #ef4444;
+}
+.pb-insert-zone:hover::after {
+  content: '✂ Click to add page break';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9px;
+  color: #ef4444;
+  font-weight: 700;
+  font-family: monospace;
+  white-space: nowrap;
 }
 
 /* Responsive base utilities */

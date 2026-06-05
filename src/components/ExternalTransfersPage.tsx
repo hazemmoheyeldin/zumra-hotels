@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ExternalTransfer, ExternalTransferPart } from '../types';
 
 interface ExternalTransfersPageProps {
@@ -22,6 +22,11 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   const [status, setStatus] = useState<'Pending' | 'Done'>('Pending');
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'' | 'Pending' | 'Done'>('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterSupplier, setFilterSupplier] = useState('');
+  const [viewingAttachment, setViewingAttachment] = useState<{url: string, label: string} | null>(null);
 
   const resetForm = () => {
     setDate(new Date().toISOString().split('T')[0]);
@@ -90,6 +95,29 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
     resetForm();
   };
 
+  const filteredTransfers = useMemo(() => {
+    return externalTransfers.filter(et => {
+      const term = searchTerm.toLowerCase();
+      const searchMatch = !searchTerm || et.bookingRef.toLowerCase().includes(term) || et.clientName.toLowerCase().includes(term) || et.supplierName.toLowerCase().includes(term);
+      const statusMatch = !filterStatus || et.status === filterStatus;
+      const dateMatch = (!filterDateFrom || et.date >= filterDateFrom) && (!filterDateTo || et.date <= filterDateTo);
+      const supplierMatch = !filterSupplier || et.supplierName.toLowerCase().includes(filterSupplier.toLowerCase());
+      return searchMatch && statusMatch && dateMatch && supplierMatch;
+    });
+  }, [externalTransfers, searchTerm, filterStatus, filterDateFrom, filterDateTo, filterSupplier]);
+
+  const uniqueSuppliers = useMemo(() => [...new Set(externalTransfers.map(et => et.supplierName).filter(Boolean))], [externalTransfers]);
+
+  // Exchange rate stats
+  const fxStats = useMemo(() => {
+    const rates: number[] = [];
+    externalTransfers.forEach(et => et.parts.forEach(p => { if (p.fxRate && p.fxRate > 0) rates.push(p.fxRate); }));
+    if (rates.length === 0) return { min: 0, max: 0, avg: 0, count: 0 };
+    return { min: Math.min(...rates), max: Math.max(...rates), avg: rates.reduce((a, b) => a + b, 0) / rates.length, count: rates.length };
+  }, [externalTransfers]);
+
+  const clearFilters = () => { setSearchTerm(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterSupplier(''); };
+
   const handleEdit = (et: ExternalTransfer) => {
     setEditingId(et.id);
     setDate(et.date);
@@ -104,7 +132,35 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   };
 
   return (
-    <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs w-full max-w-[95vw] mx-auto overflow-x-hidden">
+    <div className="space-y-5">
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Transfers</div>
+          <div className="text-2xl font-black text-slate-900">{externalTransfers.length}</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Pending</div>
+          <div className="text-2xl font-black text-amber-800">{externalTransfers.filter(et => et.status === 'Pending').length}</div>
+        </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Completed</div>
+          <div className="text-2xl font-black text-emerald-800">{externalTransfers.filter(et => et.status === 'Done').length}</div>
+        </div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Total SAR Transferred</div>
+          <div className="text-xl font-black text-indigo-800">
+            {externalTransfers.reduce((s, et) => s + et.amountSAR, 0).toLocaleString()}
+          </div>
+        </div>
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-blue-600 mb-1">Avg FX Rate</div>
+          <div className="text-xl font-black text-blue-800">{fxStats.avg > 0 ? fxStats.avg.toFixed(2) : '—'}</div>
+          <div className="text-[9px] text-blue-500 font-mono mt-0.5">{fxStats.count > 0 ? `${fxStats.min.toFixed(2)} – ${fxStats.max.toFixed(2)}` : 'No data'}</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs w-full max-w-[95vw] mx-auto overflow-x-hidden">
       <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center">
         <div>
           <h2 className="text-lg font-bold text-slate-800">External Transfers Operations</h2>
@@ -199,13 +255,25 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
         </form>
       ) : (
         <div className="overflow-x-auto pb-4">
-          <input
-            type="text"
-            placeholder="Search booking, client, supplier..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-64 mb-4"
-          />
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <input type="text" placeholder="Search booking, client, supplier..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-48" />
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+              <option value="">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Done">Done</option>
+            </select>
+            <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs" placeholder="From" />
+            <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs" placeholder="To" />
+            <select value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+              <option value="">All Suppliers</option>
+              {uniqueSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {(filterStatus || filterDateFrom || filterDateTo || filterSupplier || searchTerm) && (
+              <button onClick={clearFilters} className="text-[10px] text-rose-600 font-bold hover:text-rose-700">✕ Clear</button>
+            )}
+            <span className="ml-auto text-[10px] text-slate-400 font-mono self-center">{filteredTransfers.length} transfers</span>
+          </div>
           <table className="w-full text-left border-collapse text-[11px] whitespace-nowrap">
             <thead>
               <tr className="border-b-2 border-slate-200 bg-slate-50">
@@ -225,8 +293,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {externalTransfers
-                .filter(et => !searchTerm || et.bookingRef.includes(searchTerm) || et.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || et.supplierName.toLowerCase().includes(searchTerm.toLowerCase()))
+              {filteredTransfers
                 .map(et => {
                 const totalTransferred = et.parts.reduce((sum, p) => sum + (p.amount || 0), 0);
                 const remainingSAR = Math.abs(et.amountSAR - totalTransferred);
@@ -250,7 +317,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                           <div className="flex flex-col items-center">
                             <span>{et.parts[i].amount.toLocaleString()}</span>
                             {et.parts[i].attachmentDataUrl && (
-                               <a href={et.parts[i].attachmentDataUrl} target="_blank" rel="noreferrer" className="text-[9px] text-blue-600 underline">File</a>
+                               <button onClick={() => setViewingAttachment({ url: et.parts[i].attachmentDataUrl!, label: `Transfer ${i + 1} - ${et.bookingRef}` })} className="text-[9px] text-blue-600 underline cursor-pointer">View</button>
                             )}
                           </div>
                         ) : ''}
@@ -271,7 +338,11 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                     <td className="py-2 px-2 text-center font-bold">EGP {totalEGP.toLocaleString()}</td>
                     <td className="py-2 px-2 text-center text-emerald-700 font-bold">EGP {(et.totalAmountPaidEGP || 0).toLocaleString()}</td>
                     <td className={`py-2 px-2 text-center font-bold ${remainingEGP > 0 ? 'text-red-500' : 'text-slate-500'}`}>{remainingEGP > 0 ? `-EGP ${remainingEGP.toLocaleString()}` : `EGP 0`}</td>
-                    <td className="py-2 px-2 text-center font-bold">{et.status}</td>
+                    <td className="py-2 px-2 text-center font-bold">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold ${et.status === 'Done' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {et.status === 'Done' ? '✓ ' : '⏳ '}{et.status}
+                      </span>
+                    </td>
                     <td className="py-2 px-2 text-center">
                       <button onClick={() => handleEdit(et)} className="text-blue-600 hover:text-blue-800 mr-2 font-bold">Edit</button>
                       <button onClick={() => confirm('Delete transfer request?') && onDeleteTransfer(et.id)} className="text-red-500 hover:text-red-700 font-bold">Del</button>
@@ -283,6 +354,35 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
           </table>
         </div>
       )}
+
+      {/* Attachment Viewer Modal */}
+      {viewingAttachment && (
+        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4" onClick={() => setViewingAttachment(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+              <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
+              <div className="flex items-center gap-2">
+                <a href={viewingAttachment.url} download className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg transition">⬇️ Download</a>
+                <button onClick={() => setViewingAttachment(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold w-8 h-8 rounded-lg text-sm flex items-center justify-center transition">✕</button>
+              </div>
+            </div>
+            <div className="p-4 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-slate-100">
+              {viewingAttachment.url.startsWith('data:image/') ? (
+                <img src={viewingAttachment.url} alt={viewingAttachment.label} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow" />
+              ) : viewingAttachment.url.startsWith('data:application/pdf') ? (
+                <iframe src={viewingAttachment.url} className="w-full h-[80vh] border-0 rounded-lg" title={viewingAttachment.label} />
+              ) : (
+                <div className="text-center text-slate-500 py-10">
+                  <p className="text-4xl mb-3">📎</p>
+                  <p className="text-sm font-semibold">Preview not available for this file type.</p>
+                  <a href={viewingAttachment.url} download className="mt-3 inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold">Download File</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }

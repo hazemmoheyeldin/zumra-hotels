@@ -505,6 +505,10 @@ export function getAgentActualBalance(agent: Agent, reservations: Reservation[],
         lifetimeTxSum += tr.amount;
       } else if (isSupplier && tr.type === 'SupplierPayment') {
         lifetimeTxSum += tr.amount;
+      } else if (!isSupplier && tr.type === 'ClientRefund') {
+        lifetimeTxSum -= tr.amount; // Refunds reverse payment effect
+      } else if (isSupplier && tr.type === 'SupplierRefund') {
+        lifetimeTxSum -= tr.amount;
       }
     }
   });
@@ -532,6 +536,10 @@ export function getAgentActualBalance(agent: Agent, reservations: Reservation[],
         actualBalance -= tr.amount; 
       } else if (isSupplier && tr.type === 'SupplierPayment') {
         actualBalance -= tr.amount; 
+      } else if (!isSupplier && tr.type === 'ClientRefund') {
+        actualBalance += tr.amount; // Refund adds back to what they owe
+      } else if (isSupplier && tr.type === 'SupplierRefund') {
+        actualBalance += tr.amount; // Supplier refund adds back to what we owe
       }
     }
   });
@@ -603,8 +611,34 @@ export function getReservationTotals(res: Reservation) {
       extraBedBuy = (room.extraBedBuyRate || 0) * res.nights * room.qty;
     }
 
-    totalSell += baseRoomSell + mealSell + extraBedSell;
-    totalBuy += baseRoomBuy + mealBuy + extraBedBuy;
+    // View Supplement (added per room per night)
+    let viewSuppSell = 0;
+    let viewSuppBuy = 0;
+    if (room.hasViewSupplement) {
+      viewSuppSell = (room.viewSupplementRate || 0) * res.nights * room.qty;
+      viewSuppBuy = (room.viewSupplementBuyRate || 0) * res.nights * room.qty;
+    }
+
+    // Extra Meal 1 (per pax per night)
+    let extraMeal1Sell = 0;
+    let extraMeal1Buy = 0;
+    if (room.hasExtraMeal1) {
+      const paxCount = getPaxForRoomType(room.roomType);
+      extraMeal1Sell = (room.extraMeal1Rate || 0) * paxCount * res.nights * room.qty;
+      extraMeal1Buy = (room.extraMeal1BuyRate || 0) * paxCount * res.nights * room.qty;
+    }
+
+    // Extra Meal 2 (per pax per night)
+    let extraMeal2Sell = 0;
+    let extraMeal2Buy = 0;
+    if (room.hasExtraMeal2) {
+      const paxCount = getPaxForRoomType(room.roomType);
+      extraMeal2Sell = (room.extraMeal2Rate || 0) * paxCount * res.nights * room.qty;
+      extraMeal2Buy = (room.extraMeal2BuyRate || 0) * paxCount * res.nights * room.qty;
+    }
+
+    totalSell += baseRoomSell + mealSell + extraBedSell + viewSuppSell + extraMeal1Sell + extraMeal2Sell;
+    totalBuy += baseRoomBuy + mealBuy + extraBedBuy + viewSuppBuy + extraMeal1Buy + extraMeal2Buy;
   });
 
   const profit = totalSell - totalBuy;

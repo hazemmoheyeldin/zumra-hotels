@@ -17,6 +17,8 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,79 +61,102 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
+      style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
       
-      {/* Subtle decorative background accents */}
-      <div className="absolute top-[-5%] right-[-5%] w-[40%] h-[40%] rounded-full bg-amber-100/40 blur-[100px] pointer-events-none"></div>
-      <div className="absolute bottom-[-5%] left-[-5%] w-[40%] h-[40%] rounded-full bg-emerald-100/30 blur-[100px] pointer-events-none"></div>
+      {/* Animated background orbs */}
+      <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
+      <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+      <div className="absolute top-[50%] left-[50%] w-[300px] h-[300px] rounded-full bg-emerald-500/5 blur-[80px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 border border-slate-200 shadow-xl space-y-6 relative z-10">
+      {/* Subtle grid pattern overlay */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+
+      {/* Glass card */}
+      <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
         
         {/* Branding header */}
-        <div className="text-center flex flex-col items-center space-y-4">
-          <ZumraLogo size="lg" variant="gold" className="justify-center" />
-          <div className="mt-2 text-center">
-            <h2 className="text-sm font-extrabold text-amber-600 uppercase tracking-widest font-mono">Operations Portal</h2>
-            <p className="text-[11px] text-slate-500 mt-1 font-serif">Enter credentials to access B2B reservation systems</p>
+        <div className="text-center flex flex-col items-center space-y-3">
+          <div className="relative">
+            <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-xl scale-150"></div>
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+          </div>
+          <div className="mt-1">
+            <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+            <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Operations Portal</p>
           </div>
         </div>
 
-        {/* Login instructions */}
-        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-left space-y-1.5 leading-relaxed text-[10px]">
-          <span className="font-bold text-amber-600 text-[9px] uppercase tracking-wider block">Login Instructions:</span>
-          <p className="text-slate-600 font-mono">Use the <span className="text-slate-800 font-bold">username</span> or <span className="text-slate-800 font-bold">email</span> and <span className="text-slate-800 font-bold">password</span> assigned by your system administrator.</p>
-          <p className="text-slate-600 font-mono mt-1">Contact your admin if you need an account or forgot your password.</p>
-        </div>
+        {/* Golden separator */}
+        <div className="h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
 
-        {/* Error indicators */}
+        {/* Error */}
         {errorMsg && (
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3.5 text-xs text-rose-600 flex items-start gap-2">
-            <span className="text-sm block">⚠️</span>
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2 backdrop-blur-sm">
+            <span className="text-sm">⚠️</span>
             <p className="font-mono text-[10px] uppercase leading-snug">{errorMsg}</p>
           </div>
         )}
 
         <form onSubmit={handleLoginSubmit} className="space-y-4">
-          <div>
-            <label className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 block mb-1">Username or Email</label>
+          {/* Username */}
+          <div className="group relative">
+            <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${username ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+              Username or Email
+            </label>
             <div className="relative">
-              <span className="absolute left-3.5 top-2.5 text-slate-400">👤</span>
+              <span className="absolute left-4 top-3.5 text-slate-500 text-xs">👤</span>
               <input
                 type="text"
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. hazem@company.com"
-                className="w-full bg-slate-50 pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200 select-all"
+                className="w-full bg-white/5 pl-10 pr-3 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all select-all placeholder-transparent"
+                placeholder=" "
                 required
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] uppercase font-mono font-bold tracking-wider text-slate-500 block mb-1">Password</label>
+          {/* Password */}
+          <div className="group relative">
+            <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${password ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+              Password
+            </label>
             <div className="relative">
-              <span className="absolute left-3.5 top-2.5 text-slate-400">🔒</span>
+              <span className="absolute left-4 top-3.5 text-slate-500 text-xs">🔒</span>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-50 pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-200"
+                className="w-full bg-white/5 pl-10 pr-10 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all placeholder-transparent"
+                placeholder=" "
                 required
               />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3.5 text-slate-500 hover:text-amber-400 text-xs transition">
+                {showPassword ? '🙈' : '👁️'}
+              </button>
             </div>
           </div>
 
+          {/* Remember me */}
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-amber-400/30 focus:ring-offset-0 cursor-pointer" />
+            <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-mono transition">Remember me on this device</span>
+          </label>
+
+          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-amber-500 hover:bg-amber-600 active:scale-[0.98] transition-all text-slate-900 font-extrabold uppercase text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 mt-2 disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-200/40"
+            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] transition-all text-slate-900 font-extrabold uppercase text-xs py-3 rounded-xl flex items-center justify-center gap-2 mt-2 disabled:opacity-50 cursor-pointer shadow-lg shadow-amber-500/20"
           >
             {loading ? (
               <>
-                <svg className="animate-spin h-3 w-3 text-slate-900" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-4 w-4 text-slate-900" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -139,15 +164,34 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
               </>
             ) : (
               <>
-                <span>🔐</span> Sign In
+                <span>🔐</span> Sign In to Dashboard
               </>
             )}
           </button>
         </form>
 
-        <p className="text-[9px] text-slate-400 text-center font-mono uppercase tracking-widest pt-2">System Protected - Authorized Access Only</p>
+        {/* Golden separator */}
+        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
 
+        {/* Footer */}
+        <div className="text-center space-y-1.5">
+          <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[0.2em]">System Protected — Authorized Access Only</p>
+          <p className="text-[9px] text-slate-600 font-serif">زمرة للفنادق — EST Zumra Hotels for Hotel Operation</p>
+        </div>
       </div>
+
+      {/* Bottom branding */}
+      <p className="mt-8 text-[10px] text-slate-500/50 font-mono tracking-widest uppercase relative z-10">
+        © {new Date().getFullYear()} Zumra Hotels. All Rights Reserved.
+      </p>
+
+      {/* Keyframe animation */}
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Transaction, Agent, Account, Reservation } from '../types';
 import ReceiptVoucherPDF from './ReceiptVoucherPDF';
 
@@ -23,15 +23,16 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment'>('');
+  const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund'>('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterAgentId, setFilterAgentId] = useState('');
   const [filterMethod, setFilterMethod] = useState<'' | 'Cash' | 'Bank Transfer'>('');
   const [viewingAttachment, setViewingAttachment] = useState<{url: string, label: string} | null>(null);
+  const [showAgentSummary, setShowAgentSummary] = useState(false);
   
   // Form type
-  const [type, setType] = useState<'ClientPayment' | 'SupplierPayment'>('ClientPayment');
+  const [type, setType] = useState<'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund'>('ClientPayment');
   const [agentId, setAgentId] = useState('');
   const [reservationId, setReservationId] = useState('');
   const [amount, setAmount] = useState<number>(0);
@@ -86,13 +87,13 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
   // Filter lists based on type selected
   const activeAgents = agents.filter(a => {
-    if (type === 'ClientPayment') return a.type === 'Customer' || a.type === 'Both';
+    if (type === 'ClientPayment' || type === 'ClientRefund') return a.type === 'Customer' || a.type === 'Both';
     return a.type === 'Supplier' || a.type === 'Both';
   });
 
   const activeReservations = reservations.filter(res => {
-    if (type === 'ClientPayment') return res.clientId === agentId && res.status !== 'Cancelled';
-    return res.supplierId === agentId && res.status !== 'Cancelled';
+    if (type === 'ClientPayment' || type === 'ClientRefund') return res.clientId === agentId;
+    return res.supplierId === agentId;
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -104,9 +105,14 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
     const timestampIdx = editingId ? editingId.replace('tr_', '') : Date.now();
     
-    // Auto calculate vouchers and document sequential sequences block
-    const docNo = editingId ? (transactions.find(t => t.id === editingId)?.docNo || `DOC-${timestampIdx}`) : `DOC-${timestampIdx}`;
-    const voucherNo = editingId ? (transactions.find(t => t.id === editingId)?.voucherNo || (paymentMethod === 'Cash' ? `CASH-REC-${timestampIdx}` : `BANK-REC-${timestampIdx}`)) : (paymentMethod === 'Cash' ? `CASH-REC-${timestampIdx}` : `BANK-REC-${timestampIdx}`);
+    // Sequential numbering for doc and voucher references
+    const docNo = editingId 
+      ? (transactions.find(t => t.id === editingId)?.docNo || `DOC-${String(transactions.length + 1).padStart(3, '0')}`) 
+      : `DOC-${String(transactions.filter(t => t.type === type).length + 1).padStart(3, '0')}`;
+    const voucherPrefix = paymentMethod === 'Cash' ? 'CASH-REC' : 'BANK-REC';
+    const voucherNo = editingId 
+      ? (transactions.find(t => t.id === editingId)?.voucherNo || `${voucherPrefix}-${String(transactions.filter(t => t.paymentMethod === paymentMethod).length + 1).padStart(3, '0')}`)
+      : `${voucherPrefix}-${String(transactions.filter(t => t.paymentMethod === paymentMethod).length + 1).padStart(3, '0')}`;
 
     let computedAmount = amount;
     if (originalCurrency === 'EGP') {
@@ -168,6 +174,51 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     return searchMatch && typeMatch && dateFromMatch && dateToMatch && agentMatch && methodMatch;
   });
 
+  // Running balance for filtered transactions
+  const runningBalances = useMemo(() => {
+    let bal = 0;
+    return filteredTransactions.map(tr => {
+      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund') bal += tr.amount;
+      else bal -= tr.amount;
+      return bal;
+    });
+  }, [filteredTransactions]);
+
+  // Per-agent summary
+  const agentSummary = useMemo(() => {
+    const map: { [id: string]: { name: string; inflow: number; outflow: number; count: number } } = {};
+    filteredTransactions.forEach(tr => {
+      const id = tr.agentId || 'unknown';
+      if (!map[id]) map[id] = { name: getAgentLabel(id), inflow: 0, outflow: 0, count: 0 };
+      map[id].count++;
+      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund') map[id].inflow += tr.amount;
+      else map[id].outflow += tr.amount;
+    });
+    return Object.values(map).sort((a, b) => (b.inflow - b.outflow) - (a.inflow - a.outflow));
+  }, [filteredTransactions]);
+
+  // Quick filter helpers
+  const setQuickFilter = (range: 'today' | 'week' | 'month') => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    if (range === 'today') { setFilterDateFrom(today); setFilterDateTo(today); }
+    else if (range === 'week') {
+      const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+      setFilterDateFrom(weekAgo.toISOString().split('T')[0]); setFilterDateTo(today);
+    } else {
+      const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+      setFilterDateFrom(monthAgo.toISOString().split('T')[0]); setFilterDateTo(today);
+    }
+  };
+
+  // Highlight search term in text
+  const highlightText = (text: string, term: string) => {
+    if (!term || !text) return text;
+    const idx = text.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return text;
+    return <>{text.slice(0, idx)}<mark className="bg-yellow-200 text-yellow-900 rounded px-0.5">{text.slice(idx, idx + term.length)}</mark>{text.slice(idx + term.length)}</>;
+  };
+
   const handleExportCSV = () => {
     const reportData = filteredTransactions.map(tr => ({
       Date: tr.date,
@@ -182,7 +233,48 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   };
 
   return (
-    <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs">
+    <div className="space-y-5">
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Transactions</div>
+          <div className="text-2xl font-black text-slate-900">{transactions.length}</div>
+        </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Client Payments In</div>
+          <div className="text-xl font-black text-emerald-800">
+            {transactions.filter(t => t.type === 'ClientPayment').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </div>
+          <div className="text-[9px] text-emerald-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'ClientPayment').length} payments</div>
+        </div>
+        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Supplier Payments Out</div>
+          <div className="text-xl font-black text-rose-800">
+            {transactions.filter(t => t.type === 'SupplierPayment').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </div>
+          <div className="text-[9px] text-rose-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'SupplierPayment').length} payments</div>
+        </div>
+        <div className="bg-orange-50 rounded-xl border border-orange-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-orange-600 mb-1">Refunds</div>
+          <div className="text-xl font-black text-orange-800">
+            {transactions.filter(t => t.type === 'ClientRefund').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </div>
+          <div className="text-[9px] text-orange-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'ClientRefund').length} client refunds</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Net Cash Flow</div>
+          <div className="text-xl font-black text-amber-800">
+            {(() => {
+              const inflow = transactions.filter(t => t.type === 'ClientPayment' || t.type === 'SupplierRefund').reduce((s, t) => s + t.amount, 0);
+              const outflow = transactions.filter(t => t.type === 'SupplierPayment' || t.type === 'ClientRefund').reduce((s, t) => s + t.amount, 0);
+              return (inflow - outflow).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+            })()}
+          </div>
+          <div className="text-[9px] text-amber-500 font-mono mt-0.5">SAR</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs">
       
       {/* Header bar */}
       <div className="border-b border-slate-100 pb-4 mb-4 flex flex-wrap justify-between items-center gap-2">
@@ -208,6 +300,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
       {!showAddForm && (
         <div className="mb-4 space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+          {/* Quick filters */}
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            <button onClick={() => setQuickFilter('today')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">Today</button>
+            <button onClick={() => setQuickFilter('week')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">This Week</button>
+            <button onClick={() => setQuickFilter('month')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">This Month</button>
+          </div>
           {/* Row 1: Search + Type */}
           <div className="flex flex-col md:flex-row gap-3 items-center">
             <input
@@ -225,6 +323,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               <option value="">All Transactions</option>
               <option value="ClientPayment">Client Payments Received</option>
               <option value="SupplierPayment">Supplier Payments Sent</option>
+              <option value="ClientRefund">Client Refunds</option>
+              <option value="SupplierRefund">Supplier Refunds</option>
             </select>
             <select
               value={filterMethod}
@@ -276,9 +376,41 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             )}
           </div>
           {/* Results count */}
-          <div className="text-[10px] text-slate-400 font-medium">
-            Showing {filteredTransactions.length} of {transactions.length} transactions
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] text-slate-400 font-medium">
+              Showing {filteredTransactions.length} of {transactions.length} transactions
+            </div>
+            <button onClick={() => setShowAgentSummary(v => !v)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition">
+              {showAgentSummary ? '▼ Hide' : '▶ Show'} Agent Summary
+            </button>
           </div>
+          {/* Agent Summary Collapsible */}
+          {showAgentSummary && agentSummary.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-lg p-3 overflow-x-auto">
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="text-slate-500 font-bold uppercase border-b border-slate-100">
+                    <th className="py-1.5 px-2 text-left">Agent</th>
+                    <th className="py-1.5 px-2 text-center">Txns</th>
+                    <th className="py-1.5 px-2 text-right">Inflow</th>
+                    <th className="py-1.5 px-2 text-right">Outflow</th>
+                    <th className="py-1.5 px-2 text-right">Net</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {agentSummary.map(a => (
+                    <tr key={a.name} className="hover:bg-slate-50">
+                      <td className="py-1.5 px-2 font-bold text-slate-800">{a.name}</td>
+                      <td className="py-1.5 px-2 text-center font-mono">{a.count}</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-emerald-700">{a.inflow.toLocaleString()}</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-rose-600">{a.outflow.toLocaleString()}</td>
+                      <td className={`py-1.5 px-2 text-right font-mono font-bold ${(a.inflow - a.outflow) >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{(a.inflow - a.outflow).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -300,6 +432,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               >
                 <option value="ClientPayment">Client Payment Received (Inflow)</option>
                 <option value="SupplierPayment">Payment Paid to Supplier (Outflow)</option>
+                <option value="ClientRefund">Refund to Client (Outflow)</option>
+                <option value="SupplierRefund">Refund from Supplier (Inflow)</option>
               </select>
             </div>
 
@@ -483,21 +617,22 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <th className="py-3 px-3">Statement Description</th>
                 <th className="py-3 px-3 text-center">Attachment</th>
                 <th className="py-3 px-3 text-right">Sum (SAR)</th>
+                <th className="py-3 px-3 text-right">Running Bal</th>
                 <th className="py-3 px-3 text-center">Voucher Layout</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 select-none">
-              {filteredTransactions.map((tr) => (
+              {filteredTransactions.map((tr, idx) => (
                 <tr key={tr.id} className="hover:bg-slate-50/45 text-xs">
                   <td className="py-3 px-3 font-mono">{tr.date}</td>
                   <td className="py-3 px-3 font-mono font-bold text-indigo-700">
-                    {tr.docNo || '—'}
+                    {searchTerm ? highlightText(tr.docNo || '—', searchTerm) : (tr.docNo || '—')}
                   </td>
                   <td className="py-3 px-3 font-mono font-bold text-slate-700">
                     {tr.voucherNo || '—'}
                   </td>
                   <td className="py-3 px-3 font-bold text-slate-900 bg-amber-50/5">
-                    {getAgentLabel(tr.agentId || '')}
+                    {searchTerm ? highlightText(getAgentLabel(tr.agentId || ''), searchTerm) : getAgentLabel(tr.agentId || '')}
                   </td>
                   <td className="py-3 px-3">
                     <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
@@ -523,9 +658,15 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                     ) : '—'}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono font-bold ${
-                    tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-red-650'
+                    tr.type === 'ClientPayment' ? 'text-emerald-700' :
+                    tr.type === 'SupplierRefund' ? 'text-emerald-700' :
+                    tr.type === 'ClientRefund' ? 'text-orange-600' :
+                    'text-red-650'
                   }`}>
-                    {tr.type === 'ClientPayment' ? '+' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {tr.type === 'ClientPayment' ? '+' : tr.type === 'SupplierRefund' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[idx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {runningBalances[idx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-3 px-3 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -606,6 +747,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         </div>
       )}
 
+    </div>
     </div>
   );
 }

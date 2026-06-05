@@ -7,6 +7,7 @@ import React from 'react';
 import { Transaction, Agent, Reservation } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
+import { usePageBreaks } from '../lib/usePageBreaks';
 
 interface ReceiptVoucherPDFProps {
   transaction: Transaction;
@@ -16,7 +17,8 @@ interface ReceiptVoucherPDFProps {
 }
 
 export default function ReceiptVoucherPDF({ transaction, client, reservation, onClose }: ReceiptVoucherPDFProps) {
-  
+  const { PageBreakToggle } = usePageBreaks();
+
   // Helper to convert number to words briefly in English/Arabic
   const amountToWords = (num: number): string => {
     const formatNum = num.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -24,7 +26,10 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
   };
 
   const handlePrint = () => {
-    downloadPDF('print-area', `Receipt-${transaction.id}.pdf`);
+    const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
+    const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
+    const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+    downloadPDF('print-area', `V ${bookingRef} - ${safeName}.pdf`);
   };
 
   const getWhatsAppReceiptLink = () => {
@@ -52,6 +57,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <PageBreakToggle />
             <button
               onClick={handlePrint}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
@@ -78,15 +84,15 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
         </div>
 
         {/* Printable Paper Area */}
-        <div id="print-area" className="bg-white p-10 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-6 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex flex-col text-left font-sans gap-1 flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center mb-1">
+            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
@@ -96,10 +102,10 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
           </div>
 
           {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-4"></div>
+          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
 
           {/* Title bar banner */}
-          <div className="bg-emerald-50 border border-emerald-205 text-center py-2.5 rounded-lg mb-6 flex justify-between px-6 items-center print:bg-emerald-50 font-sans">
+          <div className="bg-emerald-50 border border-emerald-205 text-center py-2 rounded-lg mb-4 flex justify-between px-4 items-center print:bg-emerald-50 font-sans">
             <span className="text-emerald-805 font-extrabold text-[#065f46] text-xs tracking-wider">
               {transaction.paymentMethod === 'Cash' ? 'CASH RECEIPT VOUCHER' : 'BANK TRANSFER RECEIPT'}
             </span>
@@ -108,7 +114,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
           </div>
 
           {/* Details Table */}
-          <div className="grid grid-cols-2 gap-y-4 text-xs border border-slate-200 rounded-xl p-4 mb-6 font-sans">
+          <div className="grid grid-cols-2 gap-y-3 text-xs border border-slate-200 rounded-xl p-3 mb-4 font-sans">
             <div>
               <span className="text-slate-500 block mb-0.5 text-[10px] uppercase font-bold tracking-wider">Date / التاريخ</span>
               <span className="font-bold text-slate-900">{new Date(transaction.date).toLocaleDateString('en-GB')}</span>
@@ -170,12 +176,12 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
           </div>
 
           {/* Guidelines notes */}
-          <div className="text-[10px] text-slate-500 italic leading-normal mb-8 border-l-2 border-emerald-505 pl-3 text-left font-sans">
+          <div className="text-[10px] text-slate-500 italic leading-normal mb-4 border-l-2 border-emerald-505 pl-3 text-left font-sans">
             Important Notice: All client financial accounts must be settled within the designated period as per terms of the contract. No modifications are permitted without the Finance Department Manager's wet signature.
           </div>
 
           {/* Footer & Authorized Signatures */}
-          <div className="grid grid-cols-3 gap-4 text-center border-t border-slate-150 pt-8 text-[11px] font-sans">
+          <div className="grid grid-cols-3 gap-4 text-center border-t border-slate-150 pt-5 text-[11px] font-sans">
             <div>
               <p className="font-semibold text-slate-700">Accountant</p>
               <p className="text-slate-400 mt-1">المحاسب</p>

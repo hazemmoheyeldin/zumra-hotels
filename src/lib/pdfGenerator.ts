@@ -3,7 +3,12 @@
  * Clones the print-area element to body level for clean output,
  * hiding all other page content.
  */
-export const downloadPDF = (elementId: string, _filename: string) => {
+
+interface PDFOptions {
+  landscape?: boolean;
+}
+
+export const downloadPDF = (elementId: string, _filename: string, options?: PDFOptions) => {
   const element = document.getElementById(elementId);
   if (!element) {
     console.error(`[downloadPDF] Element with id "${elementId}" not found.`);
@@ -11,15 +16,33 @@ export const downloadPDF = (elementId: string, _filename: string) => {
     return;
   }
 
+  const landscape = options?.landscape || false;
+
   // Clone the print area and attach directly to body for clean printing
   const clone = element.cloneNode(true) as HTMLElement;
   clone.id = 'print-area-clone';
+
+  // Convert screen page break markers to print page break markers
+  const screenMarkers = clone.querySelectorAll('.page-break-marker-screen');
+  screenMarkers.forEach(marker => {
+    marker.classList.remove('page-break-marker-screen');
+    marker.classList.add('page-break-marker');
+    // Clear inner content
+    marker.innerHTML = '';
+  });
+
+  // Remove insert zones and toggle buttons from clone
+  clone.querySelectorAll('.pb-insert-zone').forEach(el => el.remove());
+  clone.querySelectorAll('.pb-insert-zone-row').forEach(el => el.remove());
+  clone.querySelectorAll('.pb-toggle-btn').forEach(el => el.remove());
+
   clone.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     max-height: none;
+    height: auto;
     overflow: visible;
     padding: 20px;
     margin: 0;
@@ -27,7 +50,23 @@ export const downloadPDF = (elementId: string, _filename: string) => {
     box-shadow: none;
     background: white;
     z-index: 999999;
+    page-break-inside: avoid;
+    break-inside: avoid;
   `;
+
+  // Inject dynamic @page style for landscape/portrait
+  const pageStyleId = 'dynamic-page-style';
+  let pageStyle = document.getElementById(pageStyleId) as HTMLStyleElement | null;
+  if (!pageStyle) {
+    pageStyle = document.createElement('style');
+    pageStyle.id = pageStyleId;
+    document.head.appendChild(pageStyle);
+  }
+  if (landscape) {
+    pageStyle.textContent = `@media print { @page { size: A4 landscape; margin: 0; } }`;
+  } else {
+    pageStyle.textContent = `@media print { @page { size: A4 portrait; margin: 0; } }`;
+  }
 
   document.body.appendChild(clone);
   document.body.classList.add('printing-report');
@@ -47,6 +86,9 @@ export const downloadPDF = (elementId: string, _filename: string) => {
     document.body.classList.remove('printing-report');
     const cloneEl = document.getElementById('print-area-clone');
     if (cloneEl) cloneEl.remove();
+    // Remove dynamic page style
+    const ps = document.getElementById(pageStyleId);
+    if (ps) ps.remove();
   };
 
   // Listen for afterprint event for reliable cleanup

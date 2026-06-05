@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, Transaction } from '../types';
 import ArrivalReportPDF from './ArrivalReportPDF';
+import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
 import { getReservationTotals, getAgentActualBalance, exportToCSV } from '../lib/storage';
 
@@ -34,6 +35,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
 
   // Printing Overlay triggers
   const [printingArrivalReport, setPrintingArrivalReport] = useState(false);
+  const [printingCancellationReport, setPrintingCancellationReport] = useState(false);
   const [printingStatementReport, setPrintingStatementReport] = useState(false);
 
   // Compute lists based on active tabs
@@ -66,6 +68,10 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
   const reminderList = getSupplierRemindersList();
   const selectedAgent = agents.find(a => a.id === selectedAgentId);
   const selectedSupplier = agents.find(a => a.id === selectedSupplierId);
+
+  // Quick summary stats
+  const totalArrivalsSell = arrivalList.reduce((s, r) => { const t = getReservationTotals(r); return s + t.totalSell; }, 0);
+  const totalCancelledFee = cancellationList.reduce((s, r) => s + (r.cancellationFee || 0), 0);
 
   const handleExportCSV = () => {
     if (activeReportTab === 'arrival') {
@@ -108,8 +114,34 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
   };
 
   return (
-    <div className="space-y-6 text-xs">
+    <div className="space-y-5 text-xs">
       
+      {/* Quick KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Arrivals</div>
+          <div className="text-2xl font-black text-slate-900">{arrivalList.length}</div>
+          <div className="text-[9px] text-emerald-600 font-mono mt-0.5">{totalArrivalsSell.toLocaleString()} SAR</div>
+        </div>
+        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Cancellations</div>
+          <div className="text-2xl font-black text-rose-800">{cancellationList.length}</div>
+          <div className="text-[9px] text-rose-500 font-mono mt-0.5">{totalCancelledFee.toLocaleString()} SAR fees</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Pending Reminders</div>
+          <div className="text-2xl font-black text-amber-800">{reminderList.length}</div>
+        </div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Period</div>
+          <div className="text-[10px] font-mono text-indigo-800 mt-1">{fromDate}<br/>{toDate}</div>
+        </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Total Reservations</div>
+          <div className="text-2xl font-black text-emerald-800">{reservations.length}</div>
+        </div>
+      </div>
+
       {/* Upper sub navigation bar for report selectors */}
       <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
         <div className="flex justify-between items-start mb-4">
@@ -295,7 +327,15 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         {/* Cancellation Report Tab Content */}
         {activeReportTab === 'cancellation' && (
           <div className="space-y-4">
-            <h3 className="font-bold text-rose-800 uppercase text-xs">Cancelled bookings during period</h3>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-rose-800 uppercase text-xs">Cancelled bookings during period</h3>
+              <button
+                onClick={() => setPrintingCancellationReport(true)}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1.5"
+              >
+                📥 Print Cancellation Report
+              </button>
+            </div>
             <div className="overflow-x-auto text-[11px]">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -362,8 +402,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 <p className="text-[10px] text-slate-400 font-semibold uppercase">Client Active Balances Overview:</p>
                 <div className="flex justify-between items-baseline mt-1">
                   <span className="text-sm font-bold text-slate-800 uppercase">{selectedAgent.companyName || selectedAgent.name}</span>
-                  <span className={`text-sm font-bold font-mono ${getAgentActualBalance(selectedAgent, reservations, transactions) < 0 ? 'text-rose-650' : 'text-slate-800'}`}>
-                    Active Running Balance: {getAgentActualBalance(selectedAgent, reservations, transactions) < 0 ? `(${Math.abs(getAgentActualBalance(selectedAgent, reservations, transactions)).toLocaleString()})` : getAgentActualBalance(selectedAgent, reservations, transactions).toLocaleString()} SAR
+                  <span className={`text-sm font-bold font-mono ${(() => { const b = -getAgentActualBalance(selectedAgent, reservations, transactions); return b < 0 ? 'text-rose-650' : 'text-emerald-700'; })()}`}>
+                    Active Running Balance: {(() => { const b = -getAgentActualBalance(selectedAgent, reservations, transactions); return b < 0 ? `-${Math.abs(b).toLocaleString()}` : b.toLocaleString(); })()} SAR
                   </span>
                 </div>
               </div>
@@ -395,8 +435,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 <p className="text-[10px] text-slate-400 font-semibold uppercase">Supplier Current Balance Overview:</p>
                 <div className="flex justify-between items-baseline mt-1">
                   <span className="text-sm font-bold text-slate-800 uppercase">{selectedSupplier.name}</span>
-                  <span className={`text-sm font-bold font-mono ${getAgentActualBalance(selectedSupplier, reservations, transactions) < 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    Active Running Balance: {getAgentActualBalance(selectedSupplier, reservations, transactions) < 0 ? `(${Math.abs(getAgentActualBalance(selectedSupplier, reservations, transactions)).toLocaleString()})` : getAgentActualBalance(selectedSupplier, reservations, transactions).toLocaleString()} SAR
+                  <span className={`text-sm font-bold font-mono ${(() => { const b = -getAgentActualBalance(selectedSupplier, reservations, transactions); return b < 0 ? 'text-rose-650' : 'text-emerald-700'; })()}`}>
+                    Active Running Balance: {(() => { const b = -getAgentActualBalance(selectedSupplier, reservations, transactions); return b < 0 ? `-${Math.abs(b).toLocaleString()}` : b.toLocaleString(); })()} SAR
                   </span>
                 </div>
               </div>
@@ -592,6 +632,18 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           fromDate={fromDate}
           toDate={toDate}
           onClose={() => setPrintingArrivalReport(false)}
+        />
+      )}
+
+      {/* Printing cancellation overlay */}
+      {printingCancellationReport && (
+        <CancellationReportPDF
+          reservations={cancellationList}
+          agents={agents}
+          hotels={hotels}
+          fromDate={fromDate}
+          toDate={toDate}
+          onClose={() => setPrintingCancellationReport(false)}
         />
       )}
 

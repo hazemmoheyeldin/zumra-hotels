@@ -8,6 +8,7 @@ import { Reservation, Agent, Hotel, User, Account } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
+import { usePageBreaks } from '../lib/usePageBreaks';
 
 interface ConfirmationPDFProps {
   reservation: Reservation;
@@ -21,6 +22,7 @@ interface ConfirmationPDFProps {
 }
 
 export default function ConfirmationPDF({ reservation, client, hotel, type, onClose, creatorName, users = [], accounts = [] }: ConfirmationPDFProps) {
+  const { PageBreakToggle } = usePageBreaks();
   const { totalSell, totalBuy, profit, vat, totalWithVat } = getReservationTotals(reservation);
   
   const creatorUser = users.find(u => u.username === reservation.createdBy || u.name === reservation.createdBy || u.name === creatorName);
@@ -36,7 +38,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
   const calculatedNet = totalSell - calculatedVat;
 
   const handlePrint = () => {
-    downloadPDF('print-area', `Reservation-Voucher-${reservation.id}.pdf`);
+    const status = reservation.status || 'Confirmation';
+    const bookingRef = reservation.id;
+    const todayNum = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    downloadPDF('print-area', `${status} - ${bookingRef} - ${todayNum}.pdf`, { landscape: false });
   };
 
   const getStatusLabel = () => {
@@ -83,7 +88,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 my-8 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 my-8 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white">
         
         {/* Interactive action controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-6 no-print">
@@ -94,6 +99,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <PageBreakToggle />
             <button
               onClick={handlePrint}
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
@@ -122,16 +128,16 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
         {/* PRINTABLE PAPER CONTAINER (A4 Layout) */}
         <div 
           id="print-area" 
-          className="bg-white p-8 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full"
+          className="bg-white p-4 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-3 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
         >
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex flex-col text-left font-sans gap-1 flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center mb-0.5">
+            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-lg font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
@@ -141,11 +147,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
           </div>
 
           {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-4"></div>
+          <div className="border-t-4 border-[#C1A168] w-full my-1.5"></div>
 
           {!isDefinite ? (
             /* Voucher Mode (Matches Screenshot Exactly) */
-            <div className="space-y-6 pt-2 text-left">
+            <div className="space-y-3 pt-1 text-left">
               {/* Top metadata grid matching "Issue Date: 10/03/2026", "RSV#: 11" */}
               <div className="flex flex-col text-xs text-slate-800">
                 <div className="flex justify-between items-start">
@@ -163,16 +169,16 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Central vertical attribute table matching the screenshot */}
-              <div className="border border-slate-300 rounded-lg overflow-hidden mt-4">
+              <div className="border border-slate-300 rounded-lg overflow-hidden mt-2">
                 <table className="w-full text-left border-collapse text-xs">
                   <tbody className="divide-y divide-slate-200">
                     <tr className="bg-white">
-                      <td className="w-1/4 py-3.5 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Hotel Name</td>
-                      <td className="py-3.5 px-4 font-extrabold text-[#111827] text-sm leading-tight">{hotel?.name || 'Hotel Name'}</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Hotel Name</td>
+                      <td className="py-2.5 px-3 font-extrabold text-[#111827] text-sm leading-tight">{hotel?.name || 'Hotel Name'}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-3.5 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Type Of Rooms</td>
-                      <td className="py-3.5 px-4 text-slate-900 font-semibold leading-relaxed space-y-1.5">
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Type Of Rooms</td>
+                      <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed space-y-1">
                         {reservation.rooms.map((room) => (
                           <div key={room.id} className="text-xs mb-1 last:mb-0">
                             <div className="flex items-center gap-2">
@@ -189,20 +195,20 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                       </td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-3.5 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Conf. #</td>
-                      <td className="py-3.5 px-4 font-mono font-extrabold text-[#111827] text-sm">{reservation.hotelConfirmationNo || '-'}</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Conf. #</td>
+                      <td className="py-2.5 px-3 font-mono font-extrabold text-[#111827] text-sm">{reservation.hotelConfirmationNo || '-'}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-3.5 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Check In</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkIn)}</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Check In</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkIn)}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-3.5 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Check Out</td>
-                      <td className="py-3.5 px-4 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkOut)}</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Check Out</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkOut)}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-4 px-4 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[11px] text-slate-700">Client Remarks</td>
-                      <td className="py-4 px-4 text-slate-650 font-medium italic text-xs min-h-[44px]">
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Client Remarks</td>
+                      <td className="py-2.5 px-3 text-slate-650 font-medium italic text-xs min-h-[30px]">
                         {reservation.termsAndConditions || ''}
                       </td>
                     </tr>
@@ -211,17 +217,17 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Staff block and signature matching bottom right */}
-              <div className="flex justify-end pt-12 mt-8">
+              <div className="flex justify-end pt-4 mt-2">
                 <div className="w-64 text-left space-y-1 font-sans">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Staff Name :</p>
                   <p className="text-sm font-black text-slate-950 uppercase tracking-wide leading-tight">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
                   <p className="text-[10px] text-slate-500 font-medium">{creatorJobTitle}</p>
-                  <p className="text-[11px] font-semibold text-slate-400 pt-5 border-t border-dashed border-slate-200 mt-5">Stamp and Signature</p>
+                  <p className="text-[11px] font-semibold text-slate-400 pt-4 border-t border-dashed border-slate-200 mt-4">Stamp and Signature</p>
                 </div>
               </div>
 
               {/* Page marker A4 footer - screen only */}
-              <div className="flex justify-between items-center border-t border-slate-150 pt-5 mt-16 text-[10px] text-slate-400 no-print">
+              <div className="flex justify-between items-center border-t border-slate-150 pt-3 mt-8 text-[10px] text-slate-400 no-print">
                 <div>Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 <div className="font-mono text-right font-bold text-slate-505">Page 1 of 1</div>
               </div>
@@ -230,14 +236,14 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             /* Classic Definite Confirmation Mode */
             <div className="text-left">
               {/* Date & Partner Metadata Info Grid */}
-              <div className="grid grid-cols-2 gap-4 text-xs mb-4">
+              <div className="grid grid-cols-2 gap-2 text-xs mb-1.5">
                 <div className="space-y-1 text-slate-800 font-sans">
                   <p><span className="font-bold inline-block w-10 text-slate-705">Date:</span> {formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : '2026-02-24')}</p>
                   <p className="font-medium"><span className="font-bold inline-block w-10 text-slate-705">To:</span> <span className="uppercase text-slate-900 font-semibold">{client?.name || client?.companyName || 'Marseilia Tours'}</span></p>
                 </div>
                 
                 <div className="text-right">
-                  <h2 className="text-3xl font-bold text-[#b4babe] tracking-wider leading-none uppercase font-sans">
+                  <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-none uppercase font-sans">
                     {getStatusLabel()} Confirmation
                   </h2>
                   {reservation.status === 'Tentative' && reservation.clientOptionDate && (
@@ -249,12 +255,12 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Letter intro statement */}
-              <div className="text-xs text-slate-800 font-normal mb-5 leading-relaxed font-sans">
+              <div className="text-xs text-slate-800 font-normal mb-2 leading-relaxed font-sans">
                 Thank you for showing your interest in Zumra Hotels. We are pleased to confirm your booking as follows:
               </div>
 
               {/* Summary Box Header */}
-              <div className="bg-slate-50 border border-slate-150 rounded-lg p-3 grid grid-cols-3 gap-2 text-xs mb-5 print:bg-slate-50 font-sans">
+              <div className="bg-slate-50 border border-slate-150 rounded-lg p-1.5 grid grid-cols-3 gap-2 text-xs mb-2 print:bg-slate-50 font-sans">
                 <div>
                   <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Res. No:</span>
                   <span className="font-extrabold text-slate-900 font-mono text-xs">RSV-{reservation.id}</span>
@@ -270,72 +276,98 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Rooms and rates details table */}
-              <div className="overflow-x-auto border border-slate-200 rounded-lg mb-5 font-sans">
-                <table className="w-full text-left border-collapse text-xs">
+              <div className="overflow-x-auto border border-slate-200 rounded-lg mb-2 font-sans">
+                <table className="w-full text-left border-collapse text-[10px]">
                   <thead>
                     <tr className="bg-[#d2d7df] border-b border-slate-300 text-slate-800 font-extrabold text-center">
-                      <th className="py-2.5 px-2 text-[10px] uppercase font-mono text-left border-r border-slate-200">RSV #</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase text-left border-r border-slate-200">Hotel</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase border-r border-slate-200">Conf. #</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase border-r border-slate-200 font-bold">QTY</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase text-left border-r border-slate-200">Room Type</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase text-left border-r border-slate-200">MP</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase border-r border-slate-200">Check In</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase border-r border-slate-200 font-bold">NTS</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase border-r border-slate-200 font-bold">Check Out</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase text-right border-r border-slate-200 font-bold">Room Rate</th>
-                      <th className="py-2.5 px-2 text-[10px] uppercase text-right font-bold">Total Price</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase font-mono text-left border-r border-slate-200">RSV #</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Hotel</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Conf. #</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">QTY</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Room Type</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">MP</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Check In</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">NTS</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">Check Out</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right border-r border-slate-200 font-bold">Room Rate</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right font-bold">Total Price</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 text-slate-800 text-[11px]">
+                  <tbody className="divide-y divide-slate-200 text-slate-800 text-[10px]">
                     {reservation.rooms.map((room, idx) => {
-                      let rateStr = '';
+                      const pax = getPaxForRoomType(room.roomType);
+                      const n = reservation.nights;
+
+                      // Helper: get base rate for a specific night index
+                      const getBaseRateForNight = (nightIdx: number): number => {
+                        if (typeof room.nightlyRates === 'number') return room.nightlyRates;
+                        const keys = Object.keys(room.nightlyRates);
+                        return room.nightlyRates[keys[nightIdx]] || room.nightlyRates[keys[0]] || 0;
+                      };
+
+                      // Per-night add-ons (constant across all nights)
+                      const extraBedPerNight = room.hasExtraBed ? (room.extraBedRate || 0) : 0;
+                      const viewSuppPerNight = room.hasViewSupplement ? (room.viewSupplementRate || 0) : 0;
+                      const mealPerNight = room.hasSeparateMealRate ? (room.mealRate || 0) * pax : 0;
+                      const extraMeal1PerNight = room.hasExtraMeal1 ? (room.extraMeal1Rate || 0) * pax : 0;
+                      const extraMeal2PerNight = room.hasExtraMeal2 ? (room.extraMeal2Rate || 0) * pax : 0;
+                      const addOnsPerNight = extraBedPerNight + viewSuppPerNight + mealPerNight + extraMeal1PerNight + extraMeal2PerNight;
+
+                      // Compute effective rate per night for each night
+                      const nightlyEffectiveRates: number[] = [];
                       let lineTotal = 0;
+                      for (let i = 0; i < n; i++) {
+                        const effRate = getBaseRateForNight(i) + addOnsPerNight;
+                        nightlyEffectiveRates.push(effRate);
+                        lineTotal += effRate * room.qty;
+                      }
 
-                      if (typeof room.nightlyRates === 'number') {
-                        lineTotal = room.nightlyRates * room.qty * reservation.nights;
-                        rateStr = room.nightlyRates.toFixed(2);
+                      // Determine unique rates for display (weekday/weekend)
+                      const uniqueRates = Array.from(new Set(nightlyEffectiveRates.map(r => Math.round(r * 100) / 100)));
+                      let rateStr: string;
+                      if (uniqueRates.length === 0) {
+                        rateStr = '0.00';
+                      } else if (uniqueRates.length === 1) {
+                        rateStr = uniqueRates[0].toFixed(2);
                       } else {
-                        const values = Object.values(room.nightlyRates);
-                        const uniqueVals = Array.from(new Set(values));
-                        if (uniqueVals.length > 1) {
-                          rateStr = uniqueVals.map(v => v.toFixed(2)).join(' / ');
-                        } else if (uniqueVals.length === 1) {
-                          rateStr = uniqueVals[0].toFixed(2);
-                        } else {
-                          rateStr = '0.00';
-                        }
-                        values.forEach((val) => {
-                          lineTotal += val * room.qty;
-                        });
+                        rateStr = uniqueRates.map(v => v.toFixed(2)).join(' / ');
                       }
 
-                      // Append separate meal rate if exists
-                      if (room.hasSeparateMealRate && room.mealRate) {
-                        const mealCost = room.mealRate * getPaxForRoomType(room.roomType) * reservation.nights * room.qty;
-                        lineTotal += mealCost;
+                      // Build rate breakdown details for tooltip
+                      const breakdownParts: string[] = [];
+                      if (typeof room.nightlyRates === 'number') {
+                        breakdownParts.push(`Room: ${room.nightlyRates}`);
+                      } else {
+                        const vals = Object.values(room.nightlyRates);
+                        const uniq = Array.from(new Set(vals));
+                        breakdownParts.push(`Room: ${uniq.map(v=>v.toFixed(0)).join('/')}`);
                       }
+                      if (extraBedPerNight > 0) breakdownParts.push(`+Extra Bed: ${extraBedPerNight}`);
+                      if (viewSuppPerNight > 0) breakdownParts.push(`+View: ${viewSuppPerNight}`);
+                      if (mealPerNight > 0) breakdownParts.push(`+Meals: ${mealPerNight}`);
+                      if (extraMeal1PerNight > 0) breakdownParts.push(`+${room.extraMeal1Label || 'Meal1'}: ${extraMeal1PerNight}`);
+                      if (extraMeal2PerNight > 0) breakdownParts.push(`+${room.extraMeal2Label || 'Meal2'}: ${extraMeal2PerNight}`);
 
                       return (
                         <tr key={room.id} className="bg-white hover:bg-slate-50/50">
-                          <td className="py-3 px-2 font-mono font-bold text-slate-900 border-r border-slate-200">{reservation.id}-{idx + 1}</td>
-                          <td className="py-3 px-2 font-bold text-slate-800 border-r border-slate-200 leading-tight">{hotel?.name || 'Movenpick Hajar Makkah'}</td>
-                          <td className="py-3 px-2 text-center font-mono font-semibold text-emerald-800 border-r border-slate-200">
+                          <td className="py-1.5 px-1.5 font-mono font-bold text-slate-900 border-r border-slate-200">{reservation.id}-{idx + 1}</td>
+                          <td className="py-1.5 px-1.5 font-bold text-slate-800 border-r border-slate-200 leading-tight">{hotel?.name || 'Movenpick Hajar Makkah'}</td>
+                          <td className="py-1.5 px-1.5 text-center font-mono font-semibold text-emerald-800 border-r border-slate-200">
                             {reservation.hotelConfirmationNo || '-'}
                           </td>
-                          <td className="py-3 px-2 text-center font-bold text-slate-800 border-r border-slate-200">{room.qty}</td>
-                          <td className="py-3 px-2 text-slate-700 font-medium border-r border-slate-200">
+                          <td className="py-1.5 px-1.5 text-center font-bold text-slate-800 border-r border-slate-200">{room.qty}</td>
+                          <td className="py-1.5 px-1.5 text-slate-700 font-medium border-r border-slate-200">
                             {room.roomType}
-                            <div className="text-[9px] text-slate-400 mt-0.5">{room.view || 'Standard'}</div>
+                            <div className="text-[8px] text-slate-400 mt-0.5">{room.view || 'Standard'}</div>
                           </td>
-                          <td className="py-3 px-2 text-slate-705 font-semibold border-r border-slate-200">{abbreviateMealPlan(room.mealPlan)}</td>
-                          <td className="py-3 px-2 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkIn)}</td>
-                          <td className="py-3 px-2 text-center font-bold border-r border-slate-200">{reservation.nights}</td>
-                          <td className="py-3 px-2 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkOut)}</td>
-                          <td className="py-3 px-2 text-right font-mono text-[10px] text-slate-605 border-r border-slate-205 whitespace-pre">
+                          <td className="py-1.5 px-1.5 text-slate-705 font-semibold border-r border-slate-200">{abbreviateMealPlan(room.mealPlan)}</td>
+                          <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkIn)}</td>
+                          <td className="py-1.5 px-1.5 text-center font-bold border-r border-slate-200">{reservation.nights}</td>
+                          <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkOut)}</td>
+                          <td className="py-1.5 px-1.5 text-right font-mono text-[9px] text-slate-605 border-r border-slate-205 whitespace-pre" title={breakdownParts.join('\n')}>
                             {rateStr}
                           </td>
-                          <td className="py-3 px-2 text-right font-bold text-slate-900 font-mono">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-slate-900 font-mono">
                             {lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
                         </tr>
@@ -343,10 +375,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                     })}
 
                     <tr className="bg-slate-50 border-t border-slate-300 font-bold">
-                      <td colSpan={10} className="py-2 px-3 text-right text-slate-705 font-sans border-r border-slate-200 uppercase text-[10px] tracking-wider">
+                      <td colSpan={10} className="py-1 px-2 text-right text-slate-705 font-sans border-r border-slate-200 uppercase text-[9px] tracking-wider">
                         Net Accommodation Charge:
                       </td>
-                      <td className="py-2 px-2 text-right font-mono text-slate-900 font-extrabold text-xs">
+                      <td className="py-1 px-2 text-right font-mono text-slate-900 font-extrabold text-[10px]">
                         {totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -355,7 +387,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* VAT Accounting summary block */}
-              <div className="bg-white border-2 border-slate-200 rounded-xl p-4 max-w-sm ml-auto mr-0 my-5 text-xs font-semibold space-y-2 font-sans">
+              <div className="bg-white border-2 border-slate-200 rounded-xl p-2.5 max-w-sm ml-auto mr-0 my-2 text-xs font-semibold space-y-1 font-sans">
                 <div className="flex justify-between text-slate-650">
                   <span>Total:</span>
                   <span className="font-mono font-bold text-slate-900">{calculatedNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
@@ -371,9 +403,9 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Terms & Conditions Block */}
-              <div className="mt-6 border-t border-slate-100 pt-4 text-xs font-sans">
-                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-2 text-xs">Terms & Conditions:</h3>
-                <div className="text-[10px] text-slate-650 space-y-1 font-medium leading-normal max-w-2xl text-left">
+              <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] font-sans">
+                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Terms & Conditions:</h3>
+                <div className="text-[9px] text-slate-650 space-y-0 font-medium leading-snug max-w-2xl text-left">
                   <p>• The above rates are quoted in Saudi Riyals.</p>
                   <p>• Rooms allocation is subject to hotel availability.</p>
                   <p>• Check In 16:00 hrs. Check Out 12:00 hrs. One Full Night charged if Guest check out after 16:00 hrs.</p>
@@ -390,8 +422,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Bank Accounts Section */}
-              <div className="mt-6 border-t border-slate-150 pt-4 text-xs font-sans">
-                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-2">Our Bank Account:</h3>
+              <div className="mt-2 border-t border-slate-150 pt-2 text-[10px] font-sans">
+                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Our Bank Account:</h3>
                 {reservation.bankAccountId ? (() => {
                   const acc = accounts.find(a => a.id === reservation.bankAccountId);
                   if (acc) {
@@ -428,10 +460,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               </div>
 
               {/* Thanks & Regards Section */}
-              <div className="flex justify-end items-end border-t border-slate-150 pt-5 mt-6 text-xs text-slate-500 font-sans">
+              <div className="flex justify-end items-end border-t border-slate-150 pt-2 mt-2 text-[10px] text-slate-500 font-sans">
                 <div className="text-right">
                   <p className="font-bold text-slate-700 italic">Thanks, and Best Regards</p>
-                  <p className="text-sm font-bold text-slate-900 mt-2 block uppercase font-sans">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
+                  <p className="text-sm font-bold text-slate-900 mt-1 block uppercase font-sans">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
                   <p className="text-[10px] text-slate-450 font-medium">{creatorJobTitle}, Zumra Hotels</p>
                 </div>
               </div>

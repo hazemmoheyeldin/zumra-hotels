@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel, User, FollowUp } from '../types';
 import { getReservationTotals, getEgyptTime } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
@@ -20,55 +20,89 @@ interface DashboardProps {
 
 export default function Dashboard({ reservations, agents, hotels, users, followUps, onNavigate, onQuickReservation }: DashboardProps) {
   const todayStr = getEgyptTime().toISOString().split('T')[0];
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+
+  // Filtered reservations based on dashboard filters
+  const filteredReservations = useMemo(() => {
+    let list = reservations;
+    if (dateFrom) list = list.filter(r => r.createdAt.split(' ')[0] >= dateFrom);
+    if (dateTo) list = list.filter(r => r.createdAt.split(' ')[0] <= dateTo);
+    if (statusFilter !== 'All') list = list.filter(r => r.status === statusFilter);
+    return list;
+  }, [reservations, dateFrom, dateTo, statusFilter]);
 
   // Calculations
-  const reservationsToday = reservations.filter(res => res.createdAt.startsWith(todayStr));
+  const reservationsToday = filteredReservations.filter(res => res.createdAt.startsWith(todayStr));
   
-  // Calculate stats
-  const totalBookings = reservations.length;
-  const tentativeBookings = reservations.filter(res => res.status === 'Tentative').length;
-  const confirmedBookings = reservations.filter(res => res.status === 'Confirmed').length;
+  // Calculate stats from filtered data
+  const totalBookings = filteredReservations.length;
+  const tentativeBookings = filteredReservations.filter(res => res.status === 'Tentative').length;
+  const confirmedBookings = filteredReservations.filter(res => res.status === 'Confirmed').length;
+  const cancelledBookings = filteredReservations.filter(res => res.status === 'Cancelled').length;
+  
+  // Total financial metrics
+  const totalRevenue = filteredReservations.reduce((acc, res) => { if (res.status === 'Cancelled') return acc; const { totalSell } = getReservationTotals(res); return acc + totalSell; }, 0);
+  const totalCost = filteredReservations.reduce((acc, res) => { if (res.status === 'Cancelled') return acc; const { totalBuy } = getReservationTotals(res); return acc + totalBuy; }, 0);
+  const totalProfit = totalRevenue - totalCost;
   
   // Checking in today count
-  const checkInsToday = reservations.filter(res => res.checkIn === todayStr && res.status !== 'Cancelled');
+  const checkInsToday = filteredReservations.filter(res => res.checkIn === todayStr && res.status !== 'Cancelled');
   
-  // Expiring options count (Option date is today and status is Tentative)
-  const expiringOptions = reservations.filter(res => res.clientOptionDate === todayStr && res.status === 'Tentative');
+  // Expiring options count
+  const expiringOptions = filteredReservations.filter(res => res.clientOptionDate === todayStr && res.status === 'Tentative');
 
-  // In house (checkIn <= today and checkOut > today)
-  const inHouseList = reservations.filter(res => res.checkIn <= todayStr && res.checkOut > todayStr && res.status === 'Confirmed');
+  // In house
+  const inHouseList = filteredReservations.filter(res => res.checkIn <= todayStr && res.checkOut > todayStr && res.status === 'Confirmed');
+
+  // Upcoming check-ins (next 7 days)
+  const upcomingCheckIns = useMemo(() => {
+    const today = new Date(todayStr);
+    const in7days = new Date(today); in7days.setDate(in7days.getDate() + 7);
+    return filteredReservations
+      .filter(res => {
+        if (res.status === 'Cancelled') return false;
+        const ci = new Date(res.checkIn);
+        return ci >= today && ci <= in7days;
+      })
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  }, [filteredReservations, todayStr]);
+
+  // Occupancy rate (simple: in-house rooms / total hotels rooms estimate)
+  const occupancyRate = useMemo(() => {
+    const totalInHouseRooms = inHouseList.reduce((sum, res) => sum + res.rooms.reduce((s, rm) => s + rm.qty, 0), 0);
+    const totalHotelRooms = (hotels.length || 1) * 100;
+    return Math.min(100, Math.round((totalInHouseRooms / totalHotelRooms) * 100));
+  }, [inHouseList, hotels]);
 
   // Calculate high quality sales data for charts and portfolio lists
   const getSupplierStats = () => {
-    const stats: { [id: string]: { name: string; sales: number; roomNights: number } } = {};
-    reservations.forEach(res => {
+    const stats: { [id: string]: { id: string; name: string; sales: number; roomNights: number; bookings: number } } = {};
+    filteredReservations.forEach(res => {
       if (res.status === 'Cancelled') return;
       const { totalBuy } = getReservationTotals(res);
       const host = agents.find(a => a.id === res.supplierId) || { name: 'Direct' };
       const nightsMultiplier = res.rooms.reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
-
-      if (!stats[res.supplierId]) {
-        stats[res.supplierId] = { name: host.name, sales: 0, roomNights: 0 };
-      }
+      if (!stats[res.supplierId]) stats[res.supplierId] = { id: res.supplierId, name: host.name, sales: 0, roomNights: 0, bookings: 0 };
       stats[res.supplierId].sales += totalBuy;
       stats[res.supplierId].roomNights += nightsMultiplier;
+      stats[res.supplierId].bookings += 1;
     });
     return Object.values(stats).sort((a, b) => b.sales - a.sales).slice(0, 10);
   };
 
   const getClientStats = () => {
-    const stats: { [id: string]: { name: string; sales: number; roomNights: number } } = {};
-    reservations.forEach(res => {
+    const stats: { [id: string]: { id: string; name: string; sales: number; roomNights: number; bookings: number } } = {};
+    filteredReservations.forEach(res => {
       if (res.status === 'Cancelled') return;
       const { totalSell } = getReservationTotals(res);
       const client = agents.find(a => a.id === res.clientId) || { name: 'Direct Client', companyName: '' };
       const nightsMultiplier = res.rooms.reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
-
-      if (!stats[res.clientId]) {
-        stats[res.clientId] = { name: client.companyName || client.name, sales: 0, roomNights: 0 };
-      }
+      if (!stats[res.clientId]) stats[res.clientId] = { id: res.clientId, name: client.companyName || client.name, sales: 0, roomNights: 0, bookings: 0 };
       stats[res.clientId].sales += totalSell;
       stats[res.clientId].roomNights += nightsMultiplier;
+      stats[res.clientId].bookings += 1;
     });
     return Object.values(stats).sort((a, b) => b.sales - a.sales).slice(0, 10);
   };
@@ -256,12 +290,35 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         </div>
       )}
 
-      {/* Top compact design bar */}
+      {/* Dashboard Filters */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap items-center gap-3 shadow-sm">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-500 uppercase">📅 From:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-mono focus:border-indigo-400 focus:outline-none" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-500 uppercase">📅 To:</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-mono focus:border-indigo-400 focus:outline-none" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-slate-500 uppercase">📊 Status:</span>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-2 py-1 border border-slate-200 rounded-lg text-[11px] font-semibold focus:border-indigo-400 focus:outline-none">
+            <option value="All">All Statuses</option>
+            <option value="Confirmed">Confirmed</option>
+            <option value="Tentative">Tentative</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+        {(dateFrom || dateTo || statusFilter !== 'All') && (
+          <button onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('All'); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-700 ml-auto">✕ Clear Filters</button>
+        )}
+        <div className="ml-auto text-[10px] text-slate-400 font-mono">{filteredReservations.length} of {reservations.length} bookings</div>
+      </div>
       <div className="bg-gradient-to-r from-blue-900 via-slate-800 to-slate-900 rounded-2xl p-6 text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl border-b-4 border-blue-500 relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-32 h-32 bg-blue-400/10 rounded-full"></div>
         <div className="flex flex-col sm:flex-row items-center gap-4 z-10 w-full md:w-auto">
           <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-sm shadow-inner flex items-center justify-center">
-            <ZumraLogo size="lg" variant="light" />
+            <ZumraLogo size="xl" variant="light" />
           </div>
           <div className="text-center sm:text-left">
             <h2 className="text-xl font-bold uppercase tracking-tight text-amber-100">Zumra Hotels B2B Operations Panel</h2>
@@ -300,68 +357,114 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       </div>
 
       {/* KPIs Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
         
-        {/* Bookings Today */}
-        <button 
-          onClick={() => onNavigate('Reservations', { customFilter: 'bookings-today' })}
-          className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:border-emerald-200 hover:shadow transition-all duration-200 text-left block w-full focus:outline-none cursor-pointer"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-bold text-slate-400 block uppercase tracking-wide">Bookings Today</span>
-            <span className="bg-emerald-50 text-emerald-700 p-2 rounded-xl text-xs font-bold">📝</span>
-          </div>
-          <span className="text-3xl font-extrabold text-slate-800 focus:outline-none block mt-2 font-mono">
-            {reservationsToday.length}
-          </span>
-          <span className="text-[10px] text-emerald-600 font-semibold block mt-1">Recorded on portal today</span>
+        <button onClick={() => onNavigate('Reservations', { customFilter: 'bookings-today' })} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:border-emerald-200 hover:shadow transition-all text-left cursor-pointer">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Bookings Today</div>
+          <div className="text-2xl font-extrabold text-slate-800 font-mono mt-1">{reservationsToday.length}</div>
         </button>
 
-        {/* Clickable check-in trigger */}
-        <button 
-          onClick={() => onNavigate('Reservations', { customFilter: 'checkin-today' })}
-          className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow hover:border-amber-400 transition-all duration-200 text-left block w-full focus:outline-none cursor-pointer"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-bold text-slate-400 block uppercase tracking-wide">Check-In Today</span>
-            <span className="bg-amber-100 text-amber-800 p-2 rounded-xl text-xs font-bold">🔔</span>
-          </div>
-          <span className="text-3xl font-extrabold text-slate-800 block mt-2 font-mono">
-            {checkInsToday.length}
-          </span>
-          <span className="text-[10px] text-amber-600 block mt-1 font-bold hover:underline">Click to view check-ins →</span>
+        <button onClick={() => onNavigate('Reservations', { customFilter: 'checkin-today' })} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:border-amber-400 hover:shadow transition-all text-left cursor-pointer">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Check-In Today</div>
+          <div className="text-2xl font-extrabold text-slate-800 font-mono mt-1">{checkInsToday.length}</div>
         </button>
 
-        {/* Clickable in-house trigger */}
-        <button 
-          onClick={() => onNavigate('Reservations', { customFilter: 'inhouse' })}
-          className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow hover:border-emerald-400 transition-all duration-200 text-left block w-full focus:outline-none cursor-pointer"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-bold text-slate-400 block uppercase tracking-wide">In House (In-House)</span>
-            <span className="bg-emerald-100 text-emerald-800 p-2 rounded-xl text-xs font-bold">🔑</span>
-          </div>
-          <span className="text-3xl font-extrabold text-slate-800 block mt-2 font-mono">
-            {inHouseList.length}
-          </span>
-          <span className="text-[10px] text-emerald-700 block mt-1 font-bold hover:underline">Occupying rooms right now →</span>
+        <button onClick={() => onNavigate('Reservations', { customFilter: 'inhouse' })} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:border-emerald-400 hover:shadow transition-all text-left cursor-pointer">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">In House</div>
+          <div className="text-2xl font-extrabold text-slate-800 font-mono mt-1">{inHouseList.length}</div>
         </button>
 
-        {/* Expiring options trigger */}
-        <button 
-          onClick={() => onNavigate('Reservations', { customFilter: 'expiring-options' })}
-          className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow hover:border-red-400 transition-all duration-200 text-left block w-full focus:outline-none cursor-pointer"
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-xs font-bold text-slate-400 block uppercase tracking-wide">Expiring Options</span>
-            <span className="bg-red-100 text-red-800 p-2 rounded-xl text-xs font-bold">⏳</span>
-          </div>
-          <span className="text-3xl font-extrabold text-slate-800 block mt-2 font-mono">
-            {expiringOptions.length}
-          </span>
-          <span className="text-[10px] text-red-650 block mt-1 font-bold hover:underline">Requires urgent attention →</span>
+        <button onClick={() => onNavigate('Reservations', { customFilter: 'expiring-options' })} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm hover:border-red-400 hover:shadow transition-all text-left cursor-pointer">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Expiring Options</div>
+          <div className="text-2xl font-extrabold text-slate-800 font-mono mt-1">{expiringOptions.length}</div>
         </button>
 
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm">
+          <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">Revenue</div>
+          <div className="text-lg font-extrabold text-emerald-800 font-mono mt-1">{totalRevenue.toLocaleString()}</div>
+          <div className="text-[9px] text-emerald-500">SAR</div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
+          <div className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">Cost</div>
+          <div className="text-lg font-extrabold text-amber-800 font-mono mt-1">{totalCost.toLocaleString()}</div>
+          <div className="text-[9px] text-amber-500">SAR</div>
+        </div>
+
+        <div className={`rounded-2xl p-4 shadow-sm border ${totalProfit >= 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-rose-50 border-rose-200'}`}>
+          <div className={`text-[9px] font-bold uppercase tracking-wide ${totalProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Profit</div>
+          <div className={`text-lg font-extrabold font-mono mt-1 ${totalProfit >= 0 ? 'text-indigo-800' : 'text-rose-800'}`}>{totalProfit.toLocaleString()}</div>
+          <div className={`text-[9px] ${totalProfit >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>SAR</div>
+        </div>
+      </div>
+
+      {/* Upcoming Check-ins + Occupancy + Quick Actions Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Occupancy Rate */}
+        <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">Occupancy Indicator</h3>
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20">
+              <svg className="w-20 h-20 transform -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="35" fill="none" stroke="#e2e8f0" strokeWidth="8" />
+                <circle cx="40" cy="40" r="35" fill="none" stroke={occupancyRate >= 80 ? '#10b981' : occupancyRate >= 50 ? '#f59e0b' : '#6366f1'} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${occupancyRate * 2.2} 220`} />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-lg font-black text-slate-800">{occupancyRate}%</span>
+            </div>
+            <div className="text-xs text-slate-500">
+              <div className="font-bold text-slate-700">{inHouseList.length} groups in-house</div>
+              <div className="mt-1">{inHouseList.reduce((s, r) => s + r.rooms.reduce((a, rm) => a + rm.qty, 0), 0)} rooms occupied</div>
+              <div className="mt-1 text-[10px] text-slate-400">Based on {hotels.length} hotels (~100 rooms each)</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => onNavigate('Reservations', { showNewForm: true })} className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl px-3 py-2.5 text-[10px] font-bold text-emerald-800 transition flex items-center gap-1.5">
+              <span>📅</span> New Booking
+            </button>
+            <button onClick={() => onNavigate('Transactions')} className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl px-3 py-2.5 text-[10px] font-bold text-indigo-800 transition flex items-center gap-1.5">
+              <span>💰</span> Record Payment
+            </button>
+            <button onClick={() => onNavigate('Reports')} className="bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl px-3 py-2.5 text-[10px] font-bold text-amber-800 transition flex items-center gap-1.5">
+              <span>📋</span> Generate Report
+            </button>
+            <button onClick={() => onNavigate('Production')} className="bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl px-3 py-2.5 text-[10px] font-bold text-blue-800 transition flex items-center gap-1.5">
+              <span>📈</span> Production
+            </button>
+          </div>
+        </div>
+
+        {/* Upcoming Check-ins (Next 7 days) */}
+        <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-100 pb-2">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Arrivals Next 7 Days</h3>
+            <span className="text-[10px] font-mono text-slate-400">{upcomingCheckIns.length} check-ins</span>
+          </div>
+          <div className="space-y-2 max-h-[120px] overflow-y-auto no-scrollbar">
+            {upcomingCheckIns.slice(0, 5).map(res => {
+              const hotel = hotels.find(h => h.id === res.hotelId);
+              const daysUntil = Math.ceil((new Date(res.checkIn).getTime() - new Date(todayStr).getTime()) / (1000 * 60 * 60 * 24));
+              return (
+                <button key={res.id} onClick={() => onNavigate('Reservations', { viewReservationId: res.id })} className="w-full flex items-center justify-between text-[10px] hover:bg-slate-50 rounded-lg px-2 py-1 transition cursor-pointer">
+                  <div>
+                    <span className="font-bold text-slate-800">{res.guestName}</span>
+                    <span className="text-slate-400 ml-1.5">{hotel?.name}</span>
+                  </div>
+                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-[9px] ${daysUntil === 0 ? 'bg-emerald-100 text-emerald-700' : daysUntil <= 2 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {daysUntil === 0 ? 'Today' : `${daysUntil}d`}
+                  </span>
+                </button>
+              );
+            })}
+            {upcomingCheckIns.length === 0 && (
+              <p className="text-slate-400 italic text-center text-[10px] py-3">No arrivals in next 7 days.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Today's Bookings and Who Made Them */}
@@ -444,10 +547,10 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             <div>
               <div className="flex justify-between text-xs font-semibold text-slate-500 mb-1">
                 <span>Cancelled / Penalties</span>
-                <span className="font-mono">{reservations.filter(r => r.status === 'Cancelled').length} bookings</span>
+                <span className="font-mono">{cancelledBookings} bookings</span>
               </div>
               <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                <div className="bg-rose-500 h-full" style={{ width: `${totalBookings ? (reservations.filter(r => r.status === 'Cancelled').length / totalBookings) * 105 : 0}%` }}></div>
+                <div className="bg-rose-500 h-full" style={{ width: `${totalBookings ? (cancelledBookings / totalBookings) * 105 : 0}%` }}></div>
               </div>
             </div>
           </div>
@@ -466,18 +569,26 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
           </div>
           <div className="space-y-3 max-h-[380px] overflow-y-auto no-scrollbar">
             {topClients.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-xs">
+              <button
+                key={idx}
+                onClick={() => onNavigate('Reservations', { clientId: item.id })}
+                title={`View all bookings for ${item.name}`}
+                className="w-full flex justify-between items-center text-xs hover:bg-indigo-50 rounded-lg px-2 py-1.5 -mx-2 transition-colors cursor-pointer group"
+              >
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-slate-300 w-4 text-center">{idx + 1}</span>
                   <div>
-                    <p className="font-semibold text-slate-800">{item.name}</p>
-                    <p className="text-[10px] text-slate-450">{item.roomNights} Room Nights booked</p>
+                    <p className="font-semibold text-slate-800 group-hover:text-indigo-700 transition-colors">{item.name}</p>
+                    <p className="text-[10px] text-slate-450">{item.roomNights} Room Nights · {item.bookings} bookings</p>
                   </div>
                 </div>
-                <div className="text-right font-mono font-bold text-emerald-800">
-                  {item.sales.toLocaleString()} SAR
+                <div className="flex items-center gap-1.5">
+                  <div className="text-right font-mono font-bold text-emerald-800">
+                    {item.sales.toLocaleString()} SAR
+                  </div>
+                  <span className="text-slate-300 group-hover:text-indigo-500 text-sm transition-colors">→</span>
                 </div>
-              </div>
+              </button>
             ))}
             {topClients.length === 0 && (
               <p className="text-slate-400 italic text-center py-6">No sales stats available.</p>
@@ -493,18 +604,26 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
           </div>
           <div className="space-y-3 max-h-[380px] overflow-y-auto no-scrollbar">
             {topSuppliers.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center text-xs">
+              <button
+                key={idx}
+                onClick={() => onNavigate('Reservations', { supplierId: item.id })}
+                title={`View all bookings from ${item.name}`}
+                className="w-full flex justify-between items-center text-xs hover:bg-amber-50 rounded-lg px-2 py-1.5 -mx-2 transition-colors cursor-pointer group"
+              >
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-slate-300 w-4 text-center">{idx + 1}</span>
                   <div>
-                    <p className="font-semibold text-slate-800">{item.name}</p>
-                    <p className="text-[10px] text-slate-450">{item.roomNights} Room Nights obtained</p>
+                    <p className="font-semibold text-slate-800 group-hover:text-amber-700 transition-colors">{item.name}</p>
+                    <p className="text-[10px] text-slate-450">{item.roomNights} Room Nights · {item.bookings} bookings</p>
                   </div>
                 </div>
-                <div className="text-right font-mono font-bold text-amber-900">
-                  {item.sales.toLocaleString()} SAR
+                <div className="flex items-center gap-1.5">
+                  <div className="text-right font-mono font-bold text-amber-900">
+                    {item.sales.toLocaleString()} SAR
+                  </div>
+                  <span className="text-slate-300 group-hover:text-amber-500 text-sm transition-colors">→</span>
                 </div>
-              </div>
+              </button>
             ))}
             {topSuppliers.length === 0 && (
               <p className="text-slate-400 italic text-center py-6">No supplier stats available.</p>

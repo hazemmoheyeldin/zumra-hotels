@@ -18,6 +18,7 @@ import AccountsPage from './components/AccountsPage';
 import ReportsPage from './components/ReportsPage';
 import UserManagementPage from './components/UserManagementPage';
 import SalesPage from './components/SalesPage';
+import ProductionPage from './components/ProductionPage';
 import ZumraLogo from './components/ZumraLogo';
 import LoginPage from './components/LoginPage';
 import InboxModal from './components/InboxModal';
@@ -365,9 +366,43 @@ export default function App() {
 
   const handleSaveReservation = (res: Reservation) => {
     const updated = reservations.map(item => item.id === res.id ? res : item);
-    if (!reservations.some(item => item.id === res.id)) updated.push(res);
+    const isNew = !reservations.some(item => item.id === res.id);
+    if (isNew) updated.push(res);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
+
+    // Recalculate allotment booked counts from all non-cancelled reservations
+    const recalcAllotments = () => {
+      const activeReservations = updated.filter(r => r.status !== 'Cancelled');
+      const newAllotments = allotments.map(al => {
+        if (!al.dailyAvailability) return al;
+        const newDaily = { ...al.dailyAvailability };
+        // Reset all booked counts
+        Object.keys(newDaily).forEach(d => { newDaily[d] = { ...newDaily[d], booked: 0 }; });
+        // Accumulate bookings from matching reservations
+        activeReservations.forEach(r => {
+          if (r.hotelId !== al.hotelId) return;
+          if (r.supplierId && r.supplierId !== al.supplierId) return;
+          r.rooms.forEach(rm => {
+            if (rm.roomType !== al.roomType) return;
+            // Generate dates for this reservation
+            const checkIn = new Date(r.checkIn);
+            for (let i = 0; i < r.nights; i++) {
+              const d = new Date(checkIn);
+              d.setDate(d.getDate() + i);
+              const dateStr = d.toISOString().split('T')[0];
+              if (newDaily[dateStr]) {
+                newDaily[dateStr].booked += rm.qty;
+              }
+            }
+          });
+        });
+        return { ...al, dailyAvailability: newDaily };
+      });
+      setAllotments(newAllotments);
+      ZumraDB.saveAllotments(newAllotments);
+    };
+    recalcAllotments();
   };
 
   const handleDeleteReservation = (id: string) => {
@@ -397,10 +432,20 @@ export default function App() {
       newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance - tr.amount } : ag);
     } else if (tr.type === 'SupplierPayment' && tr.agentId) {
       newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance + tr.amount } : ag);
+    } else if (tr.type === 'ClientRefund' && tr.agentId) {
+      // Reverse: undo refund means add back to client balance
+      newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance + tr.amount } : ag);
+    } else if (tr.type === 'SupplierRefund' && tr.agentId) {
+      // Reverse: undo refund means subtract from supplier balance
+      newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance - tr.amount } : ag);
     }
 
     if (tr.fromAccountId) {
-      const modifier = tr.type === 'ClientPayment' ? -tr.amount : tr.amount;
+      let modifier = 0;
+      if (tr.type === 'ClientPayment') modifier = -tr.amount;
+      else if (tr.type === 'SupplierPayment') modifier = tr.amount;
+      else if (tr.type === 'ClientRefund') modifier = tr.amount; // Reverse: add back to account
+      else if (tr.type === 'SupplierRefund') modifier = -tr.amount; // Reverse: remove from account
       newAccounts = newAccounts.map(acc => acc.id === tr.fromAccountId ? { ...acc, balance: acc.balance + modifier } : acc);
     }
     return { newAgents, newAccounts };
@@ -414,10 +459,20 @@ export default function App() {
       newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance + tr.amount } : ag);
     } else if (tr.type === 'SupplierPayment' && tr.agentId) {
       newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance - tr.amount } : ag);
+    } else if (tr.type === 'ClientRefund' && tr.agentId) {
+      // Refund to client: reduce their outstanding balance
+      newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance - tr.amount } : ag);
+    } else if (tr.type === 'SupplierRefund' && tr.agentId) {
+      // Refund from supplier: increase their credit
+      newAgents = newAgents.map(ag => ag.id === tr.agentId ? { ...ag, balance: ag.balance + tr.amount } : ag);
     }
 
     if (tr.fromAccountId) {
-      const modifier = tr.type === 'ClientPayment' ? tr.amount : -tr.amount;
+      let modifier = 0;
+      if (tr.type === 'ClientPayment') modifier = tr.amount;
+      else if (tr.type === 'SupplierPayment') modifier = -tr.amount;
+      else if (tr.type === 'ClientRefund') modifier = -tr.amount; // Money leaves account
+      else if (tr.type === 'SupplierRefund') modifier = tr.amount; // Money enters account
       newAccounts = newAccounts.map(acc => acc.id === tr.fromAccountId ? { ...acc, balance: acc.balance + modifier } : acc);
     }
     return { newAgents, newAccounts };
@@ -689,6 +744,14 @@ export default function App() {
             onDeleteFollowUp={handleDeleteFollowUp}
           />
         );
+      case 'Production':
+        return (
+          <ProductionPage
+            reservations={reservations}
+            agents={agents}
+            hotels={hotels}
+          />
+        );
       case 'Users':
         return (
           <UserManagementPage
@@ -708,17 +771,18 @@ export default function App() {
   const [isInboxOpen, setIsInboxOpen] = useState(false);
 
   const navItems = [
-    { name: 'Dashboard', icon: '📊' },
-    { name: 'Reservations', icon: '📅' },
-    { name: 'Sales', icon: '🚀' },
-    { name: 'Hotels', icon: '🏢' },
-    { name: 'Agents', icon: '👥' },
-    { name: 'Allotments', icon: '📦' },
-    { name: 'Transactions', icon: '💰' },
-    { name: 'External Transfers', icon: '💸' },
-    { name: 'Banks & Safes', icon: '🏦' },
-    { name: 'Reports', icon: '📋' },
-    { name: 'Users', icon: '🔑' },
+    { name: 'Dashboard', icon: '📊', group: 'Overview' },
+    { name: 'Reservations', icon: '📅', group: 'Operations' },
+    { name: 'Sales', icon: '🚀', group: 'Operations' },
+    { name: 'Production', icon: '📈', group: 'Operations' },
+    { name: 'Hotels', icon: '🏢', group: 'Operations' },
+    { name: 'Agents', icon: '👥', group: 'Operations' },
+    { name: 'Allotments', icon: '📦', group: 'Operations' },
+    { name: 'Transactions', icon: '💰', group: 'Finance' },
+    { name: 'External Transfers', icon: '💸', group: 'Finance' },
+    { name: 'Banks & Safes', icon: '🏦', group: 'Finance' },
+    { name: 'Reports', icon: '📋', group: 'Finance' },
+    { name: 'Users', icon: '🔑', group: 'Settings' },
   ];
 
   if (!currentUser) {
@@ -728,12 +792,19 @@ export default function App() {
   // Get permitted nav items based on user's specific role
   const permittedNavItems = navItems.filter((item) => {
     if (currentUser.role === 'Reservationist' || currentUser.role === 'Sales') {
-      return ['Dashboard', 'Reservations', 'Sales', 'Hotels', 'Agents', 'Allotments'].includes(item.name);
+      return ['Dashboard', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
       return ['Dashboard', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports'].includes(item.name);
     }
     return true; // Admin gets everything
+  });
+
+  // Group nav items by group
+  const navGroups: { [group: string]: typeof navItems } = {};
+  permittedNavItems.forEach(item => {
+    if (!navGroups[item.group]) navGroups[item.group] = [];
+    navGroups[item.group].push(item);
   });
 
   return (
@@ -791,7 +862,7 @@ export default function App() {
         <div className={`p-5 flex flex-row md:flex-col items-center justify-between md:justify-center border-b ${currentTheme.sidebarBorder} gap-3`}>
           <div className="flex items-center gap-3 md:flex-col">
             <div className={`flex items-center justify-center transition-transform hover:scale-105 bg-white p-2 rounded-xl`}>
-              <ZumraLogo size="sm" variant="dark" />
+              <ZumraLogo size="md" variant="dark" />
             </div>
             <div className="text-left md:text-center mt-1">
               <p className={`text-[11px] md:text-[12px] text-amber-400 font-extrabold tracking-widest leading-none`}>B2B RMS</p>
@@ -811,28 +882,38 @@ export default function App() {
         </div>
 
         {/* Navigation list */}
-        <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-1.5 px-3 flex flex-col gap-0 overflow-x-auto">
-          {permittedNavItems.map((item) => {
-            const isActive = activeTab === item.name;
-            return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  setActiveFilters(null);
-                  setActiveTab(item.name);
-                  setSidebarOpen(false); // Close sidebar on mobile
-                }}
-                className={`flex items-center gap-2 px-3 py-2 md:py-2.5 rounded-xl text-xs font-extrabold transition-all duration-150 whitespace-nowrap md:w-full ${
-                  isActive
-                    ? `${currentTheme.sidebarActive}`
-                    : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} hover:text-white`
-                }`}
-              >
-                <span className="text-xs md:text-sm">{item.icon}</span>
-                <span>{item.name}</span>
-              </button>
-            );
-          })}
+        <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-4 px-3 flex flex-col gap-0 overflow-x-auto">
+          {Object.entries(navGroups).map(([group, items]) => (
+            <div key={group}>
+              <div className="px-3 mb-1.5">
+                <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400/70">{group}</span>
+              </div>
+              <div className="space-y-0.5">
+                {items.map((item) => {
+                  const isActive = activeTab === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      title={item.name}
+                      onClick={() => {
+                        setActiveFilters(null);
+                        setActiveTab(item.name);
+                        setSidebarOpen(false);
+                      }}
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                        isActive
+                          ? `${currentTheme.sidebarActive}`
+                          : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} hover:text-white`
+                      }`}
+                    >
+                      <span className="text-sm md:text-base w-5 text-center flex-shrink-0">{item.icon}</span>
+                      <span className="truncate">{item.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
           {/* Mobile logout trigger */}
           <button
             onClick={() => { setSidebarOpen(false); handleSetCurrentUser(null as any); }}

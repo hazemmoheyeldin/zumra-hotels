@@ -8,6 +8,7 @@ import { Reservation, Agent, Transaction } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
+import { usePageBreaks } from '../lib/usePageBreaks';
 
 interface StatementLine {
   date: string;
@@ -32,6 +33,7 @@ interface StatementReportPDFProps {
 }
 
 export default function StatementReportPDF({ client, reservations, transactions, fromDate, toDate, isSupplier, onClose }: StatementReportPDFProps) {
+  const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   
   // Format Helper for dates as standard DD/MM/YYYY
   const formatStandardDate = (dateStr: string) => {
@@ -59,10 +61,15 @@ export default function StatementReportPDF({ client, reservations, transactions,
     let allLifetimeLegacyCredits = 0; // Find what's baked into client.balance
 
     transactions.forEach(tr => {
-      const isClientTx = !isSupplier && tr.agentId === client.id && tr.type === 'ClientPayment';
-      const isSupplierTx = isSupplier && tr.agentId === client.id && tr.type === 'SupplierPayment';
-      if (isClientTx || isSupplierTx) {
+      const isClientPayment = !isSupplier && tr.agentId === client.id && tr.type === 'ClientPayment';
+      const isSupplierPayment = isSupplier && tr.agentId === client.id && tr.type === 'SupplierPayment';
+      const isClientRefund = !isSupplier && tr.agentId === client.id && tr.type === 'ClientRefund';
+      const isSupplierRefund = isSupplier && tr.agentId === client.id && tr.type === 'SupplierRefund';
+      if (isClientPayment || isSupplierPayment) {
         allLifetimeLegacyCredits += tr.amount;
+      }
+      if (isClientRefund || isSupplierRefund) {
+        allLifetimeLegacyCredits -= tr.amount; // Refunds reverse payment effect
       }
     });
 
@@ -80,43 +87,85 @@ export default function StatementReportPDF({ client, reservations, transactions,
       
       const rDate = res.createdAt ? res.createdAt.split(' ')[0] : '2026-02-24';
       const { totalSell, totalBuy } = getReservationTotals(res);
+      const amount = isSupplier ? totalBuy : totalSell;
+      const isCancelled = res.status === 'Cancelled';
       
       if (rDate < fromDate) {
-        priorDebits += isSupplier ? totalBuy : totalSell;
+        if (!isCancelled) {
+          priorDebits += amount;
+        }
+        // If cancelled in prior period, don't count (net zero)
       } else if (rDate <= toDate) {
+        // Always add the original debit entry
         list.push({
           date: rDate,
-          debit: isSupplier ? totalBuy : totalSell,
+          debit: amount,
           credit: 0,
           balance: 0,
-          description: `RSV-${res.id} / ${res.guestName} / ${res.nights} Nt`,
+          description: `RSV-${res.id} / ${res.guestName} / ${res.nights} Nt${isCancelled ? ' (Cancelled)' : ''}`,
           docType: isSupplier ? 'SupplierReservation' : 'ClientReservation',
           docNo: res.id.toString(),
           voucher: isSupplier ? res.supplierVoucher || '' : res.hotelConfirmationNo || '',
           genNo: `TR${res.id}`
         });
+        // If cancelled, add a reversal credit entry
+        if (isCancelled) {
+          list.push({
+            date: rDate,
+            debit: 0,
+            credit: amount,
+            balance: 0,
+            description: `Cancelled - RSV-${res.id} / ${res.guestName}`,
+            docType: isSupplier ? 'SupplierOperation' : 'ClientOperation',
+            docNo: res.id.toString(),
+            voucher: '',
+            genNo: `TR${res.id}_C`
+          });
+        }
       }
     });
 
     transactions.forEach(tr => {
-      const isClientTx = !isSupplier && tr.agentId === client.id && tr.type === 'ClientPayment';
-      const isSupplierTx = isSupplier && tr.agentId === client.id && tr.type === 'SupplierPayment';
-      if (!isClientTx && !isSupplierTx) return;
+      const isClientPayment = !isSupplier && tr.agentId === client.id && tr.type === 'ClientPayment';
+      const isSupplierPayment = isSupplier && tr.agentId === client.id && tr.type === 'SupplierPayment';
+      const isClientRefund = !isSupplier && tr.agentId === client.id && tr.type === 'ClientRefund';
+      const isSupplierRefund = isSupplier && tr.agentId === client.id && tr.type === 'SupplierRefund';
+      if (!isClientPayment && !isSupplierPayment && !isClientRefund && !isSupplierRefund) return;
+
+      // Payments are credits, Refunds are debits (reverse of payment)
+      const isPaymentCredit = isClientPayment || isSupplierPayment;
+      const isRefundDebit = isClientRefund || isSupplierRefund;
 
       if (tr.date < fromDate) {
-        priorCredits += tr.amount;
+        if (isPaymentCredit) priorCredits += tr.amount;
+        if (isRefundDebit) priorDebits += tr.amount;
       } else if (tr.date <= toDate) {
-        list.push({
-          date: tr.date,
-          debit: 0,
-          credit: tr.amount,
-          balance: 0,
-          description: tr.description || `${client.companyName || client.name} - ${tr.docNo || '1'}`,
-          docType: isSupplier ? 'SupplierOperation' : 'ClientOperation',
-          docNo: tr.docNo || '1',
-          voucher: tr.voucherNo || '',
-          genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`
-        });
+        if (isPaymentCredit) {
+          list.push({
+            date: tr.date,
+            debit: 0,
+            credit: tr.amount,
+            balance: 0,
+            description: tr.description || `${client.companyName || client.name} - ${tr.docNo || '1'}`,
+            docType: isSupplier ? 'SupplierOperation' : 'ClientOperation',
+            docNo: tr.docNo || '1',
+            voucher: tr.voucherNo || '',
+            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`
+          });
+        }
+        if (isRefundDebit) {
+          list.push({
+            date: tr.date,
+            debit: tr.amount,
+            credit: 0,
+            balance: 0,
+            description: `Refund - ${tr.description || `${client.companyName || client.name} - ${tr.docNo || '1'}`}`,
+            docType: isSupplier ? 'SupplierRefund' : 'ClientRefund',
+            docNo: tr.docNo || '1',
+            voucher: tr.voucherNo || '',
+            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`
+          });
+        }
       }
     });
 
@@ -132,31 +181,20 @@ export default function StatementReportPDF({ client, reservations, transactions,
       };
     });
 
-    // We can inject opening balance as the first line if we want, but returning the standard mapped list works.
-    if (list.length > 0 || runningBalance !== 0) {
-       statementLines.unshift({ // Add opening balance row
-         date: fromDate,
-         debit: 0,
-         credit: 0,
-         balance: originalOpeningBalance + priorDebits - priorCredits,
-         description: 'Balance Forward / رصيد افتتاحي',
-         docType: 'ClientOperation',
-         docNo: '-',
-         voucher: '-',
-         genNo: '-'
-       });
-    }
-
+    // Remove balance forward - only show actual transactions
     return statementLines;
   };
 
   const lines = getStatementEntries();
   const totalDebit = lines.reduce((acc, l) => acc + l.debit, 0);
   const totalCredit = lines.reduce((acc, l) => acc + l.credit, 0);
-  const finalBalance = lines.length > 0 ? lines[lines.length - 1].balance : client.balance;
+  // Final balance: negative = they owe us, positive = they have credit/overpaid
+  const rawFinalBalance = lines.length > 0 ? lines[lines.length - 1].balance : 0;
+  const finalBalance = -rawFinalBalance; // Invert: negative=owes, positive=credit
 
   const handlePrint = () => {
-    downloadPDF('print-area', `SOA-${client.name.replace(/\s+/g, '-')}.pdf`);
+    const safeClientName = (client.companyName || client.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+    downloadPDF('print-area', `Statement of Account - ${safeClientName}.pdf`, { landscape: true });
   };
 
   return (
@@ -172,6 +210,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <PageBreakToggle />
             <button
               onClick={handlePrint}
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
@@ -189,15 +228,15 @@ export default function StatementReportPDF({ client, reservations, transactions,
         </div>
 
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="bg-white p-10 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center pb-4">
-            <div className="flex flex-col text-left font-sans gap-1 flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center pb-2">
+            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
@@ -207,137 +246,124 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-4"></div>
+          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
 
-          {/* Title bar exactly like pdf screenshot */}
-          <div className="flex justify-between items-baseline mb-6 mt-2 border-b border-slate-200 pb-2">
-            <h1 className="text-2xl font-extrabold text-[#0f172a] font-sans tracking-wide">Statement Of Account</h1>
-            <h1 className="text-2xl font-bold text-[#0f172a] font-serif">{isSupplier ? 'كشف حساب المورد' : 'كشف حساب العميل'}</h1>
+          {/* Title bar */}
+          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">Statement Of Account</h1>
+            <h1 className="text-xl font-bold text-[#0f172a] font-serif">{isSupplier ? 'كشف حساب المورد' : 'كشف حساب العميل'}</h1>
           </div>
 
-          {/* Statement metadata matrix with exact screenshot parameters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-[11px] border border-slate-200 rounded-xl p-4 mb-6 text-slate-700 bg-slate-50/50 text-left">
-            <div className="space-y-1.5">
-              <p><span className="font-bold text-slate-900 min-w-[110px] inline-block">{isSupplier ? 'Supplier :' : 'Client :'}</span> <span className="text-slate-950 font-semibold">{client.name} - 1</span></p>
-              <p><span className="font-bold text-slate-900 min-w-[110px] inline-block">View Internals :</span> Exclude Internals</p>
-              <p><span className="font-bold text-slate-900 min-w-[110px] inline-block">Accounts :</span> {isSupplier ? 'Suppliers - الموردين' : 'Customers - العملاء'}</p>
+          {/* Statement metadata matrix */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left">
+            <div className="space-y-1">
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{isSupplier ? 'Supplier :' : 'Client :'}</span> <span className="text-slate-950 font-semibold">{client.companyName || client.name}</span></p>
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">View Internals :</span> Exclude Internals</p>
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">Accounts :</span> {isSupplier ? 'Suppliers - الموردين' : 'Customers - العملاء'}</p>
             </div>
-            <div className="space-y-1.5">
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">From Date :</span> {formatStandardDate(fromDate)}</p>
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">Status :</span> All</p>
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">Ref Customer :</span></p>
+            <div className="space-y-1">
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">From Date :</span> {formatStandardDate(fromDate)}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Status :</span> All</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Ref Customer :</span></p>
             </div>
-            <div className="space-y-1.5">
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">To Date :</span> {formatStandardDate(toDate)}</p>
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">View :</span> Without opposite transactions</p>
-              <p><span className="font-bold text-slate-900 min-w-[90px] inline-block">Ref Vendor :</span></p>
+            <div className="space-y-1">
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">To Date :</span> {formatStandardDate(toDate)}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">View :</span> Without opposite transactions</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Ref Vendor :</span></p>
             </div>
           </div>
 
-          {/* Show Pending label exactly like screenshot */}
-          <div className="text-left font-semibold text-[11px] text-slate-800 mb-2">
+          {/* Show Pending label */}
+          <div className="text-left font-semibold text-[10px] text-slate-800 mb-1.5">
             Show Pending :
           </div>
 
           {/* Statement of Account Ledger */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
-            <table className="w-full text-left border-collapse text-[10.5px]">
+          <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
+            <table className="w-full text-left border-collapse text-[9.5px]">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold border-b border-slate-200">
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-left">Entry Date</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-right">Debit</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-right">Credit</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-right">Balance</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-left">Description</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-left">Doc Type</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-left">Doc No</th>
-                  <th className="py-2.5 px-3 border-r border-slate-200 text-left">Voucher</th>
-                  <th className="py-2.5 px-3 text-left">Gen No</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Entry Date</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Debit</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Credit</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Balance</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Description</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Doc Type</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Doc No</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Voucher</th>
+                  <th className="py-1.5 px-1.5 text-left">Gen No</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
-                {/* Previous Balance Row */}
-                <tr className="bg-white hover:bg-slate-50/50">
-                  <td className="py-2 px-3 border-r border-slate-200 font-mono text-slate-500">31/12/2023</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono text-slate-500">0.00</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono text-slate-500">0.00</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono font-bold text-slate-700">(0.00)</td>
-                  <td className="py-2 px-3 border-r border-slate-200 italic text-slate-500">Previous Balance</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-slate-400"></td>
-                  <td className="py-2 px-3 border-r border-slate-200 font-mono text-slate-400"></td>
-                  <td className="py-2 px-3 border-r border-slate-200 font-mono text-slate-400"></td>
-                  <td className="py-2 px-3 font-mono text-slate-400"></td>
-                </tr>
-
                 {lines.length > 0 ? (
                   lines.map((line, idx) => {
-                    const absBal = Math.abs(line.balance).toLocaleString('en-US', { minimumFractionDigits: 2 });
-                    const isNeg = line.balance <= 0;
+                    // Inverted balance: negative = owes us, positive = has credit
+                    const displayBal = -line.balance;
+                    const balStr = Math.abs(displayBal).toLocaleString('en-US', { minimumFractionDigits: 2 });
                     return (
-                      <tr key={idx} className="bg-white hover:bg-slate-50/50 text-slate-800">
-                        <td className="py-2.5 px-3 border-r border-slate-200 font-mono">{formatStandardDate(line.date)}</td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono font-semibold">
+                      <React.Fragment key={idx}>
+                        {renderInsertZone(idx)}
+                        <tr className="bg-white hover:bg-slate-50/50 text-slate-800">
+                          <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{formatStandardDate(line.date)}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-semibold">
                           {line.debit > 0 ? line.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                         </td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono font-semibold">
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-semibold">
                           {line.credit > 0 ? line.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                         </td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono font-extrabold text-slate-900">
-                          {isNeg ? `(${absBal})` : absBal}
+                        <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-extrabold ${displayBal < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          {displayBal < 0 ? `-${balStr}` : balStr}
                         </td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 max-w-xs truncate font-sans">{line.description}</td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 text-slate-600 font-sans">{line.docType === 'ClientPayment' ? 'ClientPayment' : 'ClientOperation'}</td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 font-mono font-semibold">{line.docNo}</td>
-                        <td className="py-2.5 px-3 border-r border-slate-200 font-mono text-slate-500">{line.voucher || ''}</td>
-                        <td className="py-2.5 px-3 font-mono font-black text-slate-900">{line.genNo}</td>
-                      </tr>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 max-w-xs truncate font-sans">{line.description}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-600 font-sans">{line.docType}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-semibold">{line.docNo}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-slate-500">{line.voucher || ''}</td>
+                          <td className="py-1.5 px-1.5 font-mono font-black text-slate-900">{line.genNo}</td>
+                        </tr>
+                      </React.Fragment>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-slate-400 italic">No operations recorded for the client within this period.</td>
+                    <td colSpan={9} className="py-6 text-center text-slate-400 italic">No operations recorded for the client within this period.</td>
                   </tr>
                 )}
 
-                {/* Period Row exactly matching table footer layout */}
-                <tr className="bg-slate-50 font-bold border-t border-slate-300">
-                  <td className="py-2 px-3 border-r border-slate-200 text-slate-700">Period:</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono text-slate-900">
-                    {(totalDebit - totalCredit) <= 0 
-                      ? `(${Math.abs(totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })})` 
-                      : (totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {/* Period Row */}
+                <tr className="bg-slate-50 font-bold border-t border-slate-300 keep-with-prev">
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-700">Period:</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {finalBalance < 0 ? `-${Math.abs(totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : (totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={5} className="py-2 px-3 border-slate-200 bg-slate-50"></td>
+                  <td colSpan={5} className="py-1.5 px-1.5 border-slate-200 bg-slate-50"></td>
                 </tr>
 
-                {/* Total Row exactly matching table footer layout */}
-                <tr className="bg-slate-100 font-extrabold border-t border-slate-305">
-                  <td className="py-2 px-3 border-r border-slate-200 text-slate-900">Total:</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className="py-2 px-3 border-r border-slate-200 text-right font-mono text-slate-950">
-                    {finalBalance <= 0 
-                      ? `(${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })})` 
-                      : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                {/* Total Row */}
+                <tr className="bg-slate-100 font-extrabold border-t border-slate-300 keep-with-prev">
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900">Total:</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-slate-950 ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
-                  <td colSpan={5} className="py-2 px-3 border-slate-200 bg-slate-100/80"></td>
+                  <td colSpan={5} className="py-1.5 px-1.5 border-slate-200 bg-slate-100/80"></td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Total Balance Outstanding Container exactly like pdf screenshot */}
-          <div className="border border-slate-300 rounded-lg overflow-hidden grid grid-cols-2 text-xs font-black uppercase text-left mb-6 max-h-[36px]">
-            <span className="py-2.5 px-4 bg-slate-50 border-r border-slate-200 text-slate-700">Total Balance:</span>
-            <span className="py-2.5 px-4 font-mono text-right text-slate-950 font-black">
-              {finalBalance <= 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {/* Total Balance Outstanding */}
+          <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[10px] font-black uppercase text-left mb-4 keep-with-prev ${finalBalance < 0 ? 'border-rose-300' : 'border-emerald-300'}`}>
+            <span className="py-2 px-3 bg-slate-50 border-r border-slate-200 text-slate-700">Total Balance:</span>
+            <span className={`py-2 px-3 font-mono text-right font-black ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+              {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR
             </span>
           </div>
 
-          {/* Legal disclaimer exactly like the screenshot */}
-          <div className="text-[10px] text-slate-650 font-medium italic mt-12 border-t border-slate-200 pt-4 leading-relaxed text-left">
+          {/* Legal disclaimer */}
+          <div className="text-[9px] text-slate-650 font-medium italic mt-6 border-t border-slate-200 pt-3 leading-relaxed text-left">
             Invoices and statement of accounts will be presumed to be accurate unless EST Zumra Hotels FOR HOTEL OPERATION receives a written notification of any errors within 10 days of receipt date.
           </div>
 
