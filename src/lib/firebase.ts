@@ -1,29 +1,23 @@
 /**
  * Firebase Configuration and Initialization for Zumra Hotels RMS
  * 
- * SETUP INSTRUCTIONS:
- * 1. Go to https://console.firebase.google.com
- * 2. Create a new project (free tier)
- * 3. Enable Firestore Database (in test mode initially)
- * 4. Go to Project Settings > General > Your Apps > Web App
- * 5. Register a web app and copy the config below
+ * Config reads from VITE_FIREBASE_* env vars (Vercel) with hardcoded fallback.
+ * Project: zumrahotels-rms
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch } from 'firebase/firestore';
 
-// ============================================
-// PASTE YOUR FIREBASE CONFIG HERE
-// ============================================
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHkLzahkk0ZKckDqmS0AZNnoLqgRFEQ4A",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "zumrahotels-rms.firebaseapp.com",
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://zumrahotels-rms-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "zumrahotels-rms",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "zumrahotels-rms.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "845381748480",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:845381748480:web:6b7c2ee8dc0c85cd4855e5",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-7GWFX3PRSM",
 };
-// ============================================
 
 // Check if Firebase is configured
 export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);

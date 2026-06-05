@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ZumraDB } from './lib/storage';
+import { ZumraDB, ZumraSync } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert } from './types';
-import { getEgyptTime, getReservationTotals } from './lib/storage';
+import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
 import Dashboard from './components/Dashboard';
@@ -265,9 +266,9 @@ export default function App() {
   const currentAlerts = getAlerts();
   const alertCount = currentAlerts.length;
 
-  // Initial DB loading and automatic real-time background synchronization!
+  // Initial DB loading, Firestore migration, and real-time sync
   useEffect(() => {
-    // Initial fetch in background
+    // 1. Instant UI load from localStorage
     setHotels(ZumraDB.getHotels());
     setAgents(ZumraDB.getAgents());
     setAllotments(ZumraDB.getAllotments());
@@ -276,73 +277,174 @@ export default function App() {
     setTransactions(ZumraDB.getTransactions());
     setExternalTransfers(ZumraDB.getExternalTransfers());
     setUsers(ZumraDB.getUsers());
-    // Do NOT auto-login - always show login screen
     setFollowUps(ZumraDB.getFollowUps());
+    // Do NOT auto-login - always show login screen
 
-    // Helper to safely fetch and sync state if changed structurally
-    const runSync = () => {
-      try {
-        setHotels(prev => {
-          const fresh = ZumraDB.getHotels();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setAgents(prev => {
-          const fresh = ZumraDB.getAgents();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setAllotments(prev => {
-          const fresh = ZumraDB.getAllotments();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setReservations(prev => {
-          const fresh = ZumraDB.getReservations();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setAccounts(prev => {
-          const fresh = ZumraDB.getAccounts();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setTransactions(prev => {
-          const fresh = ZumraDB.getTransactions();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setExternalTransfers(prev => {
-          const fresh = ZumraDB.getExternalTransfers();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setUsers(prev => {
-          const fresh = ZumraDB.getUsers();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setFollowUps(prev => {
-          const fresh = ZumraDB.getFollowUps();
-          return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-        });
-        setCurrentUser(prev => prev); // Keep current state, don't auto-login
-        setActiveThemeId(prev => {
-          const fresh = localStorage.getItem('zumra_theme') || 'liquid-navy';
-          return fresh !== prev ? fresh : prev;
-        });
-      } catch (err) {
-        console.warn('Silent back storage synchronization error:', err);
-      }
-    };
+    if (isFirebaseConfigured) {
+      console.log('[Firebase] Cloud sync enabled - attaching real-time listeners');
 
-    // Listen to changes from other tabs immediately
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key && e.key.startsWith('zumra_')) {
-        runSync();
-      }
-    };
-    window.addEventListener('storage', handleStorage);
+      // 2. Initial Firestore data migration (runs once)
+      const migrateData = async () => {
+        try {
+          const collections: Array<{name: string; key: string; setter: (d: any[]) => void; loader: () => any[]}> = [
+            { name: COLLECTIONS.HOTELS, key: 'zumra_hotels', setter: setHotels, loader: ZumraDB.getHotels },
+            { name: COLLECTIONS.AGENTS, key: 'zumra_agents', setter: setAgents, loader: ZumraDB.getAgents },
+            { name: COLLECTIONS.ALLOTMENTS, key: 'zumra_allotments', setter: setAllotments, loader: ZumraDB.getAllotments },
+            { name: COLLECTIONS.RESERVATIONS, key: 'zumra_reservations', setter: setReservations, loader: ZumraDB.getReservations },
+            { name: COLLECTIONS.ACCOUNTS, key: 'zumra_accounts', setter: setAccounts, loader: ZumraDB.getAccounts },
+            { name: COLLECTIONS.TRANSACTIONS, key: 'zumra_transactions', setter: setTransactions, loader: ZumraDB.getTransactions },
+            { name: COLLECTIONS.EXTERNAL_TRANSFERS, key: 'zumra_external_transfers', setter: setExternalTransfers, loader: ZumraDB.getExternalTransfers },
+            { name: COLLECTIONS.USERS, key: 'zumra_users', setter: setUsers, loader: ZumraDB.getUsers },
+            { name: COLLECTIONS.FOLLOW_UPS, key: 'zumra_follow_ups', setter: setFollowUps, loader: ZumraDB.getFollowUps },
+          ];
 
-    // Dynamic background poller every 1500ms to auto-sync silently in background
-    const interval = setInterval(runSync, 1500);
+          for (const col of collections) {
+            const firestoreData = await firestoreLoadAll(col.name);
+            if (firestoreData.length > 0) {
+              // Firestore has data -> use it, update localStorage cache
+              localStorage.setItem(col.key, JSON.stringify(firestoreData));
+              col.setter(firestoreData);
+            } else {
+              // Firestore empty -> upload localStorage data to seed it
+              const localData = col.loader();
+              if (localData.length > 0) {
+                await firestoreBulkSave(col.name, localData);
+                console.log(`[Firebase] Migrated ${localData.length} items from localStorage to ${col.name}`);
+              }
+            }
+          }
+          console.log('[Firebase] Initial data migration complete');
+        } catch (err) {
+          console.warn('[Firebase] Migration error, continuing with localStorage data:', err);
+        }
+      };
+      migrateData();
 
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      clearInterval(interval);
-    };
+      // 3. Attach real-time Firestore listeners for cross-device sync
+      const unsubs = [
+        firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_hotels', JSON.stringify(data));
+            setHotels(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_agents', JSON.stringify(data));
+            setAgents(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_allotments', JSON.stringify(data));
+            setAllotments(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_reservations', JSON.stringify(data));
+            setReservations(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_accounts', JSON.stringify(data));
+            setAccounts(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_transactions', JSON.stringify(data));
+            setTransactions(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
+            setExternalTransfers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_users', JSON.stringify(data));
+            setUsers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
+          if (data.length > 0) {
+            localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
+            setFollowUps(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+      ];
+
+      // Also listen for cross-tab localStorage changes (for theme etc.)
+      const handleStorage = (e: StorageEvent) => {
+        if (e.key === 'zumra_theme') {
+          setActiveThemeId(e.newValue || 'liquid-navy');
+        }
+      };
+      window.addEventListener('storage', handleStorage);
+
+      return () => {
+        unsubs.forEach(unsub => unsub());
+        window.removeEventListener('storage', handleStorage);
+      };
+    } else {
+      // Firebase not configured - fallback to localStorage polling
+      console.log('[Firebase] Not configured - using localStorage only');
+      const runSync = () => {
+        try {
+          setHotels(prev => {
+            const fresh = ZumraDB.getHotels();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setAgents(prev => {
+            const fresh = ZumraDB.getAgents();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setAllotments(prev => {
+            const fresh = ZumraDB.getAllotments();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setReservations(prev => {
+            const fresh = ZumraDB.getReservations();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setAccounts(prev => {
+            const fresh = ZumraDB.getAccounts();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setTransactions(prev => {
+            const fresh = ZumraDB.getTransactions();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setExternalTransfers(prev => {
+            const fresh = ZumraDB.getExternalTransfers();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setUsers(prev => {
+            const fresh = ZumraDB.getUsers();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+          setFollowUps(prev => {
+            const fresh = ZumraDB.getFollowUps();
+            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
+          });
+        } catch (err) {
+          console.warn('Silent back storage synchronization error:', err);
+        }
+      };
+      const handleStorage = (e: StorageEvent) => {
+        if (e.key && e.key.startsWith('zumra_')) runSync();
+      };
+      window.addEventListener('storage', handleStorage);
+      const interval = setInterval(runSync, 1500);
+      return () => {
+        window.removeEventListener('storage', handleStorage);
+        clearInterval(interval);
+      };
+    }
   }, []);
 
   // Sync savers (internal — called after confirmation)
@@ -351,6 +453,7 @@ export default function App() {
     if (!hotels.some(item => item.id === h.id)) updated.push(h);
     setHotels(updated);
     ZumraDB.saveHotels(updated);
+    ZumraSync.saveHotel(h);
     toast.success(`Hotel "${h.name}" saved successfully`);
   };
   const handleSaveHotel = (h: Hotel) => {
@@ -362,6 +465,7 @@ export default function App() {
     const updated = hotels.filter(item => item.id !== id);
     setHotels(updated);
     ZumraDB.saveHotels(updated);
+    ZumraSync.deleteHotel(id);
     toast.success(`Hotel "${h?.name || id}" deleted`);
   };
   const handleDeleteHotel = (id: string) => {
@@ -374,6 +478,7 @@ export default function App() {
     if (!agents.some(item => item.id === a.id)) updated.push(a);
     setAgents(updated);
     ZumraDB.saveAgents(updated);
+    ZumraSync.saveAgent(a);
     toast.success(`Agent "${a.name}" saved successfully`);
   };
   const handleSaveAgent = (a: Agent) => {
@@ -385,6 +490,7 @@ export default function App() {
     const updated = agents.filter(item => item.id !== id);
     setAgents(updated);
     ZumraDB.saveAgents(updated);
+    ZumraSync.deleteAgent(id);
     toast.success(`Agent "${a?.name || id}" deleted`);
   };
   const handleDeleteAgent = (id: string) => {
@@ -397,6 +503,7 @@ export default function App() {
     if (!allotments.some(item => item.id === al.id)) updated.push(al);
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
+    ZumraSync.saveAllotment(al);
     toast.success('Allotment saved successfully');
   };
   const handleSaveAllotment = (al: Allotment) => {
@@ -407,6 +514,7 @@ export default function App() {
     const updated = allotments.filter(item => item.id !== id);
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
+    ZumraSync.deleteAllotment(id);
     toast.success('Allotment deleted');
   };
   const handleDeleteAllotment = (id: string) => {
@@ -419,6 +527,7 @@ export default function App() {
     if (isNew) updated.push(res);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
+    ZumraSync.saveReservation(res);
     toast.success(`Reservation RSV-${res.id} ${isNew ? 'created' : 'updated'} for ${res.guestName}`);
 
     // Recalculate allotment booked counts from all non-cancelled reservations
@@ -451,6 +560,8 @@ export default function App() {
       });
       setAllotments(newAllotments);
       ZumraDB.saveAllotments(newAllotments);
+      // Sync each updated allotment to Firestore
+      newAllotments.forEach(al => ZumraSync.saveAllotment(al));
     };
     recalcAllotments();
 
@@ -528,6 +639,7 @@ export default function App() {
           const allTx = [...transactions, ...newTransactions];
           setTransactions(allTx);
           ZumraDB.saveTransactions(allTx);
+          newTransactions.forEach(t => ZumraSync.saveTransaction(t));
         }
         // Merge refund alerts into agents
         if (newAlerts.length > 0) {
@@ -542,6 +654,7 @@ export default function App() {
         if (JSON.stringify(updatedAgents) !== JSON.stringify(agents)) {
           setAgents(updatedAgents);
           ZumraDB.saveAgents(updatedAgents);
+          updatedAgents.forEach(a => ZumraSync.saveAgent(a));
         }
       }
     }
@@ -559,6 +672,7 @@ export default function App() {
     const updated = reservations.filter(item => item.id.toString() !== id);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
+    ZumraSync.deleteReservation(id);
     toast.success(`Reservation RSV-${id} deleted`);
   };
   const handleDeleteReservation = (id: string) => {
@@ -576,6 +690,7 @@ export default function App() {
     if (!accounts.some(item => item.id === acc.id)) updated.push(acc);
     setAccounts(updated);
     ZumraDB.saveAccounts(updated);
+    ZumraSync.saveAccount(acc);
     toast.success(`Account "${acc.name}" saved`);
   };
   const handleSaveAccount = (acc: Account) => {
@@ -587,6 +702,7 @@ export default function App() {
     const updated = accounts.filter(item => item.id !== id);
     setAccounts(updated);
     ZumraDB.saveAccounts(updated);
+    ZumraSync.deleteAccount(id);
     toast.success(`Account "${acc?.name || id}" deleted`);
   };
   const handleDeleteAccount = (id: string) => {
@@ -664,12 +780,15 @@ export default function App() {
     }
     setTransactions(updated);
     ZumraDB.saveTransactions(updated);
+    ZumraSync.saveTransaction(tr);
 
     const applied = applyTransactionEffect(tr, currentAgents, currentAccounts);
     setAgents(applied.newAgents);
     ZumraDB.saveAgents(applied.newAgents);
+    applied.newAgents.forEach(a => ZumraSync.saveAgent(a));
     setAccounts(applied.newAccounts);
     ZumraDB.saveAccounts(applied.newAccounts);
+    applied.newAccounts.forEach(a => ZumraSync.saveAccount(a));
     toast.success(`Transaction ${tr.voucherNo || tr.id} saved (${tr.amount.toLocaleString()} SAR)`);
   };
   const handleSaveTransaction = (tr: Transaction) => {
@@ -686,12 +805,15 @@ export default function App() {
     const updated = transactions.filter(item => item.id !== id);
     setTransactions(updated);
     ZumraDB.saveTransactions(updated);
+    ZumraSync.deleteTransaction(id);
 
     const reversed = reverseTransactionEffect(existing, agents, accounts);
     setAgents(reversed.newAgents);
     ZumraDB.saveAgents(reversed.newAgents);
+    reversed.newAgents.forEach(a => ZumraSync.saveAgent(a));
     setAccounts(reversed.newAccounts);
     ZumraDB.saveAccounts(reversed.newAccounts);
+    reversed.newAccounts.forEach(a => ZumraSync.saveAccount(a));
     toast.success(`Transaction ${existing.voucherNo || id} deleted`);
   };
   const handleDeleteTransaction = (id: string) => {
@@ -709,6 +831,7 @@ export default function App() {
     if (!externalTransfers.some(item => item.id === et.id)) updated.push(et);
     setExternalTransfers(updated);
     ZumraDB.saveExternalTransfers(updated);
+    ZumraSync.saveExternalTransfer(et);
     toast.success('External transfer saved');
   };
   const handleSaveExternalTransfer = (et: ExternalTransfer) => {
@@ -719,6 +842,7 @@ export default function App() {
     const updated = externalTransfers.filter(item => item.id !== id);
     setExternalTransfers(updated);
     ZumraDB.saveExternalTransfers(updated);
+    ZumraSync.deleteExternalTransfer(id);
     toast.success('External transfer deleted');
   };
   const handleDeleteExternalTransfer = (id: string) => {
@@ -734,6 +858,7 @@ export default function App() {
     });
     setAccounts(updatedAccounts);
     ZumraDB.saveAccounts(updatedAccounts);
+    updatedAccounts.forEach(a => ZumraSync.saveAccount(a));
 
     // Save formal transfer transaction doc
     const newTr: Transaction = {
@@ -753,20 +878,24 @@ export default function App() {
     const updatedTr = [newTr, ...transactions];
     setTransactions(updatedTr);
     ZumraDB.saveTransactions(updatedTr);
+    ZumraSync.saveTransaction(newTr);
   };
 
   // Bulk distributed FIFO downpayments side effect saver
   const handleBulkPaymentDistributionSave = (updatedR: Reservation[], newT: Transaction[], updatedA: Account[]) => {
     setReservations(updatedR);
     ZumraDB.saveReservations(updatedR);
+    updatedR.forEach(r => ZumraSync.saveReservation(r));
 
     // Concatenate new transactions
     const updatedTransactionsList = [...newT, ...transactions];
     setTransactions(updatedTransactionsList);
     ZumraDB.saveTransactions(updatedTransactionsList);
+    newT.forEach(t => ZumraSync.saveTransaction(t));
 
     setAccounts(updatedA);
     ZumraDB.saveAccounts(updatedA);
+    updatedA.forEach(a => ZumraSync.saveAccount(a));
 
     // Calculate sum total to credit the agent
     const sumAllocated = newT.reduce((a, t) => a + t.amount, 0);
@@ -780,6 +909,7 @@ export default function App() {
       });
       setAgents(updatedAgents);
       ZumraDB.saveAgents(updatedAgents);
+      updatedAgents.forEach(a => ZumraSync.saveAgent(a));
     }
   };
 
@@ -793,6 +923,7 @@ export default function App() {
     }
     setUsers(updated);
     ZumraDB.saveUsers(updated);
+    ZumraSync.saveUser(user);
     toast.success(`User "${user.name}" saved`);
   };
   const handleAddUser = (user: User) => {
@@ -804,6 +935,7 @@ export default function App() {
     const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
     ZumraDB.saveUsers(updated);
+    ZumraSync.deleteUser(userId);
     toast.success(`User "${u?.name || userId}" deleted`);
   };
   const handleDeleteUser = (userId: string) => {
@@ -821,12 +953,14 @@ export default function App() {
     if (!followUps.some(item => item.id === fu.id)) updated.push(fu);
     setFollowUps(updated);
     ZumraDB.saveFollowUps(updated);
+    ZumraSync.saveFollowUp(fu);
   };
 
   const handleDeleteFollowUp = (id: string) => {
     const updated = followUps.filter(item => item.id !== id);
     setFollowUps(updated);
     ZumraDB.saveFollowUps(updated);
+    ZumraSync.deleteFollowUp(id);
   };
 
   // Switch tab triggered from Dashboard widgets
@@ -1449,6 +1583,7 @@ export default function App() {
                           });
                           setAgents(updatedAgents);
                           ZumraDB.saveAgents(updatedAgents);
+                          updatedAgents.forEach(ag => ZumraSync.saveAgent(ag));
                           // Create RefundProcessed transaction
                           const now = new Date().toISOString();
                           const newTr: Transaction = {
@@ -1467,6 +1602,7 @@ export default function App() {
                           const allTx = [...transactions, newTr];
                           setTransactions(allTx);
                           ZumraDB.saveTransactions(allTx);
+                          ZumraSync.saveTransaction(newTr);
                           toast.success(`Refund of ${rf.amount.toLocaleString()} SAR marked as processed for ${a?.name || 'agent'}`);
                         }}
                         className="bg-white hover:bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 transition cursor-pointer"
