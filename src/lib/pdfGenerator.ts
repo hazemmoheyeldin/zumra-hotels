@@ -1,21 +1,21 @@
 /**
- * Print/PDF generator using browser's native print dialog.
- * Clones the print-area element to body level for clean output,
- * forcing a fixed desktop-width (900px) layout regardless of device screen size.
- * This ensures responsive CSS classes always render in their desktop form,
- * producing a consistent A4-style document on both desktop and mobile.
+ * Print/PDF generator with two approaches:
+ *
+ * 1. exportPDF() — Screenshot-based PDF using html-to-image + jsPDF (RECOMMENDED).
+ *    Uses SVG foreignObject so the browser renders text natively — Arabic ligatures,
+ *    RTL text, oklch colors, and all CSS are preserved perfectly.
+ *    Captures the print-area element exactly as it appears on screen, splits
+ *    into A4 pages, and saves directly. Works on mobile and desktop.
+ *
+ * 2. downloadPDF() — Legacy browser print dialog approach (kept as fallback).
  *
  * Image Optimization:
  * - compressImagesForPrint() pre-compresses images in the print area to JPEG
- *   at optimized quality, reducing PDF file size by ~80-90% for image-heavy reports.
- * - Call this on component mount so compressed images are cached before print.
- *
- * iOS Safari Notes:
- * - window.print() MUST be called synchronously from a user tap (no async/await before it).
- * - We pre-build the style element and clone BEFORE calling window.print() to avoid
- *   any DOM mutations during the print flow that could trigger Safari's popup blocker.
- * - A longer safety timeout (15s) is used since iOS Safari print dialogs can take longer.
+ *   at optimized quality, reducing PDF file size by ~80-90%.
  */
+
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
 interface PDFOptions {
   landscape?: boolean;
@@ -185,14 +185,15 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     anchor.parentNode?.replaceChild(span, anchor);
   });
 
-  // FIXED-WIDTH CLONE: Force desktop layout at 900px regardless of device.
+  // FIXED-WIDTH CLONE: Force desktop layout at renderWidth regardless of device.
   // This prevents responsive Tailwind classes (sm:, md:, lg:) from collapsing
   // into their mobile/stacked form on phones and tablets.
   // Uses !important to override any Tailwind print: classes that survived stripping.
   clone.style.cssText = `
     position: absolute !important;
     top: 0 !important;
-    left: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
     width: ${renderWidth}px !important;
     max-width: ${renderWidth}px !important;
     min-width: ${renderWidth}px !important;
@@ -209,16 +210,18 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
-    transform: none !important;
     font-family: inherit !important;
     color: #1e293b !important;
     box-sizing: border-box !important;
   `;
 
-  // Calculate zoom to fit the fixed-width clone onto the A4 page.
-  // A4 printable width ≈ 210mm (portrait) / 297mm (landscape) at 96dpi.
-  // The browser's print engine handles final page fitting; zoom gives a good baseline.
-  const baseZoom = landscape ? (renderWidth > 1000 ? 0.78 : 0.85) : 0.78;
+  // Calculate zoom to center the fixed-width clone on the A4 page.
+  // A4 width at 96dpi: portrait ≈ 794px, landscape ≈ 1123px
+  // With 10mm margins: usable ≈ 718px (portrait) / 1047px (landscape)
+  const A4_PX = landscape ? 1123 : 794;
+  const MARGIN_PX = 38; // 10mm ≈ 38px at 96dpi
+  const usablePx = A4_PX - (MARGIN_PX * 2);
+  const baseZoom = Math.min(1, usablePx / renderWidth);
 
   // Inject dynamic @page style for landscape/portrait
   const pageStyleId = 'dynamic-page-style';
@@ -262,7 +265,8 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         display: block !important;
         position: absolute !important;
         top: 0 !important;
-        left: 0 !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
         width: ${renderWidth}px !important;
         max-width: ${renderWidth}px !important;
         min-width: ${renderWidth}px !important;
@@ -361,4 +365,361 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   }, 15000);
 
   return true;
+};
+
+/**
+ * Detects if the current device is a mobile/tablet (touch-primary, small screen).
+ */
+const isMobileDevice = (): boolean => {
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (window.innerWidth <= 1024 && 'ontouchstart' in window)
+  );
+};
+
+/**
+ * Strips scroll/overflow constraints from an element AND all its descendants.
+ * This prevents scrollbars from appearing in the captured PDF.
+ * Returns the list of modified elements and their original styles for restoration.
+ */
+const stripAllScrollConstraints = (root: HTMLElement): {
+  el: HTMLElement; origMaxH: string; origOvf: string; origOvfX: string; origOvfY: string;
+}[] => {
+  const modified: { el: HTMLElement; origMaxH: string; origOvf: string; origOvfX: string; origOvfY: string; }[] = [];
+  const allElements = [root, ...Array.from(root.querySelectorAll('*'))] as HTMLElement[];
+  allElements.forEach(el => {
+    const cs = window.getComputedStyle(el);
+    const hasScroll = (
+      cs.overflow !== 'visible' || cs.overflowX !== 'visible' || cs.overflowY !== 'visible' ||
+      cs.maxHeight !== 'none' || el.style.overflow || el.style.overflowX || el.style.maxHeight
+    );
+    if (hasScroll) {
+      modified.push({
+        el,
+        origMaxH: el.style.maxHeight,
+        origOvf: el.style.overflow,
+        origOvfX: el.style.overflowX,
+        origOvfY: el.style.overflowY,
+      });
+      el.style.maxHeight = 'none';
+      el.style.overflow = 'visible';
+      el.style.overflowX = 'visible';
+      el.style.overflowY = 'visible';
+    }
+  });
+  return modified;
+};
+
+/** Restores scroll constraints previously stripped by stripAllScrollConstraints */
+const restoreScrollConstraints = (modified: {
+  el: HTMLElement; origMaxH: string; origOvf: string; origOvfX: string; origOvfY: string;
+}[]) => {
+  modified.forEach(({ el, origMaxH, origOvf, origOvfX, origOvfY }) => {
+    el.style.maxHeight = origMaxH;
+    el.style.overflow = origOvf;
+    el.style.overflowX = origOvfX;
+    el.style.overflowY = origOvfY;
+  });
+};
+
+/**
+ * Generates a PDF blob from the print-area element.
+ * Uses html-to-image to capture (preserves Arabic, RTL, oklch colors),
+ * then jsPDF to build a multi-page A4 PDF.
+ *
+ * @param captureWidth - Force element to this width during capture (for mobile)
+ */
+const generatePDFBlob = async (
+  element: HTMLElement,
+  options?: PDFOptions & { jpegQuality?: number; scale?: number },
+  captureWidth?: number
+): Promise<Blob | null> => {
+  const landscape = options?.landscape || false;
+  const jpegQuality = options?.jpegQuality ?? 0.92;
+  const scale = options?.scale ?? 2;
+  const hiddenElements: { el: HTMLElement; origDisplay: string }[] = [];
+  let origMaxHeight = '', origOverflow = '', origOverflowX = '';
+  let origWidth = '', origMinWidth = '';
+  let scrollModified: ReturnType<typeof stripAllScrollConstraints> = [];
+
+  try {
+    // Hide no-print elements
+    element.querySelectorAll('.no-print').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      hiddenElements.push({ el: htmlEl, origDisplay: htmlEl.style.display });
+      htmlEl.style.display = 'none';
+    });
+
+    // Remove scroll constraints from ROOT element
+    origMaxHeight = element.style.maxHeight;
+    origOverflow = element.style.overflow;
+    origOverflowX = element.style.overflowX;
+    element.style.maxHeight = 'none';
+    element.style.overflow = 'visible';
+    element.style.overflowX = 'visible';
+
+    // Remove scroll constraints from ALL child elements (prevents scrollbars in PDF)
+    scrollModified = stripAllScrollConstraints(element);
+
+    // Force desktop width on mobile so content doesn't compress/overlap
+    if (captureWidth) {
+      origWidth = element.style.width;
+      origMinWidth = element.style.minWidth;
+      element.style.width = `${captureWidth}px`;
+      element.style.minWidth = `${captureWidth}px`;
+    }
+
+    // Capture as PNG (html-to-image uses SVG foreignObject — native text rendering)
+    const dataUrl = await toPng(element, {
+      pixelRatio: scale,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      width: captureWidth || undefined,
+      filter: (node: Node) => {
+        if (node instanceof HTMLElement) return !node.classList.contains('no-print');
+        return true;
+      },
+    });
+
+    // Restore everything
+    element.style.maxHeight = origMaxHeight;
+    element.style.overflow = origOverflow;
+    element.style.overflowX = origOverflowX;
+    if (captureWidth) {
+      element.style.width = origWidth;
+      element.style.minWidth = origMinWidth;
+    }
+    restoreScrollConstraints(scrollModified);
+    hiddenElements.forEach(({ el, origDisplay }) => { el.style.display = origDisplay; });
+    hiddenElements.length = 0;
+
+    // Load PNG into an Image
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
+    // A4 dimensions in points
+    const A4_WIDTH_PT = landscape ? 841.89 : 595.28;
+    const A4_HEIGHT_PT = landscape ? 595.28 : 841.89;
+    const MARGIN_PT = 20;
+    const usableWidth = A4_WIDTH_PT - (MARGIN_PT * 2);
+    const usableHeight = A4_HEIGHT_PT - (MARGIN_PT * 2);
+
+    const scaleFactor = usableWidth / img.width;
+    const pageHeightInImgPx = usableHeight / scaleFactor;
+    const numPages = Math.max(1, Math.ceil(img.height / pageHeightInImgPx));
+
+    // Draw image to source canvas
+    const sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = img.width;
+    sourceCanvas.height = img.height;
+    const srcCtx = sourceCanvas.getContext('2d');
+    if (!srcCtx) return null;
+    srcCtx.drawImage(img, 0, 0);
+
+    const pdf = new jsPDF({
+      orientation: landscape ? 'landscape' : 'portrait',
+      unit: 'pt',
+      format: 'a4',
+      compress: true,
+    });
+
+    for (let page = 0; page < numPages; page++) {
+      if (page > 0) pdf.addPage();
+      const srcY = Math.round(page * pageHeightInImgPx);
+      const srcHeight = Math.min(Math.round(pageHeightInImgPx), img.height - srcY);
+      if (srcHeight <= 0) break;
+
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = img.width;
+      pageCanvas.height = srcHeight;
+      const ctx = pageCanvas.getContext('2d');
+      if (!ctx) continue;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(sourceCanvas, 0, srcY, img.width, srcHeight, 0, 0, img.width, srcHeight);
+
+      const imgData = pageCanvas.toDataURL('image/jpeg', jpegQuality);
+      pdf.addImage(imgData, 'JPEG', MARGIN_PT, MARGIN_PT, usableWidth, srcHeight * scaleFactor, undefined, 'FAST');
+    }
+
+    return pdf.output('blob');
+  } catch (e) {
+    console.error('[generatePDFBlob] Failed:', e);
+    // Restore on error
+    element.style.maxHeight = origMaxHeight;
+    element.style.overflow = origOverflow;
+    element.style.overflowX = origOverflowX;
+    if (captureWidth) {
+      element.style.width = origWidth;
+      element.style.minWidth = origMinWidth;
+    }
+    restoreScrollConstraints(scrollModified);
+    hiddenElements.forEach(({ el, origDisplay }) => { el.style.display = origDisplay; });
+    return null;
+  }
+};
+
+/**
+ * Shows a PDF preview modal on desktop before saving.
+ * Uses an iframe with the PDF blob URL so the user can review and then save.
+ */
+const showPDFPreview = (blob: Blob, filename: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const cleanName = filename.replace('.pdf', '');
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); z-index: 9999999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 20px; animation: fadeIn 0.2s ease;
+    `;
+
+    // Header bar
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; max-width: 900px; padding: 12px 16px;
+      background: white; border-radius: 12px 12px 0 0; gap: 12px;
+    `;
+    header.innerHTML = `
+      <span style="font-weight:700; font-size:15px; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cleanName}</span>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button id="pdf-preview-save" style="background:#d97706; color:white; font-weight:600; padding:8px 20px; border-radius:8px; border:none; cursor:pointer; font-size:14px;">Save PDF</button>
+        <button id="pdf-preview-cancel" style="background:#f1f5f9; color:#475569; font-weight:600; padding:8px 16px; border-radius:8px; border:none; cursor:pointer; font-size:14px;">Cancel</button>
+      </div>
+    `;
+
+    // Iframe for PDF preview
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.style.cssText = `
+      width: 100%; max-width: 900px; flex: 1; min-height: 500px; max-height: 80vh;
+      border: none; border-radius: 0 0 12px 12px; background: #525659;
+    `;
+
+    overlay.appendChild(header);
+    overlay.appendChild(iframe);
+    document.body.appendChild(overlay);
+
+    const cleanup = () => {
+      document.body.removeChild(overlay);
+      URL.revokeObjectURL(url);
+    };
+
+    // Save button
+    header.querySelector('#pdf-preview-save')!.addEventListener('click', () => {
+      cleanup();
+      // Trigger download
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      resolve(true);
+    });
+
+    // Cancel button
+    header.querySelector('#pdf-preview-cancel')!.addEventListener('click', () => {
+      cleanup();
+      resolve(true);
+    });
+
+    // Escape key to close
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', onKey);
+        cleanup();
+        resolve(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+  });
+};
+
+/**
+ * Shares a PDF file using the Web Share API (opens native share sheet on mobile
+ * for WhatsApp, email, etc.). Falls back to download if sharing is not supported.
+ */
+const sharePDF = async (blob: Blob, filename: string): Promise<boolean> => {
+  const file = new File([blob], filename, { type: 'application/pdf' });
+
+  // Check if Web Share API with files is supported
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: filename.replace('.pdf', ''),
+      });
+      return true;
+    } catch (e) {
+      // User cancelled share or share failed — fall through to download
+      if ((e as Error).name === 'AbortError') return true; // user cancelled = not an error
+      console.warn('[sharePDF] Share failed, falling back to download:', e);
+    }
+  }
+
+  // Fallback: trigger download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+};
+
+/**
+ * Exports the print-area element as a pixel-perfect PDF.
+ *
+ * Strategy (unified blob-based approach):
+ * - Desktop: Generates PDF blob → shows preview modal → user saves
+ * - Mobile: Generates PDF blob at desktop width → opens native share sheet (WhatsApp, email)
+ * - If generation fails, auto-falls back to browser print dialog
+ *
+ * Fixes:
+ * - Strips scroll constraints from ALL elements (no scrollbars in PDF)
+ * - Forces desktop width on mobile (no compressed/overlapping content)
+ * - Preserves Arabic text, RTL, oklch colors via html-to-image SVG foreignObject
+ */
+export const exportPDF = async (
+  elementId: string,
+  filename: string,
+  options?: PDFOptions & { jpegQuality?: number; scale?: number }
+): Promise<boolean> => {
+  const element = document.getElementById(elementId);
+  if (!element) {
+    console.error(`[exportPDF] Element "${elementId}" not found.`);
+    return false;
+  }
+
+  const cleanName = (filename.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9\s\-_()']/g, '').trim() || 'report') + '.pdf';
+  const isMobile = isMobileDevice();
+
+  // On mobile, force desktop width so content doesn't compress/overlap
+  const captureWidth = isMobile ? (options?.landscape ? 1123 : 794) : undefined;
+
+  // Generate PDF blob
+  const blob = await generatePDFBlob(element, options, captureWidth);
+  if (!blob) {
+    // If blob generation fails, fall back to browser print dialog
+    return downloadPDF(elementId, filename, options);
+  }
+
+  if (isMobile) {
+    // Mobile: open native share sheet (WhatsApp, email, etc.)
+    return await sharePDF(blob, cleanName);
+  }
+
+  // Desktop: show preview before saving
+  return await showPDFPreview(blob, cleanName);
 };

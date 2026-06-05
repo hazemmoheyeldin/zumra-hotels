@@ -2,7 +2,7 @@ import React from 'react';
 import { Reservation, Agent, Hotel, Transaction } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { useLang } from '../lib/LanguageContext';
 
 interface InvoicePDFProps {
@@ -36,10 +36,10 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
   const invoiceNo = `INV-${reservation.id}`;
   const invoiceDate = new Date().toISOString().split('T')[0];
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
     const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    downloadPDF('print-area', `${invoiceNo} ${guestSafe} ${hotelName} ${invoiceDate}.pdf`, { landscape: false });
+    await exportPDF('print-area', `${invoiceNo} ${guestSafe} ${hotelName} ${invoiceDate}.pdf`, { landscape: false });
   };
 
   const formatDate = (d: string) => {

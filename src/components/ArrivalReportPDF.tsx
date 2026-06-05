@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -51,7 +51,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
     return res.rooms.map(rm => `${rm.qty} ${rm.roomType} ${rm.mealPlan}`).join(' & ');
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setPrintError(false);
@@ -60,7 +60,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
       // Find primary client name from first reservation
       const primaryClient = reservations.length > 0 ? (agents.find(a => a.id === reservations[0].clientId)?.name || 'All Clients') : 'All Clients';
       const safeClientName = primaryClient.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-      const success = downloadPDF('print-area', `Arrival during period - ${safeClientName}.pdf`, { landscape: true });
+      const success = await exportPDF('print-area', `Arrival during period - ${safeClientName}.pdf`, { landscape: true });
       if (!success) setPrintError(true);
     } catch {
       setPrintError(true);

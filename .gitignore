@@ -17,3 +17,6 @@ Desktop.ini
 
 .vercel
 .vercel-tmp/
+
+# Test screenshots (browser agent artifacts)
+/*.png

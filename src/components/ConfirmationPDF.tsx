@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, User, Account } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -45,7 +45,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
   React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setPrintError(false);
@@ -58,7 +58,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
       const filename = type === 'voucher'
         ? `(v) RSV-${reservation.id} ${guestSafe}.pdf`
         : `RSV-${reservation.id} (${status}) ${today}.pdf`;
-      const success = downloadPDF('print-area', filename, { landscape: false });
+      const success = await exportPDF('print-area', filename, { landscape: false });
       if (!success) setPrintError(true);
     } catch (e) {
       console.error('PDF generation failed:', e);

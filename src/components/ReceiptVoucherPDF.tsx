@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Transaction, Agent, Reservation } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -32,7 +32,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
     return `${formatNum} ${t('rvpdf.saudiRiyalsOnly')}`;
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setPrintError(false);
@@ -40,7 +40,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
       const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
       const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
       const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-      const success = downloadPDF('print-area', `(v) RSV-${bookingRef} ${safeName}.pdf`);
+      const success = await exportPDF('print-area', `(v) RSV-${bookingRef} ${safeName}.pdf`);
       if (!success) setPrintError(true);
     } catch {
       setPrintError(true);

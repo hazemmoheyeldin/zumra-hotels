@@ -7,7 +7,7 @@ import React from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -37,9 +37,9 @@ export default function CancellationReportPDF({ reservations, agents, hotels, fr
     return h ? h.name : 'N/A';
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
-    downloadPDF('print-area', `Cancellations Report - ${dStr}.pdf`, { landscape: true });
+    await exportPDF('print-area', `Cancellations Report - ${dStr}.pdf`, { landscape: true });
   };
 
   const totalPenalty = reservations.reduce((acc, res) => acc + (res.cancellationFee || 0), 0);

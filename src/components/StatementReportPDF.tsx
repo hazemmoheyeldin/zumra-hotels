@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Transaction } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -200,13 +200,13 @@ export default function StatementReportPDF({ client, reservations, transactions,
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
   React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setPrintError(false);
     try {
       const safeClientName = (client.companyName || client.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-      const success = downloadPDF('print-area', `${safeClientName}'s Account Statement.pdf`, { landscape: true });
+      const success = await exportPDF('print-area', `${safeClientName}'s Account Statement.pdf`, { landscape: true });
       if (!success) setPrintError(true);
     } catch (e) {
       console.error('PDF generation failed:', e);
