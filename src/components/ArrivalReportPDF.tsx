@@ -132,7 +132,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Period Details Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50 no-page-break">
             <div><span className="font-bold text-slate-900">{t('arpdf.arrivalFrom')}</span> {new Date(fromDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">{t('arpdf.arrivalTo')}</span> {new Date(toDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">{t('arpdf.inHouse')}</span> False</div>
@@ -141,43 +141,43 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
 
           {/* Arrivals Matrix Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto mb-6 print:overflow-visible print:border-none print:rounded-none">
-            <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
+            <table className="w-full text-left border-collapse text-[8.5px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
-                <col style={{ width: '3%' }} />
+                <col style={{ width: '2.5%' }} />
                 <col style={{ width: '5%' }} />
-                <col style={{ width: '3%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '6%' }} />
+                <col style={{ width: '2.5%' }} />
                 <col style={{ width: '4%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '3.5%' }} />
                 <col style={{ width: '9%' }} />
-                <col style={{ width: '5%' }} />
+                <col style={{ width: '4%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '8%' }} />
                 <col style={{ width: '7%' }} />
-                <col style={{ width: '11%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '12%' }} />
                 <col style={{ width: '5%' }} />
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '9%' }} />
+                <col style={{ width: '3%' }} />
+                <col style={{ width: '12.5%' }} />
               </colgroup>
               <thead>
                 <tr className="bg-slate-100/85 text-slate-700 border-b border-slate-200 font-extrabold">
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.snCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.statusCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.sentCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.nRsvCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.fromCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.toCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agentNumCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agentCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.vNoCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.hotelCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.nConfCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agreementCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.guestCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.natCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.paxCol')}</th>
-                  <th className="py-1.5 px-1.5 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.roomMpCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 text-center font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.snCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 text-center overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.statusCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 text-center overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.sentCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.nRsvCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.fromCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.toCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agentNumCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agentCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.vNoCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.hotelCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.nConfCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.agreementCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.guestCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.natCol')}</th>
+                  <th className="py-1 px-1 border-r border-slate-200 text-center font-mono overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.paxCol')}</th>
+                  <th className="py-1 px-1 overflow-hidden text-ellipsis whitespace-nowrap">{t('arpdf.roomMpCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 text-slate-800 font-medium font-sans">
@@ -186,28 +186,28 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
                     <React.Fragment key={res.id}>
                       {renderInsertZone(index)}
                       <tr className="bg-white hover:bg-slate-50/50">
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{index + 1}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center">
-                        <span className={`inline-block px-1 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                      <td className="py-1 px-1 border-r border-slate-200 text-center font-mono">{index + 1}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-center">
+                        <span className={`inline-block px-1 py-0.5 rounded text-[7px] font-black uppercase tracking-wider ${
                           res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-705 border border-emerald-200' :
                           res.status === 'Cancelled' ? 'bg-rose-50 text-rose-705 border border-rose-200' :
                           'bg-amber-50 text-amber-705 border border-amber-200'
                         }`}>{res.status}</span>
                       </td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center text-slate-400 font-mono text-[8px]">False</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-semibold font-mono text-slate-900">{res.id}-1</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{new Date(res.checkIn).toLocaleDateString('en-GB')}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{new Date(res.checkOut).toLocaleDateString('en-GB')}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-center">{getAgentNum(res.clientId)}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 font-bold text-slate-900 overflow-hidden text-ellipsis whitespace-nowrap" title={getAgentName(res.clientId)}>{getAgentName(res.clientId)}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-400 font-mono"></td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap font-bold text-slate-905" title={getHotelName(res.hotelId)}>{getHotelName(res.hotelId)}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 font-mono font-extrabold overflow-hidden text-ellipsis whitespace-nowrap">{res.hotelConfirmationNo || '-'}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-500 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{res.agreementNo || '-'}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 uppercase text-slate-950 font-black tracking-wide overflow-hidden text-ellipsis whitespace-nowrap" title={res.guestName}>{res.guestName}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center">{res.guestNationality || 'Egypt'}</td>
-                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-bold font-mono text-slate-900">{getPaxCount(res)}</td>
-                      <td className="py-1.5 px-1.5 text-[9px] text-amber-900 font-bold font-sans overflow-hidden text-ellipsis whitespace-nowrap" title={getRoomsSummary(res)}>{getRoomsSummary(res)}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-center text-slate-400 font-mono text-[7px]">False</td>
+                      <td className="py-1 px-1 border-r border-slate-200 font-semibold font-mono text-slate-900">{res.id}-1</td>
+                      <td className="py-1 px-1 border-r border-slate-200 font-mono">{new Date(res.checkIn).toLocaleDateString('en-GB')}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 font-mono">{new Date(res.checkOut).toLocaleDateString('en-GB')}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 font-mono text-center">{getAgentNum(res.clientId)}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 font-bold text-slate-900 overflow-hidden text-ellipsis whitespace-nowrap" title={getAgentName(res.clientId)}>{getAgentName(res.clientId)}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-slate-400 font-mono"></td>
+                      <td className="py-1 px-1 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap font-bold text-slate-905" title={getHotelName(res.hotelId)}>{getHotelName(res.hotelId)}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-slate-900 font-mono font-extrabold overflow-hidden text-ellipsis whitespace-nowrap">{res.hotelConfirmationNo || '-'}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-slate-500 font-mono overflow-hidden text-ellipsis whitespace-nowrap">{res.agreementNo || '-'}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 uppercase text-slate-950 font-black tracking-wide overflow-hidden text-ellipsis whitespace-nowrap" title={res.guestName}>{res.guestName}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-center">{res.guestNationality || 'Egypt'}</td>
+                      <td className="py-1 px-1 border-r border-slate-200 text-center font-bold font-mono text-slate-900">{getPaxCount(res)}</td>
+                      <td className="py-1 px-1 text-[8px] text-amber-900 font-bold font-sans overflow-hidden text-ellipsis whitespace-nowrap" title={getRoomsSummary(res)}>{getRoomsSummary(res)}</td>
                     </tr>
                     </React.Fragment>
                   ))

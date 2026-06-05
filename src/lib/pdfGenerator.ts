@@ -20,7 +20,7 @@ interface PDFOptions {
 // Fixed render width ensures Tailwind `md:` breakpoints always activate,
 // so PDFs always look like the desktop layout (no stacked mobile columns).
 const PDF_RENDER_WIDTH = 900;
-const PDF_LANDSCAPE_WIDTH = 1200;
+const PDF_LANDSCAPE_WIDTH = 1100;
 
 // Guard flag to prevent double-triggering and "blocked from printing" errors
 let isPrinting = false;
@@ -93,8 +93,6 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     box-shadow: none;
     background: white;
     z-index: 999999;
-    page-break-inside: avoid;
-    break-inside: avoid;
     display: block;
     visibility: visible;
     opacity: 1;
@@ -107,7 +105,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   // Calculate zoom to fit the fixed-width clone onto the A4 page.
   // A4 printable width ≈ 210mm (portrait) / 297mm (landscape) at 96dpi.
   // The browser's print engine handles final page fitting; zoom gives a good baseline.
-  const baseZoom = landscape ? (renderWidth > 1100 ? 0.72 : 0.82) : 0.78;
+  const baseZoom = landscape ? (renderWidth > 1000 ? 0.78 : 0.85) : 0.78;
 
   // Inject dynamic @page style for landscape/portrait
   const pageStyleId = 'dynamic-page-style';
@@ -160,6 +158,21 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         background: white !important;
         z-index: 999999 !important;
         overflow: visible !important;
+      }
+      /* Allow table rows to avoid page breaks inside themselves */
+      body.printing-report #print-area-clone tr {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      /* Keep summary/total rows with the preceding data row */
+      body.printing-report #print-area-clone .keep-with-prev {
+        break-before: avoid !important;
+        page-break-before: avoid !important;
+      }
+      /* Prevent page breaks inside the metadata grid or balance banner */
+      body.printing-report #print-area-clone .no-page-break {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
       }
       /* Strip any visible URLs/links from PDF output */
       a[href] {

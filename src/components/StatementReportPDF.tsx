@@ -279,7 +279,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Statement metadata matrix */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left print:bg-slate-50">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left print:bg-slate-50 no-page-break">
             <div className="space-y-1">
               <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{isSupplier ? `${t('srpdf.supplierLabel')} :` : `${t('srpdf.clientLabel')} :`}</span> <span className="text-slate-950 font-semibold">{client.companyName || client.name}</span></p>
               <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{t('srpdf.viewInternals')}</span> {t('srpdf.excludeInternals')}</p>
@@ -304,17 +304,17 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
           {/* Statement of Account Ledger */}
           <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto mb-4 print:overflow-visible print:border-none print:rounded-none">
-            <table className="w-full text-left border-collapse text-[9.5px]" style={{ tableLayout: 'fixed' }}>
+            <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '8%' }} />
                 <col style={{ width: '9%' }} />
                 <col style={{ width: '9%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '23%' }} />
                 <col style={{ width: '10%' }} />
-                <col style={{ width: '22%' }} />
+                <col style={{ width: '10%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
                 <col style={{ width: '11%' }} />
-                <col style={{ width: '10%' }} />
               </colgroup>
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold border-b border-slate-200">
@@ -392,7 +392,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Total Balance Outstanding */}
-          <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[11px] font-black uppercase text-left mb-4 keep-with-prev ${finalBalance < 0 ? 'border-rose-300 bg-rose-50/50' : finalBalance > 0 ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
+          <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[11px] font-black uppercase text-left mb-4 keep-with-prev no-page-break ${finalBalance < 0 ? 'border-rose-300 bg-rose-50/50' : finalBalance > 0 ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
             <span className="py-2.5 px-3 border-r border-slate-200 text-slate-700 flex items-center gap-2">
               <span className="text-sm">{finalBalance < 0 ? '💳' : finalBalance > 0 ? '✅' : '✅'}</span>
               {finalBalance < 0 ? t('srpdf.outstandingBalance') : finalBalance > 0 ? t('srpdf.creditBalance') : t('srpdf.balanceSettled')}
