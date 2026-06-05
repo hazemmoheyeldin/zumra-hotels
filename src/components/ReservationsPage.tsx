@@ -10,6 +10,9 @@ import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage'
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
+import ConfirmDialog from './ConfirmDialog';
+import { useToast, ToastContainer } from './Toast';
+import { hasDraft, loadDraft, clearDraft } from '../hooks/useDraft';
 
 interface RoomSelection {
   roomType: string;
@@ -92,6 +95,32 @@ export default function ReservationsPage({
   const [payVoucher, setPayVoucher] = useState<string>('');
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents'>('overview');
   const { t, lang } = useLang();
+  const toast = useToast();
+  const [confirmDlg, setConfirmDlg] = useState<{ open: boolean; title: string; message: string; variant: 'standard' | 'destructive'; action: (() => void) | null }>({ open: false, title: '', message: '', variant: 'standard', action: null });
+  const openConfirm = (title: string, message: string, action: () => void, variant: 'standard' | 'destructive' = 'standard') => {
+    setConfirmDlg({ open: true, title, message, variant, action });
+  };
+  const closeConfirmDlg = () => setConfirmDlg(prev => ({ ...prev, open: false, action: null }));
+  const execConfirm = () => { confirmDlg.action?.(); closeConfirmDlg(); };
+
+  // Draft recovery
+  const [showDraftBanner, setShowDraftBanner] = useState(() => hasDraft('reservation_form'));
+  const resumeDraft = () => {
+    const d = loadDraft<any>('reservation_form');
+    if (d) {
+      if (d.guestName) setGuestName(d.guestName);
+      if (d.clientId) setClientId(d.clientId);
+      if (d.supplierId) setSupplierId(d.supplierId);
+      if (d.hotelId) setHotelId(d.hotelId);
+      if (d.checkIn) setCheckIn(d.checkIn);
+      if (d.checkOut) setCheckOut(d.checkOut);
+      if (d.status) setStatus(d.status);
+      if (d.guestNationality) setGuestNationality(d.guestNationality);
+      if (d.rooms?.length) setRooms(d.rooms);
+      setShowForm(true);
+    }
+    setShowDraftBanner(false);
+  };
 
   // Trigger loading active reservation specifics
   React.useEffect(() => {
@@ -208,6 +237,16 @@ export default function ReservationsPage({
   const [rooms, setRooms] = useState<RoomSelection[]>([
     { roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }
   ]);
+
+  // Auto-save draft when form is open
+  React.useEffect(() => {
+    if (!showForm) return;
+    const timer = setTimeout(() => {
+      const draftData = { guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms, savedAt: Date.now() };
+      try { localStorage.setItem('zumra_draft_reservation_form', JSON.stringify(draftData)); } catch {}
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [showForm, guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms]);
 
   const selectedHotelObj = hotels.find(h => h.id === hotelId);
 
@@ -388,7 +427,7 @@ export default function ReservationsPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut || !guestName) {
-      alert('Please fill out all mandatory booking specs.');
+      toast.warning('Please fill out all mandatory booking specs.');
       return;
     }
 
@@ -476,8 +515,9 @@ export default function ReservationsPage({
     };
 
     onSaveReservation(reservationToSave);
+    clearDraft('reservation_form');
     resetForm();
-    alert(`✨   Booking Reservation RSV-${nextId} saved successfully! Account indexes synchronized.`);
+    toast.success(`Booking Reservation RSV-${nextId} saved successfully!`);
   };
 
   const resetForm = () => {
@@ -517,7 +557,7 @@ export default function ReservationsPage({
         agreementStatus: localAgreementStatus,
         roomingList: JSON.stringify(localRoomDetails)
       });
-      alert('✨   Agreement specifications and confirmation reference updated in ledger!');
+      toast.success('Agreement specifications and confirmation reference updated in ledger!');
     }
   };
 
@@ -529,17 +569,17 @@ export default function ReservationsPage({
     if (payCurrency === 'EGP') {
       computedAmount = payOriginalAmount / payExchangeRate;
       if (!computedAmount || computedAmount <= 0) {
-        alert('Exchange rate and EGP amount must be valid.');
+        toast.error('Exchange rate and EGP amount must be valid.');
         return;
       }
     }
 
     if (!computedAmount || computedAmount <= 0) {
-      alert('Please specify a positive valid payment amount.');
+      toast.error('Please specify a positive valid payment amount.');
       return;
     }
     if (!payAccountId) {
-      alert('Please choose an active treasury account / bank account safe.');
+      toast.error('Please choose an active treasury account / bank account safe.');
       return;
     }
 
@@ -547,7 +587,7 @@ export default function ReservationsPage({
     const targetAgentId = isClientPayment ? resObj.clientId : resObj.supplierId;
     const agentObj = agents.find(a => a.id === targetAgentId);
     if (!agentObj && !targetAgentId?.startsWith('DIRECT_')) {
-      alert('Associated agent account not located!');
+      toast.error('Associated agent account not located!');
       return;
     }
 
@@ -561,50 +601,50 @@ export default function ReservationsPage({
     if (willBePaid > totalOwed && totalOwed > 0) {
       overpaymentAmount = willBePaid - totalOwed;
       isOverpayment = true;
-      if (!confirm(`⚠️ OVERPAYMENT WARNING: This payment of ${computedAmount.toLocaleString()} SAR exceeds what ${isClientPayment ? 'the client owes' : 'the supplier is owed'} by ${overpaymentAmount.toLocaleString()} SAR.\n\nTotal owed: ${totalOwed.toLocaleString()} SAR\nAlready paid: ${currentPaid.toLocaleString()} SAR\nThis payment: ${computedAmount.toLocaleString()} SAR\nOverpayment: ${overpaymentAmount.toLocaleString()} SAR\n\nThe overpayment will be tracked as credit in statements.\nContinue anyway?`)) {
-        return;
-      }
     }
 
-    const trDate = new Date().toISOString().split('T')[0];
-    const newTr: Transaction = {
-      id: `tr_${trType.toLowerCase()}_rsv_${resObj.id}_${Date.now()}`,
-      docNo: (Date.now() % 10000000).toString(),
-      date: trDate,
-      type: trType,
-      amount: computedAmount,
-      fromAccountId: payAccountId,
-      agentId: targetAgentId,
-      description: isClientPayment 
-        ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
-        : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,
-      paymentMethod: payMethod,
-      voucherNo: payVoucher || `VOP-${Date.now().toString().slice(-6)}`,
-      originalCurrency: payCurrency,
-      originalAmount: payCurrency === 'EGP' ? payOriginalAmount : undefined,
-      exchangeRate: payCurrency === 'EGP' ? payExchangeRate : undefined,
-      createdBy: currentUser || 'Hazem'
+    const executePayment = () => {
+      const trDate = new Date().toISOString().split('T')[0];
+      const newTr: Transaction = {
+        id: `tr_${trType.toLowerCase()}_rsv_${resObj.id}_${Date.now()}`,
+        docNo: (Date.now() % 10000000).toString(),
+        date: trDate,
+        type: trType,
+        amount: computedAmount,
+        fromAccountId: payAccountId,
+        agentId: targetAgentId,
+        description: isClientPayment 
+          ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
+          : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,
+        paymentMethod: payMethod,
+        voucherNo: payVoucher || `VOP-${Date.now().toString().slice(-6)}`,
+        originalCurrency: payCurrency,
+        originalAmount: payCurrency === 'EGP' ? payOriginalAmount : undefined,
+        exchangeRate: payCurrency === 'EGP' ? payExchangeRate : undefined,
+        createdBy: currentUser || 'Hazem'
+      };
+
+      const updatedRes: Reservation = {
+        ...resObj,
+        amountPaidByClient: isClientPayment 
+          ? (resObj.amountPaidByClient || 0) + computedAmount
+          : (resObj.amountPaidByClient || 0),
+        amountPaidToSupplier: !isClientPayment
+          ? (resObj.amountPaidToSupplier || 0) + computedAmount
+          : (resObj.amountPaidToSupplier || 0)
+      };
+
+      if (onSaveTransaction) { onSaveTransaction(newTr); }
+      onSaveReservation(updatedRes);
+      toast.success(`${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} saved!`);
+      setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
     };
 
-    const updatedRes: Reservation = {
-      ...resObj,
-      amountPaidByClient: isClientPayment 
-        ? (resObj.amountPaidByClient || 0) + computedAmount
-        : (resObj.amountPaidByClient || 0),
-      amountPaidToSupplier: !isClientPayment
-        ? (resObj.amountPaidToSupplier || 0) + computedAmount
-        : (resObj.amountPaidToSupplier || 0)
-    };
-
-    if (onSaveTransaction) {
-      onSaveTransaction(newTr);
+    if (isOverpayment) {
+      openConfirm('Overpayment Warning', `This payment of ${computedAmount.toLocaleString()} SAR exceeds what ${isClientPayment ? 'the client owes' : 'the supplier is owed'} by ${overpaymentAmount.toLocaleString()} SAR.\n\nTotal owed: ${totalOwed.toLocaleString()} SAR\nAlready paid: ${currentPaid.toLocaleString()} SAR\nOverpayment: ${overpaymentAmount.toLocaleString()} SAR\n\nThe overpayment will be tracked as credit. Continue?`, executePayment);
+      return;
     }
-    onSaveReservation(updatedRes);
-
-    alert(`✨   ${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} ledgered successfully!`);
-    
-    // Refresh payment states
-    setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
+    executePayment();
   };
 
   // Filter application blocks
@@ -693,6 +733,20 @@ export default function ReservationsPage({
   return (
     <div className="space-y-6 text-xs">
       
+      {/* Draft recovery banner */}
+      {showDraftBanner && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📝</span>
+            <span className="text-sm font-semibold text-amber-800">You have an unsaved reservation draft. Resume where you left off?</span>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={resumeDraft} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition cursor-pointer min-h-[44px]">Resume Draft</button>
+            <button onClick={() => { clearDraft('reservation_form'); setShowDraftBanner(false); }} className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium px-4 py-2 rounded-lg text-xs transition cursor-pointer min-h-[44px]">Discard</button>
+          </div>
+        </div>
+      )}
+
       {/* Upper hidden area for printing rooming list */}
       {printingRoomingList && (
         <div className="fixed inset-0 bg-white z-[9999] overflow-y-auto block print:block pb-16">
@@ -983,19 +1037,21 @@ export default function ReservationsPage({
                     const abbr = s === 'Tentative' ? 'TNT' : s === 'Confirmed' ? 'CNF' : 'CNL';
                     return (
                     <button key={s} type="button" onClick={() => {
+                      const applyStatus = () => {
+                        setStatus(s);
+                        if (s !== 'Cancelled') { setCancellationFee(0); setCancellationReason(''); }
+                        else { setCancellationReason('Customer requested cancellation'); }
+                        if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
+                      };
                       if (s === 'Confirmed' && status !== 'Confirmed') {
                         const formTotalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
                         if (amountPaidByClient < formTotalSell && formTotalSell > 0) {
                           const owed = formTotalSell - amountPaidByClient;
-                          if (!confirm(`\u26a0\ufe0f Client has not fully paid yet.\n\nPaid: ${amountPaidByClient.toLocaleString()} SAR\nTotal: ${formTotalSell.toLocaleString()} SAR\nOutstanding: ${owed.toLocaleString()} SAR\n\nDo you want to confirm this booking anyway?`)) {
-                            return;
-                          }
+                          openConfirm('Unpaid Balance', `Client has not fully paid yet.\n\nPaid: ${amountPaidByClient.toLocaleString()} SAR\nTotal: ${formTotalSell.toLocaleString()} SAR\nOutstanding: ${owed.toLocaleString()} SAR\n\nConfirm this booking anyway?`, applyStatus);
+                          return;
                         }
                       }
-                      setStatus(s);
-                      if (s !== 'Cancelled') { setCancellationFee(0); setCancellationReason(''); }
-                      else { setCancellationReason('Customer requested cancellation'); }
-                      if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
+                      applyStatus();
                     }} className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
                       <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{abbr}
                     </button>
@@ -1373,7 +1429,7 @@ export default function ReservationsPage({
                   <button onClick={() => setPrintingDoc({ res, isVoucher: false })} className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2.5 rounded-lg border border-indigo-200 text-[10px]">{t('res.confirmation')}</button>
                   <button onClick={() => setPrintingDoc({ res, isVoucher: true })} className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2.5 rounded-lg border border-emerald-200 text-[10px]">{t('res.voucher')}</button>
                   <button onClick={() => handleEdit(res)} className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-lg border border-amber-200 text-[10px]">{t('common.edit')}</button>
-                  <button onClick={() => { if (confirm('Delete RSV-' + res.id + '?')) onDeleteReservation(res.id.toString()); }} className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2.5 rounded-lg border border-rose-200 text-[10px]">{t('common.delete')}</button>
+                  <button onClick={() => { onDeleteReservation(res.id.toString()); }} className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2.5 rounded-lg border border-rose-200 text-[10px]">{t('common.delete')}</button>
                 </div>
               </div>
             );
@@ -1399,8 +1455,8 @@ export default function ReservationsPage({
                 <th className="py-2.5 px-3 font-mono">{t('res.checkIn')} / {t('res.checkOut')}</th>
                 <th className="py-2.5 px-3 text-center">{t('common.status')}</th>
                 <th className="py-2.5 px-3 text-right">{t('res.paymentsByClient')}</th>
-                <th className="py-2.5 px-3 text-right">{t('res.paymentsToSupplier')}</th>
-                <th className="py-2.5 px-3 text-right text-indigo-950">{t('res.profit')}</th>
+                <th className="py-2.5 px-3 text-right hidden xl:table-cell">{t('res.paymentsToSupplier')}</th>
+                <th className="py-2.5 px-3 text-right text-indigo-950 hidden xl:table-cell">{t('res.profit')}</th>
                 <th className="py-2.5 px-3 text-center">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -1432,22 +1488,20 @@ export default function ReservationsPage({
                         value={res.status}
                         onChange={(e) => {
                           const newStatus = e.target.value as any;
-                          if (newStatus === 'Confirmed' && !(res.amountPaidByClient && res.amountPaidByClient > 0)) {
-                            if (!confirm(`⚠️ WARNING: No client payment recorded for RSV-${res.id} (${res.guestName}).
-
-Are you sure you want to confirm this booking without receiving any payment from the client?
-
-Click OK to confirm anyway, or Cancel to go back.`)) {
-                              return;
+                          const applyStatusChange = () => {
+                            if (newStatus === 'Cancelled') {
+                              const reason = prompt('Please enter the reason for cancellation:');
+                              if (reason === null) return;
+                              onSaveReservation({...res, status: newStatus, cancellationReason: reason || 'Not specified'});
+                            } else {
+                              onSaveReservation({...res, status: newStatus});
                             }
+                          };
+                          if (newStatus === 'Confirmed' && !(res.amountPaidByClient && res.amountPaidByClient > 0)) {
+                            openConfirm('Confirm Without Payment', `WARNING: No client payment recorded for RSV-${res.id} (${res.guestName}).\n\nAre you sure you want to confirm this booking without receiving any payment?`, applyStatusChange);
+                            return;
                           }
-                          if (newStatus === 'Cancelled') {
-                            const reason = prompt('Please enter the reason for cancellation:');
-                            if (reason === null) return; // User clicked Cancel
-                            onSaveReservation({...res, status: newStatus, cancellationReason: reason || 'Not specified'});
-                          } else {
-                            onSaveReservation({...res, status: newStatus});
-                          }
+                          applyStatusChange();
                         }}
                         className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold outline-none cursor-pointer border ${
                           res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
@@ -1468,7 +1522,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                       </div>
                       {paidPercent < 100 && totalSell > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">{t('res.due')}: {(totalSell - clientPaid).toLocaleString()}</div>}
                     </td>
-                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                    <td className="py-3 px-3 text-right whitespace-nowrap hidden xl:table-cell">
                       {(() => {
                         const suppPaid = res.amountPaidToSupplier || 0;
                         const suppPercent = totalBuy > 0 ? Math.round((suppPaid / totalBuy) * 100) : 0;
@@ -1484,7 +1538,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         );
                       })()}
                     </td>
-                    <td className="py-3 px-3 text-right whitespace-nowrap">
+                    <td className="py-3 px-3 text-right whitespace-nowrap hidden xl:table-cell">
                       <div className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</div>
                     </td>
                     <td className="py-3 px-3 text-center">
@@ -1499,12 +1553,12 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         <button
                           onClick={() => {
                             const outstanding = totalSell - (res.amountPaidByClient || 0);
-                            if (outstanding <= 0) { alert('Client has fully paid this booking.'); return; }
-                            if (confirm(`Quick-record full client payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`)) {
+                            if (outstanding <= 0) { toast.info('Client has fully paid this booking.'); return; }
+                            openConfirm('Record Client Payment', `Quick-record full client payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`, () => {
                               setViewingId(res.id.toString());
                               setActiveDetailTab('payment');
                               setPayAmount(outstanding);
-                            }
+                            });
                           }}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-1.5 py-1 rounded border border-emerald-200 text-[9px] whitespace-nowrap"
                           title={t('res.recordPayment')}
@@ -1514,12 +1568,12 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         <button
                           onClick={() => {
                             const outstanding = totalBuy - (res.amountPaidToSupplier || 0);
-                            if (outstanding <= 0) { alert('Supplier has been fully paid.'); return; }
-                            if (confirm(`Quick-record full supplier payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`)) {
+                            if (outstanding <= 0) { toast.info('Supplier has been fully paid.'); return; }
+                            openConfirm('Record Supplier Payment', `Quick-record full supplier payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`, () => {
                               setViewingId(res.id.toString());
                               setActiveDetailTab('payment');
                               setPayAmount(outstanding);
-                            }
+                            });
                           }}
                           className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-1.5 py-1 rounded border border-blue-200 text-[9px] whitespace-nowrap"
                           title={t('res.recordPayment')}
@@ -2159,6 +2213,18 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
         />
       )}
 
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        open={confirmDlg.open}
+        title={confirmDlg.title}
+        message={confirmDlg.message}
+        variant={confirmDlg.variant}
+        onConfirm={execConfirm}
+        onCancel={closeConfirmDlg}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   );
 }

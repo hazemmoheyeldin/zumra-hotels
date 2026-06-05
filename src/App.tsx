@@ -27,6 +27,9 @@ import InboxModal from './components/InboxModal';
 import CalendarView from './components/CalendarView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import InvoicePDF from './components/InvoicePDF';
+import ErrorBoundary from './components/ErrorBoundary';
+import ConfirmDialog from './components/ConfirmDialog';
+import { ToastContainer, useToast } from './components/Toast';
 
 const THEMES = [
   {
@@ -184,6 +187,17 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { t, lang } = useLang();
+  const toast = useToast();
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string;
+    variant: 'standard' | 'destructive'; action: (() => void) | null;
+  }>({ open: false, title: '', message: '', variant: 'standard', action: null });
+
+  const showConfirm = (title: string, message: string, action: () => void, variant: 'standard' | 'destructive' = 'standard') => {
+    setConfirmDialog({ open: true, title, message, variant, action });
+  };
+  const closeConfirm = () => setConfirmDialog(prev => ({ ...prev, open: false, action: null }));
+  const executeConfirm = () => { confirmDialog.action?.(); closeConfirm(); };
 
   // App Master States
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -331,52 +345,81 @@ export default function App() {
     };
   }, []);
 
-  // Sync savers
-  const handleSaveHotel = (h: Hotel) => {
+  // Sync savers (internal — called after confirmation)
+  const doSaveHotel = (h: Hotel) => {
     const updated = hotels.map(item => item.id === h.id ? h : item);
     if (!hotels.some(item => item.id === h.id)) updated.push(h);
     setHotels(updated);
     ZumraDB.saveHotels(updated);
+    toast.success(`Hotel "${h.name}" saved successfully`);
+  };
+  const handleSaveHotel = (h: Hotel) => {
+    showConfirm('Save Hotel', `Save hotel "${h.name}"?`, () => doSaveHotel(h));
   };
 
-  const handleDeleteHotel = (id: string) => {
+  const doDeleteHotel = (id: string) => {
+    const h = hotels.find(i => i.id === id);
     const updated = hotels.filter(item => item.id !== id);
     setHotels(updated);
     ZumraDB.saveHotels(updated);
+    toast.success(`Hotel "${h?.name || id}" deleted`);
+  };
+  const handleDeleteHotel = (id: string) => {
+    const h = hotels.find(i => i.id === id);
+    showConfirm('Delete Hotel', `Are you sure you want to delete hotel "${h?.name || id}"? This cannot be undone.`, () => doDeleteHotel(id), 'destructive');
   };
 
-  const handleSaveAgent = (a: Agent) => {
+  const doSaveAgent = (a: Agent) => {
     const updated = agents.map(item => item.id === a.id ? a : item);
     if (!agents.some(item => item.id === a.id)) updated.push(a);
     setAgents(updated);
     ZumraDB.saveAgents(updated);
+    toast.success(`Agent "${a.name}" saved successfully`);
+  };
+  const handleSaveAgent = (a: Agent) => {
+    showConfirm('Save Agent', `Save agent "${a.name}"?`, () => doSaveAgent(a));
   };
 
-  const handleDeleteAgent = (id: string) => {
+  const doDeleteAgent = (id: string) => {
+    const a = agents.find(i => i.id === id);
     const updated = agents.filter(item => item.id !== id);
     setAgents(updated);
     ZumraDB.saveAgents(updated);
+    toast.success(`Agent "${a?.name || id}" deleted`);
+  };
+  const handleDeleteAgent = (id: string) => {
+    const a = agents.find(i => i.id === id);
+    showConfirm('Delete Agent', `Are you sure you want to delete agent "${a?.name || id}"? This cannot be undone.`, () => doDeleteAgent(id), 'destructive');
   };
 
-  const handleSaveAllotment = (al: Allotment) => {
+  const doSaveAllotment = (al: Allotment) => {
     const updated = allotments.map(item => item.id === al.id ? al : item);
     if (!allotments.some(item => item.id === al.id)) updated.push(al);
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
+    toast.success('Allotment saved successfully');
+  };
+  const handleSaveAllotment = (al: Allotment) => {
+    showConfirm('Save Allotment', `Save allotment for ${al.hotelId}?`, () => doSaveAllotment(al));
   };
 
-  const handleDeleteAllotment = (id: string) => {
+  const doDeleteAllotment = (id: string) => {
     const updated = allotments.filter(item => item.id !== id);
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
+    toast.success('Allotment deleted');
+  };
+  const handleDeleteAllotment = (id: string) => {
+    showConfirm('Delete Allotment', 'Are you sure you want to delete this allotment? This cannot be undone.', () => doDeleteAllotment(id), 'destructive');
   };
 
-  const handleSaveReservation = (res: Reservation) => {
+  const doSaveReservation = (res: Reservation) => {
     const updated = reservations.map(item => item.id === res.id ? res : item);
     const isNew = !reservations.some(item => item.id === res.id);
     if (isNew) updated.push(res);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
+    toast.success(`Reservation RSV-${res.id} ${isNew ? 'created' : 'updated'} for ${res.guestName}`);
 
     // Recalculate allotment booked counts from all non-cancelled reservations
     const recalcAllotments = () => {
@@ -411,24 +454,52 @@ export default function App() {
     };
     recalcAllotments();
   };
+  const handleSaveReservation = (res: Reservation) => {
+    const { totalSell } = getReservationTotals(res);
+    showConfirm(
+      'Save Reservation',
+      `Guest: ${res.guestName}\nHotel: ${hotels.find(h => h.id === res.hotelId)?.name || res.hotelId}\nCheck-in: ${res.checkIn}  |  Check-out: ${res.checkOut}\nStatus: ${res.status}\nTotal: ${totalSell.toLocaleString()} SAR\n\nSave this reservation?`,
+      () => doSaveReservation(res)
+    );
+  };
 
-  const handleDeleteReservation = (id: string) => {
+  const doDeleteReservation = (id: string) => {
     const updated = reservations.filter(item => item.id.toString() !== id);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
+    toast.success(`Reservation RSV-${id} deleted`);
+  };
+  const handleDeleteReservation = (id: string) => {
+    const res = reservations.find(r => r.id.toString() === id);
+    showConfirm(
+      'Delete Reservation',
+      `Are you sure you want to delete reservation RSV-${id}${res ? ` (${res.guestName})` : ''}? This cannot be undone.`,
+      () => doDeleteReservation(id),
+      'destructive'
+    );
   };
 
-  const handleSaveAccount = (acc: Account) => {
+  const doSaveAccount = (acc: Account) => {
     const updated = accounts.map(item => item.id === acc.id ? acc : item);
     if (!accounts.some(item => item.id === acc.id)) updated.push(acc);
     setAccounts(updated);
     ZumraDB.saveAccounts(updated);
+    toast.success(`Account "${acc.name}" saved`);
+  };
+  const handleSaveAccount = (acc: Account) => {
+    showConfirm('Save Account', `Save account "${acc.name}"?`, () => doSaveAccount(acc));
   };
 
-  const handleDeleteAccount = (id: string) => {
+  const doDeleteAccount = (id: string) => {
+    const acc = accounts.find(i => i.id === id);
     const updated = accounts.filter(item => item.id !== id);
     setAccounts(updated);
     ZumraDB.saveAccounts(updated);
+    toast.success(`Account "${acc?.name || id}" deleted`);
+  };
+  const handleDeleteAccount = (id: string) => {
+    const acc = accounts.find(i => i.id === id);
+    showConfirm('Delete Account', `Are you sure you want to delete account "${acc?.name || id}"? This cannot be undone.`, () => doDeleteAccount(id), 'destructive');
   };
 
   const reverseTransactionEffect = (tr: Transaction, currentAgents: Agent[], currentAccounts: Account[]) => {
@@ -485,7 +556,7 @@ export default function App() {
     return { newAgents, newAccounts };
   };
 
-  const handleSaveTransaction = (tr: Transaction) => {
+  const doSaveTransaction = (tr: Transaction) => {
     const existing = transactions.find(t => t.id === tr.id);
     let updated;
     let currentAgents = agents;
@@ -507,9 +578,17 @@ export default function App() {
     ZumraDB.saveAgents(applied.newAgents);
     setAccounts(applied.newAccounts);
     ZumraDB.saveAccounts(applied.newAccounts);
+    toast.success(`Transaction ${tr.voucherNo || tr.id} saved (${tr.amount.toLocaleString()} SAR)`);
+  };
+  const handleSaveTransaction = (tr: Transaction) => {
+    showConfirm(
+      'Save Transaction',
+      `Type: ${tr.type}\nAmount: ${tr.amount.toLocaleString()} SAR\nMethod: ${tr.paymentMethod}\nDate: ${tr.date}\n${tr.description ? `Desc: ${tr.description}` : ''}\n\nSave this transaction?`,
+      () => doSaveTransaction(tr)
+    );
   };
 
-  const handleDeleteTransaction = (id: string) => {
+  const doDeleteTransaction = (id: string) => {
     const existing = transactions.find(t => t.id === id);
     if (!existing) return;
     const updated = transactions.filter(item => item.id !== id);
@@ -521,19 +600,37 @@ export default function App() {
     ZumraDB.saveAgents(reversed.newAgents);
     setAccounts(reversed.newAccounts);
     ZumraDB.saveAccounts(reversed.newAccounts);
+    toast.success(`Transaction ${existing.voucherNo || id} deleted`);
+  };
+  const handleDeleteTransaction = (id: string) => {
+    const tr = transactions.find(t => t.id === id);
+    showConfirm(
+      'Delete Transaction',
+      `Are you sure you want to delete transaction ${tr?.voucherNo || id} (${tr?.amount.toLocaleString() || '0'} SAR)? This will reverse all balance changes.`,
+      () => doDeleteTransaction(id),
+      'destructive'
+    );
   };
 
-  const handleSaveExternalTransfer = (et: ExternalTransfer) => {
+  const doSaveExternalTransfer = (et: ExternalTransfer) => {
     const updated = externalTransfers.map(item => item.id === et.id ? et : item);
     if (!externalTransfers.some(item => item.id === et.id)) updated.push(et);
     setExternalTransfers(updated);
     ZumraDB.saveExternalTransfers(updated);
+    toast.success('External transfer saved');
+  };
+  const handleSaveExternalTransfer = (et: ExternalTransfer) => {
+    showConfirm('Save Transfer', `Save external transfer for ${et.amountSAR?.toLocaleString() || '0'} SAR?`, () => doSaveExternalTransfer(et));
   };
 
-  const handleDeleteExternalTransfer = (id: string) => {
+  const doDeleteExternalTransfer = (id: string) => {
     const updated = externalTransfers.filter(item => item.id !== id);
     setExternalTransfers(updated);
     ZumraDB.saveExternalTransfers(updated);
+    toast.success('External transfer deleted');
+  };
+  const handleDeleteExternalTransfer = (id: string) => {
+    showConfirm('Delete Transfer', 'Are you sure you want to delete this external transfer?', () => doDeleteExternalTransfer(id), 'destructive');
   };
 
   // Fund transfers between cash blocks
@@ -594,7 +691,7 @@ export default function App() {
     }
   };
 
-  const handleAddUser = (user: User) => {
+  const doAddUser = (user: User) => {
     const existing = users.find(u => u.id === user.id);
     let updated;
     if (existing) {
@@ -604,12 +701,22 @@ export default function App() {
     }
     setUsers(updated);
     ZumraDB.saveUsers(updated);
+    toast.success(`User "${user.name}" saved`);
+  };
+  const handleAddUser = (user: User) => {
+    showConfirm('Save User', `Save user "${user.name}" (${user.role})?`, () => doAddUser(user));
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const doDeleteUser = (userId: string) => {
+    const u = users.find(i => i.id === userId);
     const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
     ZumraDB.saveUsers(updated);
+    toast.success(`User "${u?.name || userId}" deleted`);
+  };
+  const handleDeleteUser = (userId: string) => {
+    const u = users.find(i => i.id === userId);
+    showConfirm('Delete User', `Are you sure you want to delete user "${u?.name || userId}"? This cannot be undone.`, () => doDeleteUser(userId), 'destructive');
   };
 
   const handleSetCurrentUser = (user: User) => {
@@ -643,6 +750,7 @@ export default function App() {
     switch (activeTab) {
       case 'Dashboard':
         return (
+          <ErrorBoundary fallbackLabel="Dashboard failed to load.">
           <Dashboard
             reservations={reservations}
             agents={agents}
@@ -655,9 +763,11 @@ export default function App() {
               setActiveTab('Reservations');
             }}
           />
+          </ErrorBoundary>
         );
       case 'Calendar':
         return (
+          <ErrorBoundary fallbackLabel="Calendar failed to load.">
           <CalendarView
             reservations={reservations}
             transactions={transactions}
@@ -666,18 +776,22 @@ export default function App() {
             hotels={hotels}
             onNavigate={handleNavigate}
           />
+          </ErrorBoundary>
         );
       case 'Analytics':
         return (
+          <ErrorBoundary fallbackLabel="Analytics failed to load.">
           <AnalyticsDashboard
             reservations={reservations}
             transactions={transactions}
             agents={agents}
             hotels={hotels}
           />
+          </ErrorBoundary>
         );
       case 'Reservations':
         return (
+          <ErrorBoundary fallbackLabel="Reservations page failed to load.">
           <ReservationsPage
             reservations={reservations}
             agents={agents}
@@ -691,17 +805,21 @@ export default function App() {
             onSaveTransaction={handleSaveTransaction}
             transactions={transactions}
           />
+          </ErrorBoundary>
         );
       case 'Hotels':
         return (
+          <ErrorBoundary fallbackLabel="Hotels page failed to load.">
           <HotelsPage
             hotels={hotels}
             onSaveHotel={handleSaveHotel}
             onDeleteHotel={handleDeleteHotel}
           />
+          </ErrorBoundary>
         );
       case 'Agents':
         return (
+          <ErrorBoundary fallbackLabel="Agents page failed to load.">
           <AgentsPage
             agents={agents}
             reservations={reservations}
@@ -712,9 +830,11 @@ export default function App() {
             onDeleteAgent={handleDeleteAgent}
             onBulkPaymentSave={handleBulkPaymentDistributionSave}
           />
+          </ErrorBoundary>
         );
       case 'Allotments':
         return (
+          <ErrorBoundary fallbackLabel="Allotments page failed to load.">
           <AllotmentsPage
             allotments={allotments}
             hotels={hotels}
@@ -722,9 +842,11 @@ export default function App() {
             onSaveAllotment={handleSaveAllotment}
             onDeleteAllotment={handleDeleteAllotment}
           />
+          </ErrorBoundary>
         );
       case 'Transactions':
         return (
+          <ErrorBoundary fallbackLabel="Transactions page failed to load.">
           <TransactionsPage
             transactions={transactions}
             agents={agents}
@@ -734,35 +856,43 @@ export default function App() {
             onSaveTransaction={handleSaveTransaction}
             onDeleteTransaction={handleDeleteTransaction}
           />
+          </ErrorBoundary>
         );
       case 'External Transfers':
         return (
+          <ErrorBoundary fallbackLabel="External Transfers page failed to load.">
           <ExternalTransfersPage
             externalTransfers={externalTransfers}
             onSaveTransfer={handleSaveExternalTransfer}
             onDeleteTransfer={handleDeleteExternalTransfer}
           />
+          </ErrorBoundary>
         );
       case 'Banks & Safes':
         return (
+          <ErrorBoundary fallbackLabel="Banks & Safes page failed to load.">
           <AccountsPage
             accounts={accounts}
             onSaveAccount={handleSaveAccount}
             onDeleteAccount={handleDeleteAccount}
             onModifyBalances={handleModifyBalances}
           />
+          </ErrorBoundary>
         );
       case 'Reports':
         return (
+          <ErrorBoundary fallbackLabel="Reports page failed to load.">
           <ReportsPage
             reservations={reservations}
             agents={agents}
             hotels={hotels}
             transactions={transactions}
           />
+          </ErrorBoundary>
         );
       case 'Sales':
         return (
+          <ErrorBoundary fallbackLabel="Sales page failed to load.">
           <SalesPage
             agents={agents}
             followUps={followUps}
@@ -770,17 +900,21 @@ export default function App() {
             onSaveFollowUp={handleSaveFollowUp}
             onDeleteFollowUp={handleDeleteFollowUp}
           />
+          </ErrorBoundary>
         );
       case 'Production':
         return (
+          <ErrorBoundary fallbackLabel="Production page failed to load.">
           <ProductionPage
             reservations={reservations}
             agents={agents}
             hotels={hotels}
           />
+          </ErrorBoundary>
         );
       case 'Users':
         return (
+          <ErrorBoundary fallbackLabel="User Management page failed to load.">
           <UserManagementPage
             users={users}
             currentUser={currentUser}
@@ -788,6 +922,7 @@ export default function App() {
             onAddUser={handleAddUser}
             onDeleteUser={handleDeleteUser}
           />
+          </ErrorBoundary>
         );
       default:
         return <div>Pane Not Found.</div>;
@@ -1133,9 +1268,9 @@ export default function App() {
                           const newPassword = prompt('Enter new password (min 6 chars):');
                           if (newPassword && newPassword.length >= 6) {
                             handleAddUser({ ...currentUser, password: newPassword });
-                            alert('Password updated successfully.');
+                            toast.success('Password updated successfully.');
                           } else if (newPassword) {
-                            alert('Password too short.');
+                            toast.error('Password too short.');
                           }
                         }}
                         className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
@@ -1216,6 +1351,19 @@ export default function App() {
           onClose={() => setIsInboxOpen(false)} 
         />
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={executeConfirm}
+        onCancel={closeConfirm}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
     </div>
   );
 }

@@ -274,4 +274,20 @@ tbody tr {
   table {
     min-width: 100%;
   }
+
+  /* Touch-friendly targets on mobile */
+  button, a, select, input[type="submit"], input[type="button"], [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Larger form inputs on mobile */
+  input, select, textarea {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* Global minimum touch target for interactive elements */
+button, [role="button"], select {
+  min-height: 36px;
 }

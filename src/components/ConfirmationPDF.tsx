@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, User, Account } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
@@ -39,16 +39,29 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
   const calculatedVat = totalSell * (15 / 115); 
   const calculatedNet = totalSell - calculatedVat;
 
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [printError, setPrintError] = useState(false);
+
   const handlePrint = () => {
-    const status = reservation.status || 'Confirmation';
-    const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
-    // Voucher files auto-named: "Voucher RSV-{id} {guest name}"
-    const filename = type === 'voucher'
-      ? `Voucher RSV-${reservation.id} ${guestSafe}.pdf`
-      : `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`;
-    downloadPDF('print-area', filename, { landscape: false });
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintError(false);
+    try {
+      const status = reservation.status || 'Confirmation';
+      const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
+      const filename = type === 'voucher'
+        ? `Voucher RSV-${reservation.id} ${guestSafe}.pdf`
+        : `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`;
+      const success = downloadPDF('print-area', filename, { landscape: false });
+      if (!success) setPrintError(true);
+    } catch (e) {
+      console.error('PDF generation failed:', e);
+      setPrintError(true);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const getStatusLabel = () => {
@@ -109,11 +122,24 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             <PageBreakToggle />
             <button
               onClick={handlePrint}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
+              disabled={isGenerating}
+              className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer min-h-[44px]"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              {t('cpdf.printSavePDF')}
+              {isGenerating ? (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              )}
+              {isGenerating ? 'Generating...' : t('cpdf.printSavePDF')}
             </button>
+            {printError && (
+              <button
+                onClick={() => { setPrintError(false); setIsGenerating(false); }}
+                className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-medium px-3 py-2 rounded-lg transition text-sm cursor-pointer min-h-[44px]"
+              >
+                Reset
+              </button>
+            )}
             <a
               href={getWhatsAppLink()}
               target="_blank"

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Reservation, Agent, Transaction } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
@@ -194,9 +194,23 @@ export default function StatementReportPDF({ client, reservations, transactions,
   const rawFinalBalance = lines.length > 0 ? lines[lines.length - 1].balance : 0;
   const finalBalance = -rawFinalBalance; // Invert: negative=owes, positive=credit
 
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [printError, setPrintError] = useState(false);
+
   const handlePrint = () => {
-    const safeClientName = (client.companyName || client.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    downloadPDF('print-area', `Statement of Account - ${safeClientName}.pdf`, { landscape: true });
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintError(false);
+    try {
+      const safeClientName = (client.companyName || client.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const success = downloadPDF('print-area', `Statement of Account - ${safeClientName}.pdf`, { landscape: true });
+      if (!success) setPrintError(true);
+    } catch (e) {
+      console.error('PDF generation failed:', e);
+      setPrintError(true);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -215,11 +229,19 @@ export default function StatementReportPDF({ client, reservations, transactions,
             <PageBreakToggle />
             <button
               onClick={handlePrint}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
+              disabled={isGenerating}
+              className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer min-h-[44px]"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              {t('srpdf.printSavePDF')}
+              {isGenerating ? (
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              )}
+              {isGenerating ? 'Generating...' : t('srpdf.printSavePDF')}
             </button>
+            {printError && (
+              <button onClick={() => { setPrintError(false); setIsGenerating(false); }} className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-medium px-3 py-2 rounded-lg transition text-sm cursor-pointer min-h-[44px]">Reset</button>
+            )}
             <button
               onClick={onClose}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer"

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Transaction, Agent, Reservation } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
@@ -20,6 +20,8 @@ interface ReceiptVoucherPDFProps {
 export default function ReceiptVoucherPDF({ transaction, client, reservation, onClose }: ReceiptVoucherPDFProps) {
   const { PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [printError, setPrintError] = useState(false);
 
   // Helper to convert number to words briefly in English/Arabic
   const amountToWords = (num: number): string => {
@@ -28,10 +30,20 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
   };
 
   const handlePrint = () => {
-    const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
-    const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
-    const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    downloadPDF('print-area', `Receipt Voucher-${transaction.voucherNo || bookingRef} ${safeName} ${transaction.date}.pdf`);
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintError(false);
+    try {
+      const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
+      const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
+      const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const success = downloadPDF('print-area', `Receipt Voucher-${transaction.voucherNo || bookingRef} ${safeName} ${transaction.date}.pdf`);
+      if (!success) setPrintError(true);
+    } catch {
+      setPrintError(true);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const getWhatsAppReceiptLink = () => {
@@ -62,11 +74,19 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             <PageBreakToggle />
             <button
               onClick={handlePrint}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
+              disabled={isGenerating}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              {t('rvpdf.printSavePDF')}
+              {isGenerating ? (
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              )}
+              {isGenerating ? 'Generating PDF...' : t('rvpdf.printSavePDF')}
             </button>
+            {printError && (
+              <button onClick={() => { setPrintError(false); setIsGenerating(false); }} className="bg-red-100 hover:bg-red-200 text-red-700 font-medium px-3 py-2 rounded-lg transition text-sm cursor-pointer">Reset</button>
+            )}
             <a
               href={getWhatsAppReceiptLink()}
               target="_blank"

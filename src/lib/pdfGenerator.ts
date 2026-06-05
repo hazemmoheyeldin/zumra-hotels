@@ -18,9 +18,14 @@ const PDF_RENDER_WIDTH = 900;
 let isPrinting = false;
 let printCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const downloadPDF = (elementId: string, filename: string, options?: PDFOptions) => {
+/**
+ * Triggers the browser print dialog to generate a PDF.
+ * MUST be called synchronously from a user gesture (onClick) to work on iOS Safari.
+ * Returns true if print was triggered successfully, false on error.
+ */
+export const downloadPDF = (elementId: string, filename: string, options?: PDFOptions): boolean => {
   // Prevent re-entrant calls (causes "blocked from automatically printing")
-  if (isPrinting) return;
+  if (isPrinting) return false;
   isPrinting = true;
 
   const element = document.getElementById(elementId);
@@ -160,20 +165,6 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     }
   `;
 
-  document.body.appendChild(clone);
-  document.body.classList.add('printing-report');
-
-  // Wait for images in clone to load
-  const allImgs = clone.querySelectorAll('img');
-  const imagePromises = Array.from(allImgs).map(img => {
-    if (img.complete && img.naturalHeight > 0) return Promise.resolve();
-    return new Promise<void>(resolve => {
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
-      setTimeout(() => resolve(), 3000);
-    });
-  });
-
   // Set document title to filename so browser uses it as PDF default name
   const originalTitle = document.title;
   const cleanName = filename.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9\s\-_()]/g, '').trim();
@@ -187,47 +178,46 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     document.title = originalTitle;
     const ps = document.getElementById(pageStyleId);
     if (ps) ps.remove();
-    // Release print guard after a short cooldown (allow sequential printing)
     setTimeout(() => { isPrinting = false; }, 500);
   };
 
-  // Listen for afterprint event for reliable cleanup
+  // Set up cleanup listeners BEFORE printing
   const onAfterPrint = () => {
     cleanup();
     window.removeEventListener('afterprint', onAfterPrint);
   };
   window.addEventListener('afterprint', onAfterPrint);
 
-  // Also listen for focus return (mobile browsers sometimes skip afterprint)
   const onFocusReturn = () => {
     setTimeout(() => {
-      if (document.getElementById('print-area-clone')) {
-        cleanup();
-      }
+      if (document.getElementById('print-area-clone')) cleanup();
     }, 500);
     window.removeEventListener('focus', onFocusReturn);
   };
   window.addEventListener('focus', onFocusReturn);
 
-  // Wait for images then print
-  Promise.all(imagePromises).then(() => {
-    // Longer delay on mobile to ensure the clone renders at full desktop width
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const printDelay = isMobile ? 800 : 400;
-    setTimeout(() => {
-      try {
-        window.print();
-      } catch (e) {
-        console.warn('Print failed:', e);
-        cleanup();
-      }
-      // Safety fallback cleanup in case afterprint doesn't fire
-      printCleanupTimer = setTimeout(() => {
-        if (document.getElementById('print-area-clone')) {
-          cleanup();
-          isPrinting = false;
-        }
-      }, 5000);
-    }, printDelay);
-  });
+  // Append clone and trigger print SYNCHRONOUSLY.
+  // This is critical for iOS Safari which blocks window.print() if called
+  // asynchronously (after any setTimeout/Promise microtask).
+  // Images visible on screen are already cached by the browser.
+  document.body.appendChild(clone);
+  document.body.classList.add('printing-report');
+
+  try {
+    window.print();
+  } catch (e) {
+    console.warn('Print failed:', e);
+    cleanup();
+    return false;
+  }
+
+  // Safety fallback cleanup in case afterprint doesn't fire
+  printCleanupTimer = setTimeout(() => {
+    if (document.getElementById('print-area-clone')) {
+      cleanup();
+      isPrinting = false;
+    }
+  }, 8000);
+
+  return true;
 };

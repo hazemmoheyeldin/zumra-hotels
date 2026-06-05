@@ -662,12 +662,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                 <th className="py-3 px-3">{t('common.date')}</th>
                 <th className="py-3 px-3">{lang === 'ar' ? 'رقم الحجز / المستند' : 'Reservation / Doc No'}</th>
-                <th className="py-3 px-3">{lang === 'ar' ? 'رقم القسيمة' : 'Voucher No'}</th>
+                <th className="py-3 px-3 hidden lg:table-cell">{lang === 'ar' ? 'رقم القسيمة' : 'Voucher No'}</th>
                 <th className="py-3 px-3">{t('trans.targetAgent')}</th>
                 <th className="py-3 px-3">{t('res.paymentMethod')}</th>
                 <th className="py-3 px-3">{t('trans.depositAccount')}</th>
-                <th className="py-3 px-3">{t('common.description')}</th>
-                <th className="py-3 px-3 text-center">{t('trans.attachment')}</th>
+                <th className="py-3 px-3 hidden lg:table-cell">{t('common.description')}</th>
+                <th className="py-3 px-3 text-center hidden lg:table-cell">{t('trans.attachment')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.sumSAR')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.runningBal')}</th>
                 <th className="py-3 px-3 text-center">{t('trans.voucherLayout')}</th>
@@ -680,7 +680,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   <td className="py-3 px-3 font-mono font-bold text-indigo-700">
                     {searchTerm ? highlightText(tr.docNo || '—', searchTerm) : (tr.docNo || '—')}
                   </td>
-                  <td className="py-3 px-3 font-mono font-bold text-slate-700">
+                  <td className="py-3 px-3 font-mono font-bold text-slate-700 hidden lg:table-cell">
                     {tr.voucherNo || '—'}
                   </td>
                   <td className="py-3 px-3 font-bold text-slate-900 bg-amber-50/5">
@@ -696,10 +696,10 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   <td className="py-3 px-3 text-[10px] text-slate-600 font-medium">
                     {getAccountLabel(tr.fromAccountId || '')}
                   </td>
-                  <td className="py-3 px-3 text-slate-600 max-w-xs truncate" title={tr.description}>
+                  <td className="py-3 px-3 text-slate-600 max-w-xs truncate hidden lg:table-cell" title={tr.description}>
                     {tr.description}
                   </td>
-                  <td className="py-3 px-3 text-center">
+                  <td className="py-3 px-3 text-center hidden lg:table-cell">
                     {tr.attachmentDataUrl ? (
                       <button 
                         onClick={() => setViewingAttachment({ url: tr.attachmentDataUrl!, label: `${tr.voucherNo || tr.docNo} - Attachment` })}

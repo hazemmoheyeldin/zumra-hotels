@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
@@ -22,6 +22,8 @@ interface ArrivalReportPDFProps {
 export default function ArrivalReportPDF({ reservations, agents, hotels, fromDate, toDate, onClose }: ArrivalReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [printError, setPrintError] = useState(false);
 
   const getAgentName = (id: string): string => {
     const a = agents.find(agent => agent.id === id);
@@ -47,8 +49,18 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
   };
 
   const handlePrint = () => {
-    const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
-    downloadPDF('print-area', `Arrivals During ${dStr}.pdf`, { landscape: true });
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintError(false);
+    try {
+      const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
+      const success = downloadPDF('print-area', `Arrivals During ${dStr}.pdf`, { landscape: true });
+      if (!success) setPrintError(true);
+    } catch {
+      setPrintError(true);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -67,11 +79,19 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
             <PageBreakToggle />
             <button
               onClick={handlePrint}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
+              disabled={isGenerating}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              {t('arpdf.printSavePDF')}
+              {isGenerating ? (
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              )}
+              {isGenerating ? 'Generating PDF...' : t('arpdf.printSavePDF')}
             </button>
+            {printError && (
+              <button onClick={() => { setPrintError(false); setIsGenerating(false); }} className="bg-red-100 hover:bg-red-200 text-red-700 font-medium px-3 py-2 rounded-lg transition text-sm cursor-pointer">Reset</button>
+            )}
             <button
               onClick={onClose}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer"
