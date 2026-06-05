@@ -255,16 +255,16 @@ export default function StatementReportPDF({ client, reservations, transactions,
         <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-2 gap-2">
-            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center pb-2 gap-4">
+            <div className="flex flex-col text-left font-sans flex-1">
+              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
-            <div className="flex-shrink-0 flex justify-end">
+            <div className="flex-shrink-0">
               <ZumraLogo size="xxl" />
             </div>
           </div>
@@ -304,18 +304,29 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
           {/* Statement of Account Ledger */}
           <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
-            <table className="w-full text-left border-collapse text-[9.5px]">
+            <table className="w-full text-left border-collapse text-[9.5px]" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '10%' }} />
+              </colgroup>
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold border-b border-slate-200">
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.entryDate')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.debitCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.creditCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.balanceCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.descriptionCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.docType')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.refCol')}</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.voucherCol')}</th>
-                  <th className="py-1.5 px-1.5 text-left">{t('srpdf.genNoCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.entryDate')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.debitCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.creditCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.balanceCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.descriptionCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.docType')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.refCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.voucherCol')}</th>
+                  <th className="py-1.5 px-1.5 text-left overflow-hidden text-ellipsis whitespace-nowrap">{t('srpdf.genNoCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
@@ -328,7 +339,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
                       <React.Fragment key={idx}>
                         {renderInsertZone(idx)}
                         <tr className="bg-white hover:bg-slate-50/50 text-slate-800">
-                          <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{formatStandardDate(line.date)}</td>
+                          <td className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap font-mono">{formatStandardDate(line.date)}</td>
                         <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-semibold">
                           {line.debit > 0 ? line.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                         </td>
@@ -338,13 +349,13 @@ export default function StatementReportPDF({ client, reservations, transactions,
                         <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-extrabold ${displayBal < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
                           {displayBal < 0 ? `(${balStr})` : balStr}
                         </td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 max-w-xs truncate font-sans">{line.description}</td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-600 font-sans">
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap font-sans" title={line.description}>{line.description}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-600 font-sans overflow-hidden text-ellipsis whitespace-nowrap">
                           {line.docType.replace('ClientReservation', 'Reservation').replace('SupplierReservation', 'Reservation').replace('ClientOperation', 'Payment').replace('SupplierOperation', 'Payment').replace('ClientRefund', 'Refund').replace('SupplierRefund', 'Refund')}
                         </td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-semibold">RSV-{line.docNo}</td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-slate-500">{line.voucher || ''}</td>
-                          <td className="py-1.5 px-1.5 font-mono font-black text-slate-900">{line.genNo}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-semibold overflow-hidden text-ellipsis whitespace-nowrap">RSV-{line.docNo}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-slate-500 overflow-hidden text-ellipsis whitespace-nowrap">{line.voucher || ''}</td>
+                          <td className="py-1.5 px-1.5 font-mono font-black text-slate-900 overflow-hidden text-ellipsis whitespace-nowrap">{line.genNo}</td>
                         </tr>
                       </React.Fragment>
                     );

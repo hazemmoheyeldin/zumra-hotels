@@ -156,9 +156,9 @@ tbody tr {
   }
 
   /* ---- Logo sizing for all print modes ---- */
-  /* Match the on-screen xxl size (200px) for prominent PDF output */
+  /* Match the on-screen xxl size (260px) for prominent PDF output */
   img[alt*="Zumra"] {
-    height: 200px !important;
+    height: 260px !important;
     width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;

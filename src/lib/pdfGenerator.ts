@@ -14,11 +14,13 @@
 
 interface PDFOptions {
   landscape?: boolean;
+  renderWidth?: number;
 }
 
 // Fixed render width ensures Tailwind `md:` breakpoints always activate,
 // so PDFs always look like the desktop layout (no stacked mobile columns).
 const PDF_RENDER_WIDTH = 900;
+const PDF_LANDSCAPE_WIDTH = 1120;
 
 // Guard flag to prevent double-triggering and "blocked from printing" errors
 let isPrinting = false;
@@ -43,6 +45,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   }
 
   const landscape = options?.landscape || false;
+  const renderWidth = options?.renderWidth || (landscape ? PDF_LANDSCAPE_WIDTH : PDF_RENDER_WIDTH);
 
   // Clone the print area and attach directly to body for clean printing
   const clone = element.cloneNode(true) as HTMLElement;
@@ -78,9 +81,9 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     position: absolute;
     top: 0;
     left: 0;
-    width: ${PDF_RENDER_WIDTH}px;
-    max-width: ${PDF_RENDER_WIDTH}px;
-    min-width: ${PDF_RENDER_WIDTH}px;
+    width: ${renderWidth}px;
+    max-width: ${renderWidth}px;
+    min-width: ${renderWidth}px;
     max-height: none;
     height: auto;
     overflow: visible;
@@ -104,7 +107,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   // Calculate zoom to fit the fixed-width clone onto the A4 page.
   // A4 printable width ≈ 210mm (portrait) / 297mm (landscape) at 96dpi.
   // The browser's print engine handles final page fitting; zoom gives a good baseline.
-  const baseZoom = landscape ? 1.05 : 0.78;
+  const baseZoom = landscape ? (renderWidth > 1000 ? 0.88 : 1.05) : 0.78;
 
   // Inject dynamic @page style for landscape/portrait
   const pageStyleId = 'dynamic-page-style';
@@ -149,9 +152,9 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
-        width: ${PDF_RENDER_WIDTH}px !important;
-        max-width: ${PDF_RENDER_WIDTH}px !important;
-        min-width: ${PDF_RENDER_WIDTH}px !important;
+        width: ${renderWidth}px !important;
+        max-width: ${renderWidth}px !important;
+        min-width: ${renderWidth}px !important;
         max-height: none !important;
         height: auto !important;
         background: white !important;

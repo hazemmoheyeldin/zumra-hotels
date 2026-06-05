@@ -166,16 +166,16 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
         >
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-0.5">
-            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
+          <div className="flex justify-between items-center mb-0.5 gap-4">
+            <div className="flex flex-col text-left font-sans flex-1">
+              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
-              <span className="text-lg font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
+              <span className="text-lg font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
                 زمرة للفنادق
               </span>
             </div>
-            <div className="flex-shrink-0 flex justify-end">
+            <div className="flex-shrink-0">
               <ZumraLogo size="xxl" />
             </div>
           </div>
