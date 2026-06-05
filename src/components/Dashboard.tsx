@@ -321,7 +321,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             <ZumraLogo size="xl" variant="light" />
           </div>
           <div className="text-center sm:text-left">
-            <h2 className="text-xl font-bold uppercase tracking-tight text-amber-100">Zumra Hotels B2B Operations Panel</h2>
+            <h2 className="text-xl font-bold uppercase tracking-tight text-amber-100">Zumra Hotels Reservations Management System</h2>
             <p className="text-xs text-emerald-250 mt-1 font-mono tracking-wide">SYSTEM NODE: Egypt Standard Time (Cairo Gateway Active)</p>
           </div>
         </div>

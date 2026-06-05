@@ -13,11 +13,14 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(() => {
+    const saved = localStorage.getItem('zumra_remembered_user');
+    return saved || '';
+  });
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('zumra_remembered_user'));
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
@@ -53,6 +56,14 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
       const matchesStandardOverride = password === 'admin' || password === 'res' || password === 'fin' || password === '123' || password === 'admin123';
 
       if (password === allowedPwd || matchesStandardOverride) {
+        // Handle remember me
+        if (rememberMe) {
+          localStorage.setItem('zumra_remembered_user', username.trim());
+          localStorage.setItem('zumra_trusted_device', 'true');
+        } else {
+          localStorage.removeItem('zumra_remembered_user');
+          localStorage.removeItem('zumra_trusted_device');
+        }
         onLoginSuccess(matchedUser);
       } else {
         setErrorMsg('Invalid password. Access denied.');
@@ -142,11 +153,16 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
           </div>
 
           {/* Remember me */}
-          <label className="flex items-center gap-2 cursor-pointer group">
-            <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
-              className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-amber-400/30 focus:ring-offset-0 cursor-pointer" />
-            <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-mono transition">Remember me on this device</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-amber-400/30 focus:ring-offset-0 cursor-pointer" />
+              <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-mono transition">Remember me on this device</span>
+            </label>
+            {rememberMe && (
+              <span className="text-[8px] text-emerald-400/60 font-mono flex items-center gap-1">🔒 Trusted Device</span>
+            )}
+          </div>
 
           {/* Submit */}
           <button

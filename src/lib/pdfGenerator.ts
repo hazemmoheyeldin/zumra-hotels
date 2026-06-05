@@ -8,7 +8,7 @@ interface PDFOptions {
   landscape?: boolean;
 }
 
-export const downloadPDF = (elementId: string, _filename: string, options?: PDFOptions) => {
+export const downloadPDF = (elementId: string, filename: string, options?: PDFOptions) => {
   const element = document.getElementById(elementId);
   if (!element) {
     console.error(`[downloadPDF] Element with id "${elementId}" not found.`);
@@ -82,10 +82,17 @@ export const downloadPDF = (elementId: string, _filename: string, options?: PDFO
     });
   });
 
+  // Set document title to filename so browser uses it as PDF default name
+  const originalTitle = document.title;
+  const cleanName = filename.replace(/\.pdf$/i, '').replace(/[^a-zA-Z0-9\s\-_()]/g, '').trim();
+  document.title = cleanName || originalTitle;
+
   const cleanup = () => {
     document.body.classList.remove('printing-report');
     const cloneEl = document.getElementById('print-area-clone');
     if (cloneEl) cloneEl.remove();
+    // Restore original title
+    document.title = originalTitle;
     // Remove dynamic page style
     const ps = document.getElementById(pageStyleId);
     if (ps) ps.remove();

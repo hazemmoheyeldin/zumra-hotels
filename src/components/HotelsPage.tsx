@@ -422,30 +422,70 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
       {showForm ? (
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl bg-slate-50 border border-slate-200/60 p-5 rounded-2xl">
           <div className="flex flex-col gap-2 bg-white p-3 rounded-xl border border-slate-100 mb-2">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-2">
               <div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase">Interactive Integration Lookup</span>
-                <p className="text-[9px] text-slate-400 mt-0.5">Auto-fill hotel details from Google.com then Booking.com databases</p>
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Hotel Database Lookup</span>
+                <p className="text-[9px] text-slate-400 mt-0.5">Search our hotel database or use Google for auto-fill</p>
               </div>
-              <button
-                type="button"
-                onClick={handleAutoGatherInfo}
-                disabled={isSearching}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md disabled:opacity-75 cursor-pointer"
-              >
-                {isSearching ? (
-                  <>
-                    <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Searching...
-                  </>
-                ) : (
-                  '✨ Gather Details from Google & Booking.com'
-                )}
-              </button>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleAutoGatherInfo}
+                  disabled={isSearching}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md disabled:opacity-75 cursor-pointer"
+                >
+                  {isSearching ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Searching...
+                    </>
+                  ) : (
+                    '✨ Gather Details'
+                  )}
+                </button>
+              </div>
             </div>
+
+            {/* Quick Add from Preset Database */}
+            <div className="mt-1">
+              <label className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Quick Add from Database</label>
+              <select
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-slate-50 focus:border-amber-500 focus:outline-none"
+                value=""
+                onChange={(e) => {
+                  const preset = PRESET_HOTELS.find(p => p.name === e.target.value);
+                  if (preset) {
+                    setName(preset.name || '');
+                    setCity(preset.city as any);
+                    setStars(preset.stars || 5);
+                    setAddress(preset.address || '');
+                    setContact(preset.contact || '');
+                    setRoomTypes(preset.roomTypes?.join(', ') || '');
+                    setViews(preset.views?.join(', ') || '');
+                    setMealPlans(preset.mealPlans?.join(', ') || '');
+                    setSuppliersText(preset.city === 'Makkah' ? 'Golden Sands Makkah, Marseilia Tours' : 'Zowar Madinah Hospitality');
+                    setGatherHint(`✅ Loaded from database: "${preset.name}" — review and save.`);
+                    setTimeout(() => setGatherHint(''), 5000);
+                  }
+                }}
+              >
+                <option value="">-- Select Hotel from Database --</option>
+                <optgroup label="Makkah Hotels">
+                  {PRESET_HOTELS.filter(p => p.city === 'Makkah').map((p, i) => (
+                    <option key={`mk_${i}`} value={p.name}>{p.name} ({p.stars}★)</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Madinah Hotels">
+                  {PRESET_HOTELS.filter(p => p.city === 'Madinah').map((p, i) => (
+                    <option key={`md_${i}`} value={p.name}>{p.name} ({p.stars}★)</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
             {gatherHint && (
               <div className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border animate-pulse ${
                 gatherHint.startsWith('✅') || gatherHint.startsWith('✨') 

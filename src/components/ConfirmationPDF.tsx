@@ -39,9 +39,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
   const handlePrint = () => {
     const status = reservation.status || 'Confirmation';
-    const bookingRef = reservation.id;
-    const todayNum = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    downloadPDF('print-area', `${status} - ${bookingRef} - ${todayNum}.pdf`, { landscape: false });
+    const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+    const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+    const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
+    downloadPDF('print-area', `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`, { landscape: false });
   };
 
   const getStatusLabel = () => {

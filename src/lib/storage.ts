@@ -603,12 +603,15 @@ export function getReservationTotals(res: Reservation) {
       mealBuy = (room.mealBuyRate || 0) * paxCount * res.nights * room.qty;
     }
 
-    // Extra Bed
+    // Extra Bed: count = pax - 2 (base double occupancy)
+    // For Triple: 1 extra bed, Quad: 2 extra beds, Quint: 3 extra beds
     let extraBedSell = 0;
     let extraBedBuy = 0;
     if (room.hasExtraBed) {
-      extraBedSell = (room.extraBedRate || 0) * res.nights * room.qty;
-      extraBedBuy = (room.extraBedBuyRate || 0) * res.nights * room.qty;
+      const paxCount = getPaxForRoomType(room.roomType);
+      const extraBedCount = Math.max(0, paxCount - 2);
+      extraBedSell = (room.extraBedRate || 0) * extraBedCount * res.nights * room.qty;
+      extraBedBuy = (room.extraBedBuyRate || 0) * extraBedCount * res.nights * room.qty;
     }
 
     // View Supplement (added per room per night)

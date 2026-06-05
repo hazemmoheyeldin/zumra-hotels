@@ -289,7 +289,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
                   <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Balance</th>
                   <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Description</th>
                   <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Doc Type</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Doc No</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Ref #</th>
                   <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Voucher</th>
                   <th className="py-1.5 px-1.5 text-left">Gen No</th>
                 </tr>
@@ -312,11 +312,13 @@ export default function StatementReportPDF({ client, reservations, transactions,
                           {line.credit > 0 ? line.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                         </td>
                         <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-extrabold ${displayBal < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                          {displayBal < 0 ? `-${balStr}` : balStr}
+                          {displayBal < 0 ? `(${balStr})` : balStr}
                         </td>
                         <td className="py-1.5 px-1.5 border-r border-slate-200 max-w-xs truncate font-sans">{line.description}</td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-600 font-sans">{line.docType}</td>
-                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-semibold">{line.docNo}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-600 font-sans">
+                          {line.docType.replace('ClientReservation', 'Reservation').replace('SupplierReservation', 'Reservation').replace('ClientOperation', 'Payment').replace('SupplierOperation', 'Payment').replace('ClientRefund', 'Refund').replace('SupplierRefund', 'Refund')}
+                        </td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-semibold">RSV-{line.docNo}</td>
                         <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono text-slate-500">{line.voucher || ''}</td>
                           <td className="py-1.5 px-1.5 font-mono font-black text-slate-900">{line.genNo}</td>
                         </tr>
@@ -334,8 +336,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-700">Period:</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                  <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {finalBalance < 0 ? `-${Math.abs(totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : (totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${totalDebit - totalCredit > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {totalDebit - totalCredit > 0 ? (totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 }) : totalDebit - totalCredit < 0 ? `(${Math.abs(totalDebit - totalCredit).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : '0.00'}
                   </td>
                   <td colSpan={5} className="py-1.5 px-1.5 border-slate-200 bg-slate-50"></td>
                 </tr>
@@ -346,7 +348,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-slate-950 ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                    {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {finalBalance < 0 ? `(${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })})` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   <td colSpan={5} className="py-1.5 px-1.5 border-slate-200 bg-slate-100/80"></td>
                 </tr>
@@ -355,9 +357,12 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Total Balance Outstanding */}
-          <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[10px] font-black uppercase text-left mb-4 keep-with-prev ${finalBalance < 0 ? 'border-rose-300' : 'border-emerald-300'}`}>
-            <span className="py-2 px-3 bg-slate-50 border-r border-slate-200 text-slate-700">Total Balance:</span>
-            <span className={`py-2 px-3 font-mono text-right font-black ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+          <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[11px] font-black uppercase text-left mb-4 keep-with-prev ${finalBalance < 0 ? 'border-rose-300 bg-rose-50/50' : finalBalance > 0 ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
+            <span className="py-2.5 px-3 border-r border-slate-200 text-slate-700 flex items-center gap-2">
+              <span className="text-sm">{finalBalance < 0 ? '💳' : finalBalance > 0 ? '✅' : '✅'}</span>
+              {finalBalance < 0 ? 'Outstanding Balance (Client Owes)' : finalBalance > 0 ? 'Credit Balance (Overpaid)' : 'Balance (Settled)'}
+            </span>
+            <span className={`py-2.5 px-3 font-mono text-right font-black text-base ${finalBalance < 0 ? 'text-rose-700' : finalBalance > 0 ? 'text-emerald-700' : 'text-slate-600'}`}>
               {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR
             </span>
           </div>

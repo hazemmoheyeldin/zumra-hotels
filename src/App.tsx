@@ -865,7 +865,7 @@ export default function App() {
               <ZumraLogo size="md" variant="dark" />
             </div>
             <div className="text-left md:text-center mt-1">
-              <p className={`text-[11px] md:text-[12px] text-amber-400 font-extrabold tracking-widest leading-none`}>B2B RMS</p>
+              <p className={`text-[11px] md:text-[12px] text-cyan-400 font-extrabold tracking-widest leading-none`}>RMS</p>
             </div>
           </div>
 
