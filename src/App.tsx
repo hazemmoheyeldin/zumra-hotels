@@ -1274,6 +1274,18 @@ export default function App() {
           )}
         </div>
 
+        {/* Desktop collapse toggle - top position */}
+        <div className="hidden md:flex px-3 py-1.5">
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 text-slate-400 hover:bg-white/10 hover:text-white w-full"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <span className="text-base">{sidebarCollapsed ? '▶' : '◀'}</span>
+            <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>{sidebarCollapsed ? '' : 'Collapse'}</span>
+          </button>
+        </div>
+
         {/* Navigation list */}
         <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-4 px-3 flex flex-col gap-0 overflow-x-auto">
           {Object.entries(navGroups).map(([group, items]) => (
@@ -1314,15 +1326,6 @@ export default function App() {
           >
             <span>🚪</span>
             <span>{t('nav.exitPortal')}</span>
-          </button>
-          {/* Desktop collapse toggle */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 text-slate-400 hover:bg-white/10 hover:text-white mt-1"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <span className="text-base">{sidebarCollapsed ? '▶' : '◀'}</span>
-            <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>{sidebarCollapsed ? '' : 'Collapse'}</span>
           </button>
         </nav>
 

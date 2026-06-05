@@ -8,7 +8,7 @@ import { Agent, Reservation, Account, Transaction } from '../types';
 import BulkPaymentDialog from './BulkPaymentDialog';
 import { useLang } from '../lib/LanguageContext';
 
-import { getAgentActualBalance } from '../lib/storage';
+import { getAgentActualBalance, exportToExcel } from '../lib/storage';
 
 interface AgentsPageProps {
   agents: Agent[];
@@ -48,6 +48,27 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   
   // Bulk payment modal
   const [bulkPaymentAgent, setBulkPaymentAgent] = useState<Agent | null>(null);
+
+  const handleExportExcel = () => {
+    const filteredAgents = agents.filter(a => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = a.name.toLowerCase().includes(searchLower) || (a.companyName && a.companyName.toLowerCase().includes(searchLower)) || a.phone.includes(searchLower);
+      if (filterType !== 'All' && a.type !== filterType) return false;
+      return matchesSearch;
+    });
+    const rows = filteredAgents.map(a => ({
+      'Agent ID': a.agentNumber,
+      'Name': a.name,
+      'Company Name': a.companyName || '',
+      'Country': a.country,
+      'Type': a.type,
+      'Phone': a.phone,
+      'Email': a.email,
+      'Address': a.address || '',
+      'Balance (SAR)': getAgentActualBalance(a, reservations, transactions),
+    }));
+    exportToExcel('Agents Directory.xlsx', rows, 'Agents');
+  };
 
   const handleEdit = (agent: Agent) => {
     setEditingId(agent.id);
@@ -149,6 +170,13 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
             <option value="Supplier">Suppliers</option>
             <option value="Both">Both (Cust & Supp)</option>
           </select>
+          <button
+            onClick={handleExportExcel}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-3 py-2 rounded-xl transition border border-emerald-200 flex items-center gap-1 whitespace-nowrap"
+            title="Export filtered agents to Excel"
+          >
+            ⬇️ Excel
+          </button>
           <button
             onClick={() => {
               if (showForm) resetForm();

@@ -729,6 +729,16 @@ export function exportToCSV(filename: string, rows: object[]) {
   }
 }
 
+export function exportToExcel(filename: string, rows: object[], sheetName: string = 'Sheet1') {
+  if (!rows || !rows.length) return;
+  import('xlsx').then((XLSX) => {
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+  });
+}
+
 // =====================================================
 // FIRESTORE CLOUD SYNC LAYER
 // =====================================================

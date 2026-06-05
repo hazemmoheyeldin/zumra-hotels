@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
-import { getReservationTotals, exportToCSV } from '../lib/storage';
+import { getReservationTotals, exportToCSV, exportToExcel } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
 
 interface ProductionPageProps {
@@ -120,6 +120,19 @@ export default function ProductionPage({ reservations, agents, hotels }: Product
     exportToCSV(`production-${viewMode}-${dateFrom || 'all'}.csv`, data);
   };
 
+  const handleExportExcel = () => {
+    const data = activeStats.map(s => ({
+      'Name': s.companyName,
+      'Bookings': s.bookings,
+      'Room Nights': s.roomNights,
+      'Revenue (SAR)': s.revenue,
+      'Cost (SAR)': s.cost,
+      'Profit (SAR)': s.profit,
+      'Margin': s.revenue > 0 ? `${((s.profit / s.revenue) * 100).toFixed(1)}%` : '0.0%',
+    }));
+    exportToExcel(`Production ${viewMode} ${dateFrom || 'all'}.xlsx`, data, 'Production');
+  };
+
   const clearFilters = () => {
     setDateFrom(''); setDateTo(''); setFilterHotel(''); setFilterAgent(''); setSearchTerm('');
   };
@@ -160,6 +173,9 @@ export default function ProductionPage({ reservations, agents, hotels }: Product
             <p className="text-xs text-slate-500">{t('prod.subtitle')}</p>
           </div>
           <div className="flex gap-2">
+            <button onClick={handleExportExcel} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition border border-emerald-200">
+              ⬇️ Excel
+            </button>
             <button onClick={handleExport} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition">
               ⬇️ {t('prod.exportCSV')}
             </button>
