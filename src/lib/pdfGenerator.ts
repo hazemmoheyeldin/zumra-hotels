@@ -378,6 +378,65 @@ const isMobileDevice = (): boolean => {
 };
 
 /**
+ * Scans an element for Tailwind responsive grid/flex classes (md:*) and applies
+ * inline !important styles to force the DESKTOP layout regardless of viewport width.
+ * This fixes mobile PDF capture where md:grid-cols-N doesn't activate because
+ * CSS media queries use device viewport width, not element width.
+ *
+ * Returns the list of modified elements and their original styles for cleanup.
+ */
+const forceDesktopLayout = (root: HTMLElement): {
+  el: HTMLElement; origGridCols: string; origGap: string;
+}[] => {
+  const modified: { el: HTMLElement; origGridCols: string; origGap: string }[] = [];
+
+  const allElements = [root, ...Array.from(root.querySelectorAll('*'))] as HTMLElement[];
+  allElements.forEach(el => {
+    const cls = el.className;
+    if (typeof cls !== 'string') return;
+    const tokens = cls.split(/\s+/);
+
+    let mdCols = 0;
+    let hasMdGap = false;
+    tokens.forEach(token => {
+      const colMatch = token.match(/^md:grid-cols-(\d+)$/);
+      if (colMatch) mdCols = parseInt(colMatch[1], 10);
+      if (token.startsWith('md:gap-')) hasMdGap = true;
+    });
+
+    if (mdCols > 0) {
+      modified.push({
+        el,
+        origGridCols: el.style.getPropertyValue('grid-template-columns'),
+        origGap: el.style.getPropertyValue('gap'),
+      });
+      el.style.setProperty('grid-template-columns', `repeat(${mdCols}, minmax(0, 1fr))`, 'important');
+      if (hasMdGap) {
+        el.style.setProperty('gap', '1rem', 'important');
+      }
+    }
+  });
+
+  return modified;
+};
+
+/** Restores inline grid styles previously set by forceDesktopLayout */
+const removeDesktopLayout = (modified: { el: HTMLElement; origGridCols: string; origGap: string }[]) => {
+  modified.forEach(({ el, origGridCols, origGap }) => {
+    if (origGridCols) {
+      el.style.setProperty('grid-template-columns', origGridCols);
+    } else {
+      el.style.removeProperty('grid-template-columns');
+    }
+    if (origGap) {
+      el.style.setProperty('gap', origGap);
+    } else {
+      el.style.removeProperty('gap');
+    }
+  });
+};
+
+/**
  * Strips scroll/overflow constraints from an element AND all its descendants.
  * This prevents scrollbars from appearing in the captured PDF.
  * Returns the list of modified elements and their original styles for restoration.
@@ -441,6 +500,7 @@ const generatePDFBlob = async (
   let origMaxHeight = '', origOverflow = '', origOverflowX = '';
   let origWidth = '', origMinWidth = '';
   let scrollModified: ReturnType<typeof stripAllScrollConstraints> = [];
+  let desktopModified: ReturnType<typeof forceDesktopLayout> = [];
 
   try {
     // Hide no-print elements
@@ -469,6 +529,9 @@ const generatePDFBlob = async (
       element.style.minWidth = `${captureWidth}px`;
     }
 
+    // Force desktop grid/flex layouts (fixes md:grid-cols-N not activating on mobile viewport)
+    desktopModified = forceDesktopLayout(element);
+
     // Capture as PNG (html-to-image uses SVG foreignObject — native text rendering)
     const dataUrl = await toPng(element, {
       pixelRatio: scale,
@@ -482,6 +545,7 @@ const generatePDFBlob = async (
     });
 
     // Restore everything
+    removeDesktopLayout(desktopModified);
     element.style.maxHeight = origMaxHeight;
     element.style.overflow = origOverflow;
     element.style.overflowX = origOverflowX;
@@ -550,6 +614,7 @@ const generatePDFBlob = async (
   } catch (e) {
     console.error('[generatePDFBlob] Failed:', e);
     // Restore on error
+    removeDesktopLayout(desktopModified);
     element.style.maxHeight = origMaxHeight;
     element.style.overflow = origOverflow;
     element.style.overflowX = origOverflowX;
