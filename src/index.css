@@ -162,6 +162,7 @@ tbody tr {
     width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+    image-rendering: auto;
   }
 
   /* Prevent page breaks inside printable area */

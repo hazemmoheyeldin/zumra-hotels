@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, User, Account } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -41,6 +41,9 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
+
+  // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
   const handlePrint = () => {
     if (isGenerating) return;

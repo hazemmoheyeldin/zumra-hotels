@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Transaction, Agent, Reservation } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -22,6 +22,9 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
   const { t, lang } = useLang();
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
+
+  // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
   // Helper to convert number to words briefly in English/Arabic
   const amountToWords = (num: number): string => {

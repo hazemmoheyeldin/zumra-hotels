@@ -7,7 +7,7 @@ import React from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -23,6 +23,9 @@ interface CancellationReportPDFProps {
 export default function CancellationReportPDF({ reservations, agents, hotels, fromDate, toDate, onClose }: CancellationReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
+
+  // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
   const getAgentName = (id: string): string => {
     const a = agents.find(agent => agent.id === id);

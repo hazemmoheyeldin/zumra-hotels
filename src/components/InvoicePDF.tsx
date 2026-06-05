@@ -2,7 +2,7 @@ import React from 'react';
 import { Reservation, Agent, Hotel, Transaction } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 import { useLang } from '../lib/LanguageContext';
 
 interface InvoicePDFProps {
@@ -16,6 +16,9 @@ interface InvoicePDFProps {
 export default function InvoicePDF({ reservation, client, hotel, transactions, onClose }: InvoicePDFProps) {
   const totals = getReservationTotals(reservation);
   const { t, lang } = useLang();
+
+  // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
   // Filter payments for this reservation
   const payments = transactions.filter(t =>

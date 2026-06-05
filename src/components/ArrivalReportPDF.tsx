@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { downloadPDF } from '../lib/pdfGenerator';
+import { downloadPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
 
@@ -24,6 +24,9 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
   const { t, lang } = useLang();
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
+
+  // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
 
   const getAgentName = (id: string): string => {
     const a = agents.find(agent => agent.id === id);
