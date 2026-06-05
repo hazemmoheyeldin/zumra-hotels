@@ -58,6 +58,17 @@ export interface AllotmentDay {
   booked: number;
 }
 
+export interface AllotmentRatePeriod {
+  startDate: string;
+  endDate: string;
+  costPerNight: number;       // Buy rate per room per night
+  sellRatePerNight: number;   // Sell rate per room per night
+  extraBedRate?: number;       // Sell extra bed rate per night
+  extraBedBuyRate?: number;    // Buy extra bed rate per night
+  mealRate?: number;           // Sell meal rate per person per night
+  mealBuyRate?: number;        // Buy meal rate per person per night
+}
+
 export interface Allotment {
   id: string;
   hotelId: string;
@@ -68,6 +79,7 @@ export interface Allotment {
   totalRooms: number;
   bookedRooms: number;
   dailyAvailability?: { [date: string]: AllotmentDay };
+  ratePeriods?: AllotmentRatePeriod[];
 }
 
 export interface RoomLine {

@@ -323,14 +323,44 @@ export default function ReservationsPage({
       setSupplierId(a.supplierId);
       const hotel = hotels.find(h => h.id === a.hotelId);
       if (hotel) {
+        // Find applicable rate period
+        let buyRate = 100;
+        let sellRate = 150;
+        let extraBedBuy = 0;
+        let extraBedSell = 0;
+        let mealBuy = 0;
+        let mealSell = 0;
+        const hasRates = a.ratePeriods && a.ratePeriods.length > 0;
+
+        if (hasRates) {
+          // Try to match a rate period to the current check-in date
+          let matchedPeriod = a.ratePeriods![0]; // default to first period
+          if (checkIn) {
+            const match = a.ratePeriods!.find(rp => checkIn >= rp.startDate && checkIn <= rp.endDate);
+            if (match) matchedPeriod = match;
+          }
+          buyRate = matchedPeriod.costPerNight || 100;
+          sellRate = matchedPeriod.sellRatePerNight || 150;
+          extraBedBuy = matchedPeriod.extraBedBuyRate || 0;
+          extraBedSell = matchedPeriod.extraBedRate || 0;
+          mealBuy = matchedPeriod.mealBuyRate || 0;
+          mealSell = matchedPeriod.mealRate || 0;
+        }
+
         setRooms([{
           roomType: a.roomType || hotel.roomTypes[0] || 'Double',
           view: hotel.views[0] || 'City View',
           mealPlan: hotel.mealPlans[0] || 'B.B',
           qty: 1,
           pax: getPaxForRoomType(a.roomType || hotel.roomTypes[0] || 'Double'),
-          buyPriceNum: 100,
-          sellPriceNum: 150
+          buyPriceNum: buyRate,
+          sellPriceNum: sellRate,
+          hasExtraBed: (extraBedBuy > 0 || extraBedSell > 0) ? true : undefined,
+          extraBedBuyPriceNum: extraBedBuy || undefined,
+          extraBedSellPriceNum: extraBedSell || undefined,
+          hasSeparateMealRate: (mealBuy > 0 || mealSell > 0) ? true : undefined,
+          mealRateBuyNum: mealBuy || undefined,
+          mealRateSellNum: mealSell || undefined,
         }]);
       }
     }
@@ -1173,7 +1203,7 @@ export default function ReservationsPage({
                       {allotments.map(a => {
                         const hotel = hotels.find(h => h.id === a.hotelId);
                         const supplier = agents.find(ag => ag.id === a.supplierId);
-                        return <option key={a.id} value={a.id}>{hotel?.name} | {a.roomType} | {supplier?.name || 'N/A'} | {a.startDate} to {a.endDate}</option>;
+                        return <option key={a.id} value={a.id}>{hotel?.name} | {a.roomType} | {supplier?.name || 'N/A'} | {a.startDate} to {a.endDate}{a.ratePeriods?.length ? ` | ${a.ratePeriods.length} rate${a.ratePeriods.length > 1 ? 's' : ''}` : ''}</option>;
                       })}
                     </select>
                   </div>

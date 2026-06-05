@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Allotment, AllotmentDay, Hotel, Agent } from '../types';
+import { Allotment, AllotmentDay, AllotmentRatePeriod, Hotel, Agent } from '../types';
 import { useLang } from '../lib/LanguageContext';
 
 interface AllotmentsPageProps {
@@ -48,6 +48,11 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [totalRooms, setTotalRooms] = useState(5);
+
+  // Rate periods state
+  const [ratePeriods, setRatePeriods] = useState<AllotmentRatePeriod[]>([
+    { startDate: '', endDate: '', costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }
+  ]);
 
   // Filters
   const [filterHotel, setFilterHotel] = useState('');
@@ -101,6 +106,28 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     return dateRange(minDate, maxDate);
   }, [filteredAllotments, filterDateFrom, filterDateTo]);
 
+  const addRatePeriod = () => {
+    setRatePeriods([...ratePeriods, { startDate: '', endDate: '', costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }]);
+  };
+
+  const removeRatePeriod = (idx: number) => {
+    if (ratePeriods.length <= 1) return;
+    setRatePeriods(ratePeriods.filter((_, i) => i !== idx));
+  };
+
+  const updateRatePeriod = (idx: number, field: keyof AllotmentRatePeriod, value: string | number) => {
+    const updated = [...ratePeriods];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setRatePeriods(updated);
+  };
+
+  // Auto-fill first rate period dates from allotment dates
+  React.useEffect(() => {
+    if (startDate && endDate && ratePeriods.length === 1 && !ratePeriods[0].startDate && !ratePeriods[0].endDate) {
+      setRatePeriods([{ ...ratePeriods[0], startDate, endDate }]);
+    }
+  }, [startDate, endDate]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!hotelId || !roomType || !supplierId || !startDate || !endDate) {
@@ -136,6 +163,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
       totalRooms,
       bookedRooms: 0,
       dailyAvailability: daily,
+      ratePeriods: ratePeriods.filter(rp => rp.startDate && rp.endDate),
     };
 
     onSaveAllotment(newAllotment);
@@ -150,6 +178,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     setStartDate('');
     setEndDate('');
     setTotalRooms(5);
+    setRatePeriods([{ startDate: '', endDate: '', costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }]);
     setShowForm(false);
   };
 
@@ -246,6 +275,60 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
               </button>
               <button type="button" onClick={resetForm} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-5 py-2 rounded-lg transition">{t('common.cancel')}</button>
             </div>
+
+            {/* Rate Periods Section */}
+            <div className="pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-[10px] uppercase font-bold tracking-wider text-slate-600">💰 Rate Periods (Cost & Sell Rates per Night)</h4>
+                <button type="button" onClick={addRatePeriod} className="text-[10px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">+ Add Period</button>
+              </div>
+              <div className="space-y-3">
+                {ratePeriods.map((rp, idx) => (
+                  <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3 relative">
+                    {ratePeriods.length > 1 && (
+                      <button type="button" onClick={() => removeRatePeriod(idx)} className="absolute top-1.5 right-2 text-rose-400 hover:text-rose-600 text-xs font-bold">✕</button>
+                    )}
+                    <div className="text-[9px] font-bold text-slate-500 mb-1.5">Period {idx + 1}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">From</label>
+                        <input type="date" value={rp.startDate} onChange={e => updateRatePeriod(idx, 'startDate', e.target.value)} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-semibold" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">To</label>
+                        <input type="date" value={rp.endDate} onChange={e => updateRatePeriod(idx, 'endDate', e.target.value)} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-semibold" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-rose-500 block mb-0.5">Cost/Night (Buy)</label>
+                        <input type="number" value={rp.costPerNight || ''} onChange={e => updateRatePeriod(idx, 'costPerNight', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-red-600 font-bold" min={0} step={0.01} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-0.5">Sell Rate/Night</label>
+                        <input type="number" value={rp.sellRatePerNight || ''} onChange={e => updateRatePeriod(idx, 'sellRatePerNight', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-emerald-700 font-bold" min={0} step={0.01} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-indigo-500 block mb-0.5">Extra Bed Buy</label>
+                        <input type="number" value={rp.extraBedBuyRate || ''} onChange={e => updateRatePeriod(idx, 'extraBedBuyRate', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-red-600" min={0} step={0.01} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-indigo-500 block mb-0.5">Extra Bed Sell</label>
+                        <input type="number" value={rp.extraBedRate || ''} onChange={e => updateRatePeriod(idx, 'extraBedRate', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-emerald-700" min={0} step={0.01} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-orange-500 block mb-0.5">Meal Buy/Pax/Nt</label>
+                        <input type="number" value={rp.mealBuyRate || ''} onChange={e => updateRatePeriod(idx, 'mealBuyRate', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-red-600" min={0} step={0.01} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase font-bold text-orange-500 block mb-0.5">Meal Sell/Pax/Nt</label>
+                        <input type="number" value={rp.mealRate || ''} onChange={e => updateRatePeriod(idx, 'mealRate', Number(e.target.value))} className="w-full px-2 py-1 border border-slate-200 rounded text-[11px] font-mono text-emerald-700" min={0} step={0.01} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </form>
         ) : (
           <>
@@ -299,6 +382,13 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                           <td className="py-2 px-2 border-r border-slate-200">
                             <div className="font-bold text-slate-800">{hotel?.name || 'Unknown'}</div>
                             <div className="text-[9px] text-slate-400">{allot.roomType} · {suppl?.companyName || suppl?.name || 'Direct'}</div>
+                            {allot.ratePeriods && allot.ratePeriods.length > 0 && (
+                              <div className="text-[8px] text-amber-600 font-mono mt-0.5">
+                                {allot.ratePeriods.length === 1
+                                  ? `Buy: ${allot.ratePeriods[0].costPerNight} | Sell: ${allot.ratePeriods[0].sellRatePerNight}`
+                                  : `${allot.ratePeriods.length} rate periods`}
+                              </div>
+                            )}
                           </td>
                           {visibleDates.map(d => {
                             const day = allot.dailyAvailability?.[d];
@@ -319,6 +409,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                                 setStartDate(allot.startDate);
                                 setEndDate(allot.endDate);
                                 setTotalRooms(allot.totalRooms);
+                                setRatePeriods(allot.ratePeriods && allot.ratePeriods.length > 0 ? allot.ratePeriods : [{ startDate: allot.startDate, endDate: allot.endDate, costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }]);
                                 setShowForm(true);
                               }} className="text-blue-600 hover:text-blue-800 font-bold text-[10px]">Edit</button>
                               <button onClick={() => { if (confirm('Delete this allotment block?')) onDeleteAllotment(allot.id); }} className="text-red-500 hover:text-red-700 font-bold text-[10px]">Del</button>
