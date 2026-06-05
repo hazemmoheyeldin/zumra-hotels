@@ -22,6 +22,9 @@ import ProductionPage from './components/ProductionPage';
 import ZumraLogo from './components/ZumraLogo';
 import LoginPage from './components/LoginPage';
 import InboxModal from './components/InboxModal';
+import CalendarView from './components/CalendarView';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import InvoicePDF from './components/InvoicePDF';
 
 const THEMES = [
   {
@@ -649,6 +652,26 @@ export default function App() {
             }}
           />
         );
+      case 'Calendar':
+        return (
+          <CalendarView
+            reservations={reservations}
+            transactions={transactions}
+            followUps={followUps}
+            agents={agents}
+            hotels={hotels}
+            onNavigate={handleNavigate}
+          />
+        );
+      case 'Analytics':
+        return (
+          <AnalyticsDashboard
+            reservations={reservations}
+            transactions={transactions}
+            agents={agents}
+            hotels={hotels}
+          />
+        );
       case 'Reservations':
         return (
           <ReservationsPage
@@ -772,6 +795,8 @@ export default function App() {
 
   const navItems = [
     { name: 'Dashboard', icon: '📊', group: 'Overview' },
+    { name: 'Calendar', icon: '🗓️', group: 'Overview' },
+    { name: 'Analytics', icon: '📉', group: 'Overview' },
     { name: 'Reservations', icon: '📅', group: 'Operations' },
     { name: 'Sales', icon: '🚀', group: 'Operations' },
     { name: 'Production', icon: '📈', group: 'Operations' },
@@ -792,10 +817,10 @@ export default function App() {
   // Get permitted nav items based on user's specific role
   const permittedNavItems = navItems.filter((item) => {
     if (currentUser.role === 'Reservationist' || currentUser.role === 'Sales') {
-      return ['Dashboard', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
-      return ['Dashboard', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports'].includes(item.name);
     }
     return true; // Admin gets everything
   });

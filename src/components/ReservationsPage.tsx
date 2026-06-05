@@ -8,6 +8,7 @@ import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User } from 
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage';
 import ConfirmationPDF from './ConfirmationPDF';
+import InvoicePDF from './InvoicePDF';
 
 interface RoomSelection {
   roomType: string;
@@ -72,6 +73,7 @@ export default function ReservationsPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [printingDoc, setPrintingDoc] = useState<{ res: Reservation; isVoucher: boolean } | null>(null);
+  const [printingInvoice, setPrintingInvoice] = useState<Reservation | null>(null);
 
   // Local editing states for detailed modal view
   const [localHotelConf, setLocalHotelConf] = useState('');
@@ -1410,6 +1412,13 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           🎫 Voucher
                         </button>
                         <button
+                          onClick={() => setPrintingInvoice(res)}
+                          className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-2 py-1 rounded border border-purple-200 text-[10px] whitespace-nowrap hidden lg:block"
+                          title="Generate Professional Invoice"
+                        >
+                          🧾 Invoice
+                        </button>
+                        <button
                           onClick={() => handleEdit(res)}
                           className="p-1 hover:bg-amber-55/35 text-amber-800 rounded"
                           title="Edit booking"
@@ -1971,6 +1980,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                 <div className="flex gap-2">
                   <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">📄 Confirmation</button>
                   <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">🎫 Voucher</button>
+                  <button onClick={() => setPrintingInvoice(resObj)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">🧾 Invoice</button>
                 </div>
                 <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">Close</button>
               </div>
@@ -1991,6 +2001,17 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
           creatorName={printingDoc.res.createdBy || currentUser}
           users={users}
           accounts={accounts}
+        />
+      )}
+
+      {/* Invoice PDF overlay */}
+      {printingInvoice && (
+        <InvoicePDF
+          reservation={printingInvoice}
+          client={agents.find(a => a.id === printingInvoice.clientId)}
+          hotel={hotels.find(h => h.id === printingInvoice.hotelId)}
+          transactions={transactions}
+          onClose={() => setPrintingInvoice(null)}
         />
       )}
 

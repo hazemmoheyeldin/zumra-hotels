@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel, User, FollowUp } from '../types';
 import { getReservationTotals, getEgyptTime } from '../lib/storage';
+import { useCurrency } from '../lib/CurrencyContext';
 import ZumraLogo from './ZumraLogo';
 
 interface DashboardProps {
@@ -398,6 +399,9 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         </div>
       </div>
 
+      {/* Multi-Currency Summary */}
+      <MultiCurrencyBar amount={totalRevenue} label="Revenue" />
+
       {/* Upcoming Check-ins + Occupancy + Quick Actions Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Occupancy Rate */}
@@ -633,6 +637,36 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 
       </div>
 
+    </div>
+  );
+}
+
+function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) {
+  const { fxRates, isLiveRates, refreshRates } = useCurrency();
+  const currencies = [
+    { code: 'SAR', symbol: 'SAR', flag: '🇸🇦' },
+    { code: 'USD', symbol: '$', flag: '🇺🇸' },
+    { code: 'EGP', symbol: 'EGP', flag: '🇪🇬' },
+    { code: 'EUR', symbol: '€', flag: '🇪🇺' },
+  ];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold text-slate-500 uppercase">{label} in Multiple Currencies {isLiveRates && <span className="text-emerald-500">LIVE</span>}</span>
+        <button onClick={refreshRates} className="text-[9px] text-blue-600 hover:text-blue-800 font-medium">Refresh Rates</button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {currencies.map(c => {
+          const converted = amount * fxRates[c.code as keyof typeof fxRates];
+          return (
+            <div key={c.code} className="bg-slate-50 rounded-lg p-2 text-center">
+              <div className="text-[10px] text-slate-500">{c.flag} {c.code}</div>
+              <div className="text-sm font-bold text-slate-800 font-mono">{converted.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

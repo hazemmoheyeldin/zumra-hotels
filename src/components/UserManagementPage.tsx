@@ -110,6 +110,46 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
         </div>
       </div>
 
+      {/* Role Permission Matrix */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm overflow-x-auto">
+        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3">Role Permission Matrix</h3>
+        <table className="w-full text-[10px] border-collapse">
+          <thead>
+            <tr className="bg-slate-50">
+              <th className="px-2 py-2 text-left font-bold text-slate-600 border border-slate-200">Module</th>
+              <th className="px-2 py-2 text-center font-bold text-rose-600 border border-slate-200">Admin</th>
+              <th className="px-2 py-2 text-center font-bold text-indigo-600 border border-slate-200">Sales</th>
+              <th className="px-2 py-2 text-center font-bold text-emerald-600 border border-slate-200">Finance</th>
+              <th className="px-2 py-2 text-center font-bold text-amber-600 border border-slate-200">Reservationist</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { mod: 'Dashboard & Calendar', admin: true, sales: true, finance: true, res: true },
+              { mod: 'Analytics', admin: true, sales: false, finance: true, res: false },
+              { mod: 'Reservations', admin: true, sales: true, finance: true, res: true },
+              { mod: 'Sales & Follow-ups', admin: true, sales: true, finance: false, res: false },
+              { mod: 'Hotels & Agents', admin: true, sales: true, finance: true, res: true },
+              { mod: 'Allotments', admin: true, sales: true, finance: false, res: true },
+              { mod: 'Transactions', admin: true, sales: false, finance: true, res: false },
+              { mod: 'External Transfers', admin: true, sales: false, finance: true, res: false },
+              { mod: 'Banks & Safes', admin: true, sales: false, finance: true, res: false },
+              { mod: 'Reports', admin: true, sales: false, finance: true, res: false },
+              { mod: 'User Management', admin: true, sales: false, finance: false, res: false },
+              { mod: 'Buy Rates / Margins', admin: true, sales: false, finance: true, res: false },
+            ].map((row, i) => (
+              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                <td className="px-2 py-1.5 font-medium text-slate-700 border border-slate-200">{row.mod}</td>
+                <td className="px-2 py-1.5 text-center border border-slate-200">{row.admin ? '✅' : '❌'}</td>
+                <td className="px-2 py-1.5 text-center border border-slate-200">{row.sales ? '✅' : '❌'}</td>
+                <td className="px-2 py-1.5 text-center border border-slate-200">{row.finance ? '✅' : '❌'}</td>
+                <td className="px-2 py-1.5 text-center border border-slate-200">{row.res ? '✅' : '❌'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
       <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap justify-between items-center gap-2">
         <div>

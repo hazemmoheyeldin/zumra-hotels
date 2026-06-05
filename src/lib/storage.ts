@@ -4,6 +4,7 @@
  */
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer } from '../types';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 
 // Egypt Time helper: UTC + 3 hours
 export function getEgyptTime(): Date {
@@ -708,4 +709,74 @@ export function exportToCSV(filename: string, rows: object[]) {
     document.body.removeChild(link);
   }
 }
+
+// =====================================================
+// FIRESTORE CLOUD SYNC LAYER
+// =====================================================
+
+function syncItemToFirestore(collectionName: string, item: any): void {
+  if (!isFirebaseConfigured || !item?.id) return;
+  firestoreSave(collectionName, item.id, item);
+}
+
+function syncDeleteToFirestore(collectionName: string, id: string): void {
+  if (!isFirebaseConfigured) return;
+  firestoreDelete(collectionName, id);
+}
+
+function syncCollectionToFirestore(collectionName: string, items: any[]): void {
+  if (!isFirebaseConfigured) return;
+  firestoreBulkSave(collectionName, items);
+}
+
+export async function loadFromFirestore<T>(collectionName: string, localStorageKey: string): Promise<T[]> {
+  if (!isFirebaseConfigured) {
+    return JSON.parse(localStorage.getItem(localStorageKey) || '[]') as T[];
+  }
+  try {
+    const firestoreData = await firestoreLoadAll<T>(collectionName);
+    if (firestoreData.length > 0) {
+      localStorage.setItem(localStorageKey, JSON.stringify(firestoreData));
+      return firestoreData;
+    }
+    const localData = JSON.parse(localStorage.getItem(localStorageKey) || '[]') as T[];
+    if (localData.length > 0) syncCollectionToFirestore(collectionName, localData);
+    return localData;
+  } catch {
+    return JSON.parse(localStorage.getItem(localStorageKey) || '[]') as T[];
+  }
+}
+
+export const ZumraSync = {
+  saveHotel: (h: Hotel) => syncItemToFirestore(COLLECTIONS.HOTELS, h),
+  saveAgent: (a: Agent) => syncItemToFirestore(COLLECTIONS.AGENTS, a),
+  saveAllotment: (a: Allotment) => syncItemToFirestore(COLLECTIONS.ALLOTMENTS, a),
+  saveReservation: (r: Reservation) => syncItemToFirestore(COLLECTIONS.RESERVATIONS, r),
+  saveAccount: (a: Account) => syncItemToFirestore(COLLECTIONS.ACCOUNTS, a),
+  saveTransaction: (t: Transaction) => syncItemToFirestore(COLLECTIONS.TRANSACTIONS, t),
+  saveUser: (u: User) => syncItemToFirestore(COLLECTIONS.USERS, u),
+  saveFollowUp: (f: FollowUp) => syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f),
+  saveExternalTransfer: (t: ExternalTransfer) => syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t),
+  deleteHotel: (id: string) => syncDeleteToFirestore(COLLECTIONS.HOTELS, id),
+  deleteAgent: (id: string) => syncDeleteToFirestore(COLLECTIONS.AGENTS, id),
+  deleteAllotment: (id: string) => syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id),
+  deleteReservation: (id: string) => syncDeleteToFirestore(COLLECTIONS.RESERVATIONS, id),
+  deleteAccount: (id: string) => syncDeleteToFirestore(COLLECTIONS.ACCOUNTS, id),
+  deleteTransaction: (id: string) => syncDeleteToFirestore(COLLECTIONS.TRANSACTIONS, id),
+  deleteUser: (id: string) => syncDeleteToFirestore(COLLECTIONS.USERS, id),
+  deleteFollowUp: (id: string) => syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id),
+  deleteExternalTransfer: (id: string) => syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id),
+  bulkSyncAll: () => {
+    if (!isFirebaseConfigured) return;
+    syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.AGENTS, JSON.parse(localStorage.getItem('zumra_agents') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.ALLOTMENTS, JSON.parse(localStorage.getItem('zumra_allotments') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.RESERVATIONS, JSON.parse(localStorage.getItem('zumra_reservations') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.ACCOUNTS, JSON.parse(localStorage.getItem('zumra_accounts') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.TRANSACTIONS, JSON.parse(localStorage.getItem('zumra_transactions') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.USERS, JSON.parse(localStorage.getItem('zumra_users') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.FOLLOW_UPS, JSON.parse(localStorage.getItem('zumra_follow_ups') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, JSON.parse(localStorage.getItem('zumra_external_transfers') || '[]'));
+  }
+};
 
