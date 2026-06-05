@@ -20,7 +20,7 @@ interface PDFOptions {
 // Fixed render width ensures Tailwind `md:` breakpoints always activate,
 // so PDFs always look like the desktop layout (no stacked mobile columns).
 const PDF_RENDER_WIDTH = 900;
-const PDF_LANDSCAPE_WIDTH = 1120;
+const PDF_LANDSCAPE_WIDTH = 1200;
 
 // Guard flag to prevent double-triggering and "blocked from printing" errors
 let isPrinting = false;
@@ -107,7 +107,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   // Calculate zoom to fit the fixed-width clone onto the A4 page.
   // A4 printable width ≈ 210mm (portrait) / 297mm (landscape) at 96dpi.
   // The browser's print engine handles final page fitting; zoom gives a good baseline.
-  const baseZoom = landscape ? (renderWidth > 1000 ? 0.88 : 1.05) : 0.78;
+  const baseZoom = landscape ? (renderWidth > 1100 ? 0.72 : 0.82) : 0.78;
 
   // Inject dynamic @page style for landscape/portrait
   const pageStyleId = 'dynamic-page-style';
@@ -136,7 +136,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
       /* Scale the fixed-width clone to fit the printed page */
       body.printing-report {
         zoom: ${baseZoom};
-        overflow: hidden !important;
+        overflow: visible !important;
       }
       /* Hide ALL content except the cloned print area */
       body.printing-report > *:not(#print-area-clone) {

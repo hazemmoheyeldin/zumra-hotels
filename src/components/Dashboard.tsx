@@ -294,28 +294,30 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       )}
 
       {/* Dashboard Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-wrap items-center gap-3 shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm space-y-2 md:space-y-0 md:flex md:flex-wrap md:items-center md:gap-3">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-slate-500 uppercase">📅 {t('common.from')}:</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-2 py-1.5 min-h-[36px] border border-slate-200 rounded-lg text-[11px] font-mono focus:border-indigo-400 focus:outline-none" />
+          <span className="text-[10px] font-bold text-slate-500 uppercase shrink-0">📅 {t('common.from')}:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-full md:w-auto px-2 py-1.5 min-h-[40px] md:min-h-[36px] border border-slate-300 rounded-lg text-[12px] md:text-[11px] font-mono focus:border-indigo-400 focus:outline-none bg-white text-slate-800" />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-slate-500 uppercase">📅 {t('common.to')}:</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-2 py-1.5 min-h-[36px] border border-slate-200 rounded-lg text-[11px] font-mono focus:border-indigo-400 focus:outline-none" />
+          <span className="text-[10px] font-bold text-slate-500 uppercase shrink-0">📅 {t('common.to')}:</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-full md:w-auto px-2 py-1.5 min-h-[40px] md:min-h-[36px] border border-slate-300 rounded-lg text-[12px] md:text-[11px] font-mono focus:border-indigo-400 focus:outline-none bg-white text-slate-800" />
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-bold text-slate-500 uppercase">📊 {t('common.status')}:</span>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-2 py-1.5 min-h-[36px] border border-slate-200 rounded-lg text-[11px] font-semibold focus:border-indigo-400 focus:outline-none">
+          <span className="text-[10px] font-bold text-slate-500 uppercase shrink-0">📊 {t('common.status')}:</span>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full md:w-auto px-2 py-1.5 min-h-[40px] md:min-h-[36px] border border-slate-300 rounded-lg text-[12px] md:text-[11px] font-semibold focus:border-indigo-400 focus:outline-none bg-white text-slate-800">
             <option value="All">{t('dash.allStatuses')}</option>
             <option value="Confirmed">{t('res.confirmed')}</option>
             <option value="Tentative">{t('res.tentative')}</option>
             <option value="Cancelled">{t('res.cancelled')}</option>
           </select>
         </div>
-        {(dateFrom || dateTo || statusFilter !== 'All') && (
-          <button onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('All'); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-700 ml-auto">✕ {t('common.clearFilters')}</button>
-        )}
-        <div className="ml-auto text-[10px] text-slate-400 font-mono">{t('dash.ofBookings', { filtered: filteredReservations.length, total: reservations.length })}</div>
+        <div className="flex items-center justify-between gap-2">
+          {(dateFrom || dateTo || statusFilter !== 'All') && (
+            <button onClick={() => { setDateFrom(''); setDateTo(''); setStatusFilter('All'); }} className="text-[10px] text-rose-600 font-bold hover:text-rose-700">✕ {t('common.clearFilters')}</button>
+          )}
+          <div className="text-[10px] text-slate-400 font-mono ml-auto md:ml-0">{t('dash.ofBookings', { filtered: filteredReservations.length, total: reservations.length })}</div>
+        </div>
       </div>
       <div className="bg-gradient-to-r from-blue-900 via-slate-800 to-slate-900 rounded-2xl p-6 text-white flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl border-b-4 border-blue-500 relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-32 h-32 bg-blue-400/10 rounded-full"></div>

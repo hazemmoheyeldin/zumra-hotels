@@ -252,7 +252,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
         </div>
 
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center pb-2 gap-4">
@@ -303,7 +303,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Statement of Account Ledger */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden mb-4">
+          <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto mb-4 print:overflow-visible print:border-none print:rounded-none">
             <table className="w-full text-left border-collapse text-[9.5px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '8%' }} />

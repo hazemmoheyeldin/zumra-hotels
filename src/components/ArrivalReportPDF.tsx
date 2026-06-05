@@ -140,7 +140,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Arrivals Matrix Table */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+          <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto mb-6 print:overflow-visible print:border-none print:rounded-none">
             <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '3%' }} />
