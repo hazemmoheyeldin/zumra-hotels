@@ -10,6 +10,7 @@ export interface Hotel {
   stars: number;
   address: string;
   contact: string;
+  reservationsEmail?: string; // Hotel reservations department email
   roomTypes: string[];
   views: string[];
   mealPlans: string[];

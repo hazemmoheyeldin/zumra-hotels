@@ -253,6 +253,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const [stars, setStars] = useState(5);
   const [address, setAddress] = useState('');
   const [contact, setContact] = useState('');
+  const [reservationsEmail, setReservationsEmail] = useState('');
   const [roomTypes, setRoomTypes] = useState<string>('Single, Double, Triple, Quad, Quint');
   const [views, setViews] = useState<string>('City View, Haram View, Kaaba View');
   const [mealPlans, setMealPlans] = useState<string>('RO, B.B, H.B, F.B');
@@ -341,7 +342,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
         setViews(detectedCity === 'Makkah' ? 'Haram View, Kaaba View, City View' : 'Haram View, City View');
         setMealPlans('RO, B.B, H.B, F.B');
         setSuppliersText('Direct Booking Channel, Local DMC Supplier');
-        setGatherHint(`✨ Not found — auto-filled default ${detectedCity} data. Please verify details.`);
+        setGatherHint(`✨ Not found in any database — auto-filled default ${detectedCity} data. Click "Search on Google" to find real details.`);
         setTimeout(() => setGatherHint(''), 6000);
       }
     }, googleResult ? 200 : 1200);
@@ -354,6 +355,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
     setStars(hotel.stars);
     setAddress(hotel.address);
     setContact(hotel.contact);
+    setReservationsEmail(hotel.reservationsEmail || '');
     setRoomTypes(Array.isArray(hotel.roomTypes) ? hotel.roomTypes.join(', ') : hotel.roomTypes);
     setViews(Array.isArray(hotel.views) ? hotel.views.join(', ') : hotel.views);
     setMealPlans(Array.isArray(hotel.mealPlans) ? hotel.mealPlans.join(', ') : hotel.mealPlans);
@@ -375,6 +377,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
       stars,
       address,
       contact,
+      reservationsEmail: reservationsEmail || undefined,
       roomTypes: roomTypes.split(',').map(s => s.trim()).filter(Boolean),
       views: views.split(',').map(s => s.trim()).filter(Boolean),
       mealPlans: mealPlans.split(',').map(s => s.trim()).filter(Boolean),
@@ -392,6 +395,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
     setStars(5);
     setAddress('');
     setContact('');
+    setReservationsEmail('');
     setRoomTypes('Single, Double, Triple, Quad, Quint');
     setViews('City View, Haram View, Kaaba View');
     setMealPlans('RO, B.B, H.B, F.B');
@@ -487,12 +491,22 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
             </div>
 
             {gatherHint && (
-              <div className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border animate-pulse ${
+              <div className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border animate-pulse flex items-center justify-between gap-2 ${
                 gatherHint.startsWith('✅') || gatherHint.startsWith('✨') 
                   ? 'text-emerald-700 bg-emerald-50 border-emerald-200' 
                   : 'text-rose-600 bg-rose-50 border-rose-200'
               }`}>
-                {gatherHint.startsWith('⚠️') ? '' : ''} {gatherHint}
+                <span>{gatherHint}</span>
+                {gatherHint.includes('Not found') && name.trim() && (
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(name.trim() + ' hotel Saudi Arabia reservations email phone')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 inline-flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded-md text-[9px] font-bold no-underline transition"
+                  >
+                    🔍 Search on Google
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -556,6 +570,17 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
                 type="text"
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Reservations Email</label>
+              <input
+                type="email"
+                value={reservationsEmail}
+                onChange={(e) => setReservationsEmail(e.target.value)}
+                placeholder="e.g. reservations@hotelname.com"
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
               />
             </div>
@@ -652,6 +677,9 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
                 <div className="mt-3 space-y-1.5 text-slate-600">
                   <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Address:</span> {hotel.address || 'N/A'}</p>
                   <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Contact:</span> {hotel.contact || 'N/A'}</p>
+                  {hotel.reservationsEmail && (
+                    <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Reservations Email:</span> <a href={`mailto:${hotel.reservationsEmail}`} className="text-blue-600 hover:underline">{hotel.reservationsEmail}</a></p>
+                  )}
                 </div>
 
                 {/* Tags matrix for specs */}

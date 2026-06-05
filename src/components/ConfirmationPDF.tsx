@@ -42,7 +42,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
     const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
     const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
     const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
-    downloadPDF('print-area', `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`, { landscape: false });
+    // Voucher files auto-named: "Voucher RSV-{id} {guest name}"
+    const filename = type === 'voucher'
+      ? `Voucher RSV-${reservation.id} ${guestSafe}.pdf`
+      : `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`;
+    downloadPDF('print-area', filename, { landscape: false });
   };
 
   const getStatusLabel = () => {
