@@ -133,6 +133,7 @@ export interface Reservation {
   supplierCreditNote?: string;
   roomingList?: string;
   allotmentId?: string; // Linked allotment ID if booked through allotment
+  nonRefundable?: boolean; // Non-refundable booking flag
 }
 
 export interface Account {

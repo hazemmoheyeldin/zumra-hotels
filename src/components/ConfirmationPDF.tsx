@@ -51,9 +51,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
       const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
+      const today = new Date().toISOString().split('T')[0];
       const filename = type === 'voucher'
-        ? `Voucher RSV-${reservation.id} ${guestSafe}.pdf`
-        : `${status} RSV-${reservation.id} ${guestSafe} ${hotelName} ${dateRange}.pdf`;
+        ? `(v) RSV-${reservation.id} ${guestSafe}.pdf`
+        : `RSV-${reservation.id} (${status}) ${today}.pdf`;
       const success = downloadPDF('print-area', filename, { landscape: false });
       if (!success) setPrintError(true);
     } catch (e) {
@@ -191,6 +192,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                   <div className="space-y-2">
                     <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">{t('cpdf.issueDate')}</span> <span className="font-semibold">{formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : todayStr)}</span></p>
                     <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">{t('cpdf.guestName')}</span> <span className="uppercase text-slate-950 font-bold">{reservation.guestName}</span></p>
+                    {reservation.nonRefundable && (
+                      <p className="text-sm font-extrabold text-rose-700 bg-rose-50 px-2 py-1 rounded border border-rose-200 inline-block">
+                        ⚠ NON-REFUNDABLE BOOKING
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-mono font-black text-slate-900"><span className="font-extrabold inline-block mr-3 text-sm text-slate-500 uppercase tracking-widest">RSV#:</span>{reservation.id}</p>
@@ -275,12 +281,17 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                   <p className="font-medium"><span className="font-bold inline-block w-10 text-slate-705">{t('cpdf.toLabel')}</span> <span className="uppercase text-slate-900 font-semibold">{client?.name || client?.companyName || 'Marseilia Tours'}</span></p>
                 </div>
                 
-                <div className="text-right">
-                  <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-tight uppercase font-sans whitespace-normal break-words max-w-[220px] ml-auto">
+                <div className="text-right flex flex-col items-end">
+                  <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-tight uppercase font-sans">
                     {reservation.status === 'Cancelled' ? t('pdf.cancelled') : `${getStatusLabel()} ${t('cpdf.confirmation')}`}
                   </h2>
+                  {reservation.nonRefundable && (
+                    <span className="text-rose-700 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-200 mt-1 inline-block">
+                      NON-REFUNDABLE
+                    </span>
+                  )}
                   {reservation.status === 'Tentative' && reservation.clientOptionDate && (
-                    <span className="text-rose-600 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-100 mt-2.5 inline-block">
+                    <span className="text-rose-600 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-100 mt-1 inline-block">
                       ⏰ {t('cpdf.optionDate')} {formatStandardDate(reservation.clientOptionDate)}
                     </span>
                   )}

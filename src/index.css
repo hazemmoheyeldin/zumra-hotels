@@ -135,6 +135,17 @@ tbody tr {
   /* The pdfGenerator injects body.printing-report class and dynamic
      styles that set the clone to 900px fixed width + body zoom.
      These rules provide baseline hiding/showing behavior. */
+
+  /* Kill all fixed/absolute positioned overlays (modals, drawers) during print.
+     This is critical for iOS Safari which blocks print when overlays are present. */
+  body.printing-report .fixed,
+  body.printing-report [style*="position: fixed"],
+  body.printing-report [style*="position:fixed"] {
+    position: static !important;
+    z-index: auto !important;
+    overflow: visible !important;
+  }
+
   body.printing-report > *:not(#print-area-clone) {
     display: none !important;
     visibility: hidden !important;
@@ -145,8 +156,9 @@ tbody tr {
   }
 
   /* ---- Logo sizing for all print modes ---- */
+  /* Match the on-screen xxl size (200px) for prominent PDF output */
   img[alt*="Zumra"] {
-    height: 160px !important;
+    height: 200px !important;
     width: auto !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;

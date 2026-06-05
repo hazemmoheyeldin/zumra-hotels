@@ -37,7 +37,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
       const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
       const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
       const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-      const success = downloadPDF('print-area', `Receipt Voucher-${transaction.voucherNo || bookingRef} ${safeName} ${transaction.date}.pdf`);
+      const success = downloadPDF('print-area', `(v) RSV-${bookingRef} ${safeName}.pdf`);
       if (!success) setPrintError(true);
     } catch {
       setPrintError(true);

@@ -54,7 +54,10 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
     setPrintError(false);
     try {
       const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
-      const success = downloadPDF('print-area', `Arrivals During ${dStr}.pdf`, { landscape: true });
+      // Find primary client name from first reservation
+      const primaryClient = reservations.length > 0 ? (agents.find(a => a.id === reservations[0].clientId)?.name || 'All Clients') : 'All Clients';
+      const safeClientName = primaryClient.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const success = downloadPDF('print-area', `Arrival during period - ${safeClientName}.pdf`, { landscape: true });
       if (!success) setPrintError(true);
     } catch {
       setPrintError(true);

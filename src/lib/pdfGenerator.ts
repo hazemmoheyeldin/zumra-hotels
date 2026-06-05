@@ -4,6 +4,12 @@
  * forcing a fixed desktop-width (900px) layout regardless of device screen size.
  * This ensures responsive CSS classes always render in their desktop form,
  * producing a consistent A4-style document on both desktop and mobile.
+ *
+ * iOS Safari Notes:
+ * - window.print() MUST be called synchronously from a user tap (no async/await before it).
+ * - We pre-build the style element and clone BEFORE calling window.print() to avoid
+ *   any DOM mutations during the print flow that could trigger Safari's popup blocker.
+ * - A longer safety timeout (15s) is used since iOS Safari print dialogs can take longer.
  */
 
 interface PDFOptions {
@@ -211,13 +217,14 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     return false;
   }
 
-  // Safety fallback cleanup in case afterprint doesn't fire
+  // Safety fallback cleanup in case afterprint doesn't fire.
+  // iOS Safari can take longer for the print dialog to appear and dismiss.
   printCleanupTimer = setTimeout(() => {
     if (document.getElementById('print-area-clone')) {
       cleanup();
       isPrinting = false;
     }
-  }, 8000);
+  }, 15000);
 
   return true;
 };

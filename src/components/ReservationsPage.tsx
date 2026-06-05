@@ -267,6 +267,7 @@ export default function ReservationsPage({
   
   const [amountPaidByClient, setAmountPaidByClient] = useState<number>(0);
   const [amountPaidToSupplier, setAmountPaidToSupplier] = useState<number>(0);
+  const [nonRefundable, setNonRefundable] = useState<boolean>(false);
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -464,6 +465,7 @@ export default function ReservationsPage({
     setSupplierCreditNote(res.supplierCreditNote || '');
     setAmountPaidByClient(res.amountPaidByClient || 0);
     setAmountPaidToSupplier(res.amountPaidToSupplier || 0);
+    setNonRefundable(res.nonRefundable || false);
     
     // Copy and map room objects
     setRooms(res.rooms.map(rm => {
@@ -609,6 +611,7 @@ export default function ReservationsPage({
       agreementNo,
       supplierVoucher,
       allotmentId: selectedAllotmentId || undefined,
+      nonRefundable: nonRefundable || undefined,
       createdAt: editingId ? (reservations.find(r => r.id.toString() === editingId)?.createdAt || getEgyptTime().toISOString().replace('T', ' ').substring(0, 19)) : getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
       createdBy: currentUser
     };
@@ -663,6 +666,7 @@ export default function ReservationsPage({
     setSupplierCreditNote('');
     setAmountPaidByClient(0);
     setAmountPaidToSupplier(0);
+    setNonRefundable(false);
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
     setShowForm(false);
   };
@@ -1559,6 +1563,28 @@ export default function ReservationsPage({
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>
                 <input type="text" value={supplierVoucher} onChange={(e) => setSupplierVoucher(e.target.value)} placeholder="Supplier Ref" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
+              {/* Non-Refundable Toggle */}
+              <div className="col-span-2 flex items-center gap-3 bg-rose-50/50 border border-rose-200 rounded-xl px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setNonRefundable(!nonRefundable)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer flex-shrink-0 ${
+                    nonRefundable ? 'bg-rose-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    nonRefundable ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <div>
+                  <span className={`text-xs font-bold ${nonRefundable ? 'text-rose-800' : 'text-slate-600'}`}>
+                    Non-Refundable Booking
+                  </span>
+                  <p className="text-[9px] text-slate-500 mt-0.5">
+                    {nonRefundable ? 'This booking will be marked as non-refundable on the confirmation PDF' : 'Standard cancellation policy applies'}
+                  </p>
+                </div>
+              </div>
               {/* Down payment fields removed - shown in Financial Summary below */}
             </div>
           </div>
@@ -1648,6 +1674,7 @@ export default function ReservationsPage({
                   <div>
                     <span className="font-bold font-mono text-slate-900 bg-amber-50 px-2 py-0.5 rounded text-[10px]">RSV-{res.id}</span>
                     <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold ${res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800' : res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{res.status === 'Confirmed' ? t('res.confirmed') : res.status === 'Cancelled' ? t('res.cancelled') : t('res.tentative')}</span>
+                    {res.nonRefundable && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 border border-rose-200">NON-REF</span>}
                   </div>
                   <span className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
                 </div>
@@ -1718,6 +1745,7 @@ export default function ReservationsPage({
                     </td>
                     <td className="py-3 px-3 font-semibold uppercase text-slate-900">
                       {res.guestName}
+                      {res.nonRefundable && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 border border-rose-200 align-middle">NON-REF</span>}
                     </td>
                     <td className="py-3 px-1.5 font-medium">{client?.companyName || client?.name}</td>
                     <td className="py-3 px-3 font-medium text-slate-900">{hotel?.name}</td>
