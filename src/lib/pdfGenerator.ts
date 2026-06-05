@@ -127,6 +127,31 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   const clone = element.cloneNode(true) as HTMLElement;
   clone.id = 'print-area-clone';
 
+  // Strip scroll-related and Tailwind print: classes from the clone.
+  // Tailwind v4 print: classes use !important which would override our inline
+  // styles during @media print, causing the PDF to look different from the
+  // on-screen preview. We want the clone to render EXACTLY as shown on screen.
+  const scrollPrintClasses = [
+    'max-h-\\[75vh\\]', 'max-h-\\[80vh\\]', 'max-h-\\[85vh\\]',
+    'overflow-y-auto', 'overflow-x-auto', 'overflow-auto', 'overflow-hidden',
+    'print\\:p-0', 'print\\:border-none', 'print\\:shadow-none',
+    'print\\:max-h-full', 'print\\:overflow-visible', 'print\\:rounded-none',
+  ];
+  // Remove classes from the clone element itself
+  scrollPrintClasses.forEach(cls => {
+    clone.classList.remove(cls.replace(/\\\\/g, '\\'));
+  });
+  // Also use a broader approach: remove any class starting with "print:" or containing "max-h-["
+  const cloneClasses = Array.from(clone.classList);
+  cloneClasses.forEach(cls => {
+    if (cls.startsWith('print:') || cls.includes('max-h-[') ||
+        cls === 'overflow-y-auto' || cls === 'overflow-x-auto' ||
+        cls === 'overflow-auto' || cls === 'overflow-hidden' ||
+        cls === 'shadow-inner') {
+      clone.classList.remove(cls);
+    }
+  });
+
   // Swap images to pre-compressed versions for smaller PDF file size
   // compressImagesForPrint() stores JPEG data URLs as data-compressed-src
   clone.querySelectorAll('img').forEach(img => {
@@ -163,29 +188,31 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   // FIXED-WIDTH CLONE: Force desktop layout at 900px regardless of device.
   // This prevents responsive Tailwind classes (sm:, md:, lg:) from collapsing
   // into their mobile/stacked form on phones and tablets.
+  // Uses !important to override any Tailwind print: classes that survived stripping.
   clone.style.cssText = `
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: ${renderWidth}px;
-    max-width: ${renderWidth}px;
-    min-width: ${renderWidth}px;
-    max-height: none;
-    height: auto;
-    overflow: visible;
-    padding: 24px;
-    margin: 0;
-    border: none;
-    box-shadow: none;
-    background: white;
-    z-index: 999999;
-    display: block;
-    visibility: visible;
-    opacity: 1;
-    transform: none;
-    font-family: inherit;
-    color: #1e293b;
-    box-sizing: border-box;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: ${renderWidth}px !important;
+    max-width: ${renderWidth}px !important;
+    min-width: ${renderWidth}px !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 24px !important;
+    margin: 0 !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    background: white !important;
+    z-index: 999999 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    font-family: inherit !important;
+    color: #1e293b !important;
+    box-sizing: border-box !important;
   `;
 
   // Calculate zoom to fit the fixed-width clone onto the A4 page.
@@ -230,7 +257,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         height: 0 !important;
         overflow: hidden !important;
       }
-      /* Show only the clone at fixed desktop width */
+      /* Show only the clone at fixed desktop width with full design fidelity */
       body.printing-report #print-area-clone {
         display: block !important;
         position: absolute !important;
@@ -241,6 +268,11 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         min-width: ${renderWidth}px !important;
         max-height: none !important;
         height: auto !important;
+        padding: 24px !important;
+        margin: 0 !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        box-shadow: none !important;
         background: white !important;
         z-index: 999999 !important;
         overflow: visible !important;
