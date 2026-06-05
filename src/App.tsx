@@ -7,6 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { ZumraDB } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer } from './types';
 import { getEgyptTime, getReservationTotals } from './lib/storage';
+import { useLang } from './lib/LanguageContext';
+import { TranslationKey } from './lib/i18n';
 import Dashboard from './components/Dashboard';
 import ReservationsPage from './components/ReservationsPage';
 import HotelsPage from './components/HotelsPage';
@@ -180,6 +182,7 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<any>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t, lang } = useLang();
 
   // App Master States
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -634,7 +637,7 @@ export default function App() {
 
   // Core visual tab panels
   const renderActivePage = () => {
-    if (!currentUser) return <div className="text-center py-20 text-slate-400">Loading operator identities...</div>;
+    if (!currentUser) return <div className="text-center py-20 text-slate-400 animate-fade-in"><div className="inline-block w-8 h-8 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin mb-3"></div><p className="text-sm font-medium">Loading operator identities...</p></div>;
 
     switch (activeTab) {
       case 'Dashboard':
@@ -911,7 +914,7 @@ export default function App() {
           {Object.entries(navGroups).map(([group, items]) => (
             <div key={group}>
               <div className="px-3 mb-1.5">
-                <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400/70">{group}</span>
+                <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400/70">{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
               </div>
               <div className="space-y-0.5">
                 {items.map((item) => {
@@ -932,7 +935,7 @@ export default function App() {
                       }`}
                     >
                       <span className="text-sm md:text-base w-5 text-center flex-shrink-0">{item.icon}</span>
-                      <span className="truncate">{item.name}</span>
+                      <span className="truncate">{t(`nav.${item.name.toLowerCase().replace(/\s+/g, '')}` as TranslationKey)}</span>
                     </button>
                   );
                 })}
@@ -945,7 +948,7 @@ export default function App() {
             className="flex md:hidden items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 text-rose-300 hover:bg-rose-950/30"
           >
             <span>🚪</span>
-            <span>Exit Portal</span>
+            <span>{t('nav.exitPortal')}</span>
           </button>
         </nav>
 
@@ -995,10 +998,10 @@ export default function App() {
 
           <div className="flex items-center gap-2">
             <h2 className="text-sm md:text-base font-extrabold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
-              {activeTab} Management
+              {t(`nav.${activeTab.toLowerCase().replace(/\s+/g, '')}` as TranslationKey, { tab: activeTab })}
             </h2>
             <span className={`hidden sm:inline-block text-[9px] ${currentTheme.badgeBg} font-extrabold px-3 py-0.5 rounded-full uppercase tracking-tight`}>
-              Egypt Standard Time (Cairo)
+              {t('dash.egyptTime')}
             </span>
           </div>
 
@@ -1037,7 +1040,7 @@ export default function App() {
               </div>
               
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden">
+                <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden">
                   <div className="bg-slate-50 px-4 py-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Notifications</h3>
                   </div>
@@ -1105,7 +1108,7 @@ export default function App() {
                         }}
                         className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>👤</span> My Profile
+                        <span>👤</span> {t('users.myProfile')}
                       </button>
                       <button
                         onClick={() => {
@@ -1120,7 +1123,7 @@ export default function App() {
                         }}
                         className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>🔑</span> Change Password
+                        <span>🔑</span> {t('users.changePassword')}
                       </button>
                       <button
                         onClick={() => {
@@ -1129,7 +1132,7 @@ export default function App() {
                         }}
                         className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>⚙️</span> User Settings
+                        <span>⚙️</span> {t('users.userSettings')}
                       </button>
                       <div className="border-t border-slate-100 my-1"></div>
                       <button
@@ -1139,7 +1142,7 @@ export default function App() {
                         }}
                         className="w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>🚪</span> Sign Out
+                        <span>🚪</span> {t('nav.signOut')}
                       </button>
                     </div>
                   </div>
@@ -1147,6 +1150,9 @@ export default function App() {
               </div>
             )}
             
+            {/* Language toggle */}
+            <LangToggle />
+
             {/* Theme switcher (compact) */}
             <div className="flex items-center gap-0.5 bg-slate-100 hover:bg-slate-200/80 px-1.5 py-0.5 rounded-lg transition">
               <select
@@ -1166,7 +1172,7 @@ export default function App() {
         </header>
 
         {/* Scrollable central content area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={activeTab}>
           {renderActivePage()}
         </div>
 
@@ -1175,12 +1181,12 @@ export default function App() {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              System Live
+              <FooterLabel field="systemLive" />
             </span>
-            <span className="hidden sm:inline">Active Nodes: Cairo-Central</span>
+            <span className="hidden sm:inline"><FooterLabel field="activeNodes" /></span>
           </div>
           <div className={`flex items-center gap-2 ${currentTheme.footerText} font-extrabold`}>
-            <span>© {new Date().getFullYear()} ZUMRA HOTELS SOLUTIONS</span>
+            <span><FooterLabel field="copyright" /></span>
           </div>
         </footer>
       </main>
@@ -1195,4 +1201,25 @@ export default function App() {
       )}
     </div>
   );
+}
+
+function LangToggle() {
+  const { lang, setLang } = useLang();
+  return (
+    <button
+      onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+      className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-lg transition text-[10px] font-extrabold text-slate-700"
+      title={lang === 'en' ? 'Switch to Arabic' : 'التبديل للإنجليزية'}
+    >
+      <span>🌐</span>
+      <span>{lang === 'en' ? 'عربي' : 'EN'}</span>
+    </button>
+  );
+}
+
+function FooterLabel({ field }: { field: 'systemLive' | 'activeNodes' | 'copyright' }) {
+  const { t } = useLang();
+  if (field === 'systemLive') return <>{t('footer.systemLive')}</>;
+  if (field === 'activeNodes') return <>{t('footer.activeNodes')}</>;
+  return <>{t('footer.copyright', { year: new Date().getFullYear() })}</>;
 }

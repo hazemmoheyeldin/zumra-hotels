@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Allotment, AllotmentDay, Hotel, Agent } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface AllotmentsPageProps {
   allotments: Allotment[];
@@ -36,6 +37,7 @@ function dayName(dateStr: string): string {
 }
 
 export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllotment, onDeleteAllotment }: AllotmentsPageProps) {
+  const { t, lang } = useLang();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
@@ -168,44 +170,44 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Active Blocks</div>
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('allot.activeBlocks')}</div>
           <div className="text-2xl font-black text-slate-900">{allotments.length}</div>
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Total Room-Days</div>
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('allot.totalRoomDays')}</div>
           <div className="text-xl font-black text-emerald-800">
             {migratedAllotments.reduce((s, a) => s + Object.keys(a.dailyAvailability || {}).length * (a.dailyAvailability ? a.dailyAvailability[Object.keys(a.dailyAvailability)[0]]?.total || 0 : a.totalRooms), 0).toLocaleString()}
           </div>
         </div>
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Hotels Covered</div>
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('allot.hotelsCovered')}</div>
           <div className="text-2xl font-black text-amber-800">{new Set(allotments.map(a => a.hotelId)).size}</div>
         </div>
         <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Suppliers</div>
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('allot.suppliers')}</div>
           <div className="text-2xl font-black text-indigo-800">{new Set(allotments.map(a => a.supplierId)).size}</div>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm text-xs">
         {/* Title block */}
         <div className="border-b border-slate-100 pb-4 mb-4 flex flex-wrap justify-between items-center gap-2">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Allotment Excel Grid</h2>
-            <p className="text-xs text-slate-500">Per-day room availability chart across all supplier blocks.</p>
+            <h2 className="text-lg font-bold text-slate-800">{t('allot.gridTitle')}</h2>
+            <p className="text-xs text-slate-500">{t('allot.gridSubtitle')}</p>
           </div>
           <button
             onClick={() => { if (showForm) resetForm(); else setShowForm(true); }}
             className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1"
           >
-            {showForm ? 'View Grid' : '+ New Block Allotment'}
+            {showForm ? t('allot.viewGrid') : t('allot.newBlock')}
           </button>
         </div>
 
         {showForm ? (
           <form onSubmit={handleSubmit} className="space-y-4 max-w-xl bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-xs">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Configure Supplier Block</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">{t('allot.configureBlock')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel</label>
                 <select value={hotelId} onChange={e => { setHotelId(e.target.value); setRoomType(''); }} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
@@ -240,9 +242,9 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
             </div>
             <div className="flex gap-2 pt-2">
               <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2 rounded-lg transition">
-                {editingId ? 'Update Block' : 'Save Block Allotment'}
+                {editingId ? t('allot.updateBlock') : t('allot.saveBlock')}
               </button>
-              <button type="button" onClick={resetForm} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-5 py-2 rounded-lg transition">Cancel</button>
+              <button type="button" onClick={resetForm} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-5 py-2 rounded-lg transition">{t('common.cancel')}</button>
             </div>
           </form>
         ) : (
@@ -267,10 +269,10 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
 
             {/* Legend */}
             <div className="flex gap-3 mb-3 text-[10px]">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300 inline-block"></span> Available</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-300 inline-block"></span> Partial</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-100 border border-rose-300 inline-block"></span> Full</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-50 border border-slate-200 inline-block"></span> N/A</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300 inline-block"></span> {t('allot.available')}</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-300 inline-block"></span> {t('allot.partial')}</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-100 border border-rose-300 inline-block"></span> {t('allot.full')}</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-50 border border-slate-200 inline-block"></span> {t('allot.na')}</span>
             </div>
 
             {/* Excel-like Grid */}
@@ -329,7 +331,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                 </table>
               </div>
             ) : (
-              <p className="text-slate-400 italic text-center py-12 bg-slate-50 rounded-2xl">No allotment blocks to display. Create one to see the grid.</p>
+              <p className="text-slate-400 italic text-center py-12 bg-slate-50 rounded-2xl">{t('allot.noAllotments')}</p>
             )}
           </>
         )}

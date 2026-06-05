@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Reservation, Transaction, FollowUp, Agent, Hotel } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface CalendarViewProps {
   reservations: Reservation[];
@@ -22,6 +23,7 @@ interface CalendarEvent {
 }
 
 export default function CalendarView({ reservations, transactions, followUps, agents, hotels, onNavigate }: CalendarViewProps) {
+  const { t, lang } = useLang();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -190,19 +192,19 @@ export default function CalendarView({ reservations, transactions, followUps, ag
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Booking Calendar</h1>
-          <p className="text-sm text-slate-500">Arrivals, departures, payments and follow-ups at a glance</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('cal.title')}</h1>
+          <p className="text-sm text-slate-500">{t('cal.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={goPrevMonth} className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-            ← Prev
+            {t('cal.prev')}
           </button>
           <span className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold min-w-[160px] text-center">{monthName}</span>
           <button onClick={goNextMonth} className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">
-            Next →
+            {t('cal.next')}
           </button>
           <button onClick={goToday} className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            Today
+            {t('cal.today')}
           </button>
         </div>
       </div>
@@ -211,23 +213,23 @@ export default function CalendarView({ reservations, transactions, followUps, ag
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-emerald-700">{monthStats.arrivals}</div>
-          <div className="text-xs text-emerald-600">Arrivals</div>
+          <div className="text-xs text-emerald-600">{t('cal.arrivals')}</div>
         </div>
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-orange-700">{monthStats.departures}</div>
-          <div className="text-xs text-orange-600">Departures</div>
+          <div className="text-xs text-orange-600">{t('cal.departures')}</div>
         </div>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-blue-700">{monthStats.payments}</div>
-          <div className="text-xs text-blue-600">Payments</div>
+          <div className="text-xs text-blue-600">{t('cal.payments')}</div>
         </div>
         <div className="bg-pink-50 border border-pink-200 rounded-lg p-3 text-center">
           <div className="text-2xl font-bold text-pink-700">{monthStats.followUps}</div>
-          <div className="text-xs text-pink-600">Follow-ups</div>
+          <div className="text-xs text-pink-600">{t('cal.followUps')}</div>
         </div>
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center col-span-2 md:col-span-1">
           <div className="text-2xl font-bold text-purple-700">{monthStats.options}</div>
-          <div className="text-xs text-purple-600">Option Expiries</div>
+          <div className="text-xs text-purple-600">{t('cal.optionExpiries')}</div>
         </div>
       </div>
 
@@ -289,13 +291,13 @@ export default function CalendarView({ reservations, transactions, followUps, ag
         <div className="w-full lg:w-80 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
           <div className="bg-slate-50 border-b border-slate-200 px-4 py-3">
             <h3 className="font-bold text-sm text-slate-700">
-              {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : 'Select a day'}
+              {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : t('cal.selectDay')}
             </h3>
             <p className="text-xs text-slate-500">{selectedEvents.length} event{selectedEvents.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="p-3 space-y-2 max-h-[500px] overflow-y-auto">
             {selectedEvents.length === 0 && selectedDate && (
-              <p className="text-sm text-slate-400 text-center py-8">No events on this day</p>
+              <p className="text-sm text-slate-400 text-center py-8">{t('cal.noEvents')}</p>
             )}
             {selectedEvents.map(ev => (
               <div
@@ -314,7 +316,7 @@ export default function CalendarView({ reservations, transactions, followUps, ag
               </div>
             ))}
             {!selectedDate && (
-              <p className="text-sm text-slate-400 text-center py-8">Click on a day to see its events</p>
+              <p className="text-sm text-slate-400 text-center py-8">{t('cal.clickDay')}</p>
             )}
           </div>
         </div>
@@ -322,11 +324,11 @@ export default function CalendarView({ reservations, transactions, followUps, ag
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-4 py-2">
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-400" /> Arrivals</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400" /> Departures</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400" /> Payments</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-pink-400" /> Follow-ups</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-purple-400" /> Option Expiry</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-emerald-400" /> {t('cal.arrivals')}</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400" /> {t('cal.departures')}</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400" /> {t('cal.payments')}</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-pink-400" /> {t('cal.followUps')}</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-purple-400" /> {t('cal.optionExpiries')}</span>
       </div>
     </div>
   );

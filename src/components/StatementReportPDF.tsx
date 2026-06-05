@@ -9,6 +9,7 @@ import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
+import { useLang } from '../lib/LanguageContext';
 
 interface StatementLine {
   date: string;
@@ -34,6 +35,7 @@ interface StatementReportPDFProps {
 
 export default function StatementReportPDF({ client, reservations, transactions, fromDate, toDate, isSupplier, onClose }: StatementReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
+  const { t, lang } = useLang();
   
   // Format Helper for dates as standard DD/MM/YYYY
   const formatStandardDate = (dateStr: string) => {
@@ -206,7 +208,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-slate-705 bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800 font-sans">
-              Statement of Account ({isSupplier ? 'Supplier' : 'Client'} PDF)
+              {t('srpdf.title')} ({isSupplier ? t('srpdf.supplierLabel') : t('srpdf.clientLabel')} PDF)
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -216,13 +218,13 @@ export default function StatementReportPDF({ client, reservations, transactions,
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              Print / Save to PDF
+              {t('srpdf.printSavePDF')}
             </button>
             <button
               onClick={onClose}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer"
             >
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -250,32 +252,32 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
           {/* Title bar */}
           <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
-            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">Statement Of Account</h1>
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">{t('srpdf.clientStatementTitle')}</h1>
             <h1 className="text-xl font-bold text-[#0f172a] font-serif">{isSupplier ? 'كشف حساب المورد' : 'كشف حساب العميل'}</h1>
           </div>
 
           {/* Statement metadata matrix */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left">
             <div className="space-y-1">
-              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{isSupplier ? 'Supplier :' : 'Client :'}</span> <span className="text-slate-950 font-semibold">{client.companyName || client.name}</span></p>
-              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">View Internals :</span> Exclude Internals</p>
-              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">Accounts :</span> {isSupplier ? 'Suppliers - الموردين' : 'Customers - العملاء'}</p>
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{isSupplier ? `${t('srpdf.supplierLabel')} :` : `${t('srpdf.clientLabel')} :`}</span> <span className="text-slate-950 font-semibold">{client.companyName || client.name}</span></p>
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{t('srpdf.viewInternals')}</span> {t('srpdf.excludeInternals')}</p>
+              <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{t('srpdf.accountsLabel')}</span> {isSupplier ? `${t('srpdf.suppliers')}` : `${t('srpdf.customers')}`}</p>
             </div>
             <div className="space-y-1">
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">From Date :</span> {formatStandardDate(fromDate)}</p>
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Status :</span> All</p>
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Ref Customer :</span></p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.fromDateLabel')}</span> {formatStandardDate(fromDate)}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.statusLabel')}</span> {t('srpdf.allStatuses')}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.refCustomer')}</span></p>
             </div>
             <div className="space-y-1">
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">To Date :</span> {formatStandardDate(toDate)}</p>
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">View :</span> Without opposite transactions</p>
-              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">Ref Vendor :</span></p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.toDateLabel')}</span> {formatStandardDate(toDate)}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.viewLabel')}</span> {t('srpdf.withoutOpposite')}</p>
+              <p><span className="font-bold text-slate-900 min-w-[80px] inline-block">{t('srpdf.refVendor')}</span></p>
             </div>
           </div>
 
           {/* Show Pending label */}
           <div className="text-left font-semibold text-[10px] text-slate-800 mb-1.5">
-            Show Pending :
+            {t('srpdf.showPending')}
           </div>
 
           {/* Statement of Account Ledger */}
@@ -283,15 +285,15 @@ export default function StatementReportPDF({ client, reservations, transactions,
             <table className="w-full text-left border-collapse text-[9.5px]">
               <thead>
                 <tr className="bg-slate-100/80 text-slate-700 font-extrabold border-b border-slate-200">
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Entry Date</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Debit</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Credit</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">Balance</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Description</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Doc Type</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Ref #</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">Voucher</th>
-                  <th className="py-1.5 px-1.5 text-left">Gen No</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.entryDate')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.debitCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.creditCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-right">{t('srpdf.balanceCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.descriptionCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.docType')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.refCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-left">{t('srpdf.voucherCol')}</th>
+                  <th className="py-1.5 px-1.5 text-left">{t('srpdf.genNoCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
@@ -327,13 +329,13 @@ export default function StatementReportPDF({ client, reservations, transactions,
                   })
                 ) : (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-slate-400 italic">No operations recorded for the client within this period.</td>
+                    <td colSpan={9} className="py-6 text-center text-slate-400 italic">{t('srpdf.noOperations')}</td>
                   </tr>
                 )}
 
                 {/* Period Row */}
                 <tr className="bg-slate-50 font-bold border-t border-slate-300 keep-with-prev">
-                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-700">Period:</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-700">{t('srpdf.periodRow')}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${totalDebit - totalCredit > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
@@ -344,7 +346,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
                 {/* Total Row */}
                 <tr className="bg-slate-100 font-extrabold border-t border-slate-300 keep-with-prev">
-                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900">Total:</td>
+                  <td className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900">{t('srpdf.totalRow')}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalDebit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">{totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-slate-950 ${finalBalance < 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
@@ -360,7 +362,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           <div className={`border rounded-lg overflow-hidden grid grid-cols-2 text-[11px] font-black uppercase text-left mb-4 keep-with-prev ${finalBalance < 0 ? 'border-rose-300 bg-rose-50/50' : finalBalance > 0 ? 'border-emerald-300 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/50'}`}>
             <span className="py-2.5 px-3 border-r border-slate-200 text-slate-700 flex items-center gap-2">
               <span className="text-sm">{finalBalance < 0 ? '💳' : finalBalance > 0 ? '✅' : '✅'}</span>
-              {finalBalance < 0 ? 'Outstanding Balance (Client Owes)' : finalBalance > 0 ? 'Credit Balance (Overpaid)' : 'Balance (Settled)'}
+              {finalBalance < 0 ? t('srpdf.outstandingBalance') : finalBalance > 0 ? t('srpdf.creditBalance') : t('srpdf.balanceSettled')}
             </span>
             <span className={`py-2.5 px-3 font-mono text-right font-black text-base ${finalBalance < 0 ? 'text-rose-700' : finalBalance > 0 ? 'text-emerald-700' : 'text-slate-600'}`}>
               {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR
@@ -369,16 +371,16 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
           {/* Legal disclaimer */}
           <div className="text-[9px] text-slate-650 font-medium italic mt-6 border-t border-slate-200 pt-3 leading-relaxed text-left">
-            Invoices and statement of accounts will be presumed to be accurate unless EST Zumra Hotels FOR HOTEL OPERATION receives a written notification of any errors within 10 days of receipt date.
+            {t('srpdf.legalDisclaimer')}
           </div>
 
           {/* Footer - screen only */}
           <div className="flex justify-between items-center text-[10.5px] text-slate-500 mt-10 select-none leading-none font-sans pt-4 no-print">
             <div className="text-left">
-              <span className="font-semibold text-slate-700">Prepared by: Zumra Hotels</span> - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span className="font-semibold text-slate-700">{t('srpdf.preparedBy')}</span> - {new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
             <div className="font-mono text-right uppercase text-slate-600 font-extrabold">
-              Page 1 of 1
+              {t('cpdf.pageOf')}
             </div>
           </div>
 

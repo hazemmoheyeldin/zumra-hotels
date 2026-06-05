@@ -9,6 +9,7 @@ import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
+import { useLang } from '../lib/LanguageContext';
 
 interface ConfirmationPDFProps {
   reservation: Reservation;
@@ -23,6 +24,7 @@ interface ConfirmationPDFProps {
 
 export default function ConfirmationPDF({ reservation, client, hotel, type, onClose, creatorName, users = [], accounts = [] }: ConfirmationPDFProps) {
   const { PageBreakToggle } = usePageBreaks();
+  const { t, lang } = useLang();
   const { totalSell, totalBuy, profit, vat, totalWithVat } = getReservationTotals(reservation);
   
   const creatorUser = users.find(u => u.username === reservation.createdBy || u.name === reservation.createdBy || u.name === creatorName);
@@ -100,7 +102,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800">
-              {isDefinite ? 'Client Confirmation Document' : 'Client Room Voucher'}
+              {isDefinite ? t('cpdf.clientConfirmDoc') : t('cpdf.clientRoomVoucher')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -110,7 +112,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              Print / Save to PDF
+              {t('cpdf.printSavePDF')}
             </button>
             <a
               href={getWhatsAppLink()}
@@ -119,13 +121,13 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-              Share WhatsApp
+              {t('cpdf.shareWhatsApp')}
             </a>
             <button
               onClick={onClose}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer"
             >
-              Close Preview
+              {t('cpdf.closePreview')}
             </button>
           </div>
         </div>
@@ -161,8 +163,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               <div className="flex flex-col text-xs text-slate-800">
                 <div className="flex justify-between items-start">
                   <div className="space-y-2">
-                    <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">Issue Date:</span> <span className="font-semibold">{formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : todayStr)}</span></p>
-                    <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">Guest name:</span> <span className="uppercase text-slate-950 font-bold">{reservation.guestName}</span></p>
+                    <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">{t('cpdf.issueDate')}</span> <span className="font-semibold">{formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : todayStr)}</span></p>
+                    <p className="text-sm"><span className="font-extrabold text-slate-900 inline-block w-24">{t('cpdf.guestName')}</span> <span className="uppercase text-slate-950 font-bold">{reservation.guestName}</span></p>
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-mono font-black text-slate-900"><span className="font-extrabold inline-block mr-3 text-sm text-slate-500 uppercase tracking-widest">RSV#:</span>{reservation.id}</p>
@@ -178,11 +180,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                 <table className="w-full text-left border-collapse text-xs">
                   <tbody className="divide-y divide-slate-200">
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Hotel Name</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.hotelName')}</td>
                       <td className="py-2.5 px-3 font-extrabold text-[#111827] text-sm leading-tight">{hotel?.name || 'Hotel Name'}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Type Of Rooms</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.typeOfRooms')}</td>
                       <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed space-y-1">
                         {reservation.rooms.map((room) => (
                           <div key={room.id} className="text-xs mb-1 last:mb-0">
@@ -193,26 +195,26 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                               <span className="text-slate-600">{abbreviateMealPlan(room.mealPlan)}</span>
                             </div>
                             <div className="pl-6 text-[10px] text-slate-500">
-                              View: {room.view || 'Standard View'}
+                              {t('cpdf.viewLabel')} {room.view || t('cpdf.standardView')}
                             </div>
                           </div>
                         ))}
                       </td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Conf. #</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.confNo')}</td>
                       <td className="py-2.5 px-3 font-mono font-extrabold text-[#111827] text-sm">{reservation.hotelConfirmationNo || '-'}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Check In</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.checkIn')}</td>
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkIn)}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Check Out</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.checkOut')}</td>
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-900 text-xs">{formatStandardDate(reservation.checkOut)}</td>
                     </tr>
                     <tr className="bg-white">
-                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">Client Remarks</td>
+                      <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.clientRemarks')}</td>
                       <td className="py-2.5 px-3 text-slate-650 font-medium italic text-xs min-h-[30px]">
                         {reservation.termsAndConditions || ''}
                       </td>
@@ -224,17 +226,17 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               {/* Staff block and signature matching bottom right */}
               <div className="flex justify-end pt-4 mt-2">
                 <div className="w-64 text-left space-y-1 font-sans">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Staff Name :</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('cpdf.staffName')}</p>
                   <p className="text-sm font-black text-slate-950 uppercase tracking-wide leading-tight">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
                   <p className="text-[10px] text-slate-500 font-medium">{creatorJobTitle}</p>
-                  <p className="text-[11px] font-semibold text-slate-400 pt-4 border-t border-dashed border-slate-200 mt-4">Stamp and Signature</p>
+                  <p className="text-[11px] font-semibold text-slate-400 pt-4 border-t border-dashed border-slate-200 mt-4">{t('cpdf.stampSignature')}</p>
                 </div>
               </div>
 
               {/* Page marker A4 footer - screen only */}
               <div className="flex justify-between items-center border-t border-slate-150 pt-3 mt-8 text-[10px] text-slate-400 no-print">
-                <div>Printed: {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                <div className="font-mono text-right font-bold text-slate-505">Page 1 of 1</div>
+                <div>{t('cpdf.printed')} {new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-GB')} {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="font-mono text-right font-bold text-slate-505">{t('cpdf.pageOf')}</div>
               </div>
             </div>
           ) : (
@@ -243,17 +245,17 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               {/* Date & Partner Metadata Info Grid */}
               <div className="grid grid-cols-2 gap-2 text-xs mb-1.5">
                 <div className="space-y-1 text-slate-800 font-sans">
-                  <p><span className="font-bold inline-block w-10 text-slate-705">Date:</span> {formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : '2026-02-24')}</p>
-                  <p className="font-medium"><span className="font-bold inline-block w-10 text-slate-705">To:</span> <span className="uppercase text-slate-900 font-semibold">{client?.name || client?.companyName || 'Marseilia Tours'}</span></p>
+                  <p><span className="font-bold inline-block w-10 text-slate-705">{t('cpdf.dateLabel')}</span> {formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : '2026-02-24')}</p>
+                  <p className="font-medium"><span className="font-bold inline-block w-10 text-slate-705">{t('cpdf.toLabel')}</span> <span className="uppercase text-slate-900 font-semibold">{client?.name || client?.companyName || 'Marseilia Tours'}</span></p>
                 </div>
                 
                 <div className="text-right">
                   <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-tight uppercase font-sans whitespace-normal break-words max-w-[220px] ml-auto">
-                    {reservation.status === 'Cancelled' ? 'Cancelled' : `${getStatusLabel()} Confirmation`}
+                    {reservation.status === 'Cancelled' ? t('pdf.cancelled') : `${getStatusLabel()} ${t('cpdf.confirmation')}`}
                   </h2>
                   {reservation.status === 'Tentative' && reservation.clientOptionDate && (
                     <span className="text-rose-600 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-100 mt-2.5 inline-block">
-                      ⏰ Option Date: {formatStandardDate(reservation.clientOptionDate)}
+                      ⏰ {t('cpdf.optionDate')} {formatStandardDate(reservation.clientOptionDate)}
                     </span>
                   )}
                 </div>
@@ -261,21 +263,21 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
               {/* Letter intro statement */}
               <div className="text-xs text-slate-800 font-normal mb-2 leading-relaxed font-sans">
-                Thank you for showing your interest in Zumra Hotels. We are pleased to confirm your booking as follows:
+                {t('cpdf.letterIntro')}
               </div>
 
               {/* Summary Box Header */}
               <div className="bg-slate-50 border border-slate-150 rounded-lg p-1.5 grid grid-cols-3 gap-2 text-xs mb-2 print:bg-slate-50 font-sans">
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Res. No:</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">{t('cpdf.resNo')}</span>
                   <span className="font-extrabold text-slate-900 font-mono text-xs">RSV-{reservation.id}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Guest name:</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">{t('cpdf.guestName')}</span>
                   <span className="font-bold text-slate-900 uppercase text-xs truncate block">{reservation.guestName}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Nationality:</span>
+                  <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">{t('cpdf.nationality')}</span>
                   <span className="font-semibold text-slate-800 text-xs block">{reservation.guestNationality || 'Egypt'}</span>
                 </div>
               </div>
@@ -285,17 +287,17 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                 <table className="w-full text-left border-collapse text-[10px]">
                   <thead>
                     <tr className="bg-[#d2d7df] border-b border-slate-300 text-slate-800 font-extrabold text-center">
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase font-mono text-left border-r border-slate-200">RSV #</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Hotel</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Conf. #</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">QTY</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Room Type</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">MP</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Check In</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">NTS</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">Check Out</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right border-r border-slate-200 font-bold">Room Rate</th>
-                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right font-bold">Total Price</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase font-mono text-left border-r border-slate-200">{t('cpdf.rsvCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">{t('cpdf.hotelCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">{t('cpdf.confNo')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">{t('cpdf.qtyCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">{t('cpdf.roomTypeCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">{t('cpdf.mpCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">{t('cpdf.checkIn')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">{t('cpdf.ntsCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">{t('cpdf.checkOut')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right border-r border-slate-200 font-bold">{t('cpdf.roomRateCol')}</th>
+                      <th className="py-1.5 px-1.5 text-[9px] uppercase text-right font-bold">{t('cpdf.totalPriceCol')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-800 text-[10px]">
@@ -381,7 +383,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
                     <tr className="bg-slate-50 border-t border-slate-300 font-bold">
                       <td colSpan={10} className="py-1 px-2 text-right text-slate-705 font-sans border-r border-slate-200 uppercase text-[9px] tracking-wider">
-                        Net Accommodation Charge:
+                        {t('cpdf.netAccommodation')}
                       </td>
                       <td className="py-1 px-2 text-right font-mono text-slate-900 font-extrabold text-[10px]">
                         {totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -394,55 +396,55 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               {/* VAT Accounting summary block */}
               <div className="bg-white border-2 border-slate-200 rounded-xl p-2.5 max-w-sm ml-auto mr-0 my-2 text-xs font-semibold space-y-1 font-sans">
                 <div className="flex justify-between text-slate-650">
-                  <span>Total:</span>
+                  <span>{t('cpdf.totalLabel')}</span>
                   <span className="font-mono font-bold text-slate-900">{calculatedNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-slate-650">
-                  <span>VAT (15%):</span>
+                  <span>{t('cpdf.vat15')}</span>
                   <span className="font-mono font-bold text-slate-900">{calculatedVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="border-t border-slate-200 pt-2 flex justify-between text-sm font-black text-slate-900">
-                  <span>Total Net Value:</span>
+                  <span>{t('cpdf.totalNetValue')}</span>
                   <span className="font-mono text-slate-955 font-extrabold">{totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
               {/* Terms & Conditions Block */}
               <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] font-sans">
-                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Terms & Conditions:</h3>
+                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">{t('pdf.termsConditions')}:</h3>
                 <div className="text-[9px] text-slate-650 space-y-0 font-medium leading-snug max-w-2xl text-left">
-                  <p>• The above rates are quoted in Saudi Riyals.</p>
-                  <p>• Rooms allocation is subject to hotel availability.</p>
-                  <p>• Check In 16:00 hrs. Check Out 12:00 hrs. One Full Night charged if Guest check out after 16:00 hrs.</p>
-                  <p>• Confirmation of Rooms will be made upon receipt 100 % of total ammount before option Date .</p>
-                  <p>• One night automatically will be charged in case of cancelation less than 30 days of arrival.</p>
-                  <p>• Full amount will be charged in case of cancelation less than 15 days of arrival.</p>
-                  <p>• Full amount will be charged in case of NO SHOW</p>
-                  <p>• Amendment will be accepted with 25 % from the total booking before 15 days.</p>
-                  <p>• Amendment will be accepted with 15 % from the total booking before 7 days.</p>
+                  <p>{t('cpdf.termsRateSAR')}</p>
+                  <p>{t('cpdf.termsAvailability')}</p>
+                  <p>{t('cpdf.termsCheckInOut')}</p>
+                  <p>{t('cpdf.termsConfirmation')}</p>
+                  <p>{t('cpdf.termsCancel30')}</p>
+                  <p>{t('cpdf.termsCancel15')}</p>
+                  <p>{t('cpdf.termsNoShow')}</p>
+                  <p>{t('cpdf.termsAmend25')}</p>
+                  <p>{t('cpdf.termsAmend15')}</p>
                   {reservation.termsAndConditions && (
-                    <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-150">• Custom Clause: {reservation.termsAndConditions}</p>
+                    <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-150">{t('cpdf.customClause')} {reservation.termsAndConditions}</p>
                   )}
                 </div>
               </div>
 
               {/* Bank Accounts Section */}
               <div className="mt-2 border-t border-slate-150 pt-2 text-[10px] font-sans">
-                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Our Bank Account:</h3>
+                <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">{t('cpdf.ourBankAccount')}</h3>
                 {reservation.bankAccountId ? (() => {
                   const acc = accounts.find(a => a.id === reservation.bankAccountId);
                   if (acc) {
                     return (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] leading-relaxed max-w-2xl text-slate-650 font-medium">
                         <div>
-                          <p><span className="font-extrabold text-slate-800 inline-block w-28">Account name:</span> {acc.accountHolderName || 'زمرة للتسويق السياحي'}</p>
-                          <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">Bank name:</span> {acc.name}</p>
-                          <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">Branch:</span> -</p>
+                          <p><span className="font-extrabold text-slate-800 inline-block w-28">{t('cpdf.accountName')}</span> {acc.accountHolderName || 'زمرة للتسويق السياحي'}</p>
+                          <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">{t('cpdf.bankName')}</span> {acc.name}</p>
+                          <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">{t('cpdf.branch')}</span> -</p>
                         </div>
                         <div>
-                          <p><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">Account #:</span> {acc.code || '-'}</p>
-                          <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">IBAN:</span> {acc.accountNumber || '-'}</p>
-                          <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">Currency:</span> {acc.currency || 'SAR'}</p>
+                          <p><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">{t('cpdf.accountNo')}</span> {acc.code || '-'}</p>
+                          <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">{t('cpdf.iban')}</span> {acc.accountNumber || '-'}</p>
+                          <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">{t('cpdf.swiftCode')}</span> {acc.currency || 'SAR'}</p>
                         </div>
                       </div>
                     );
@@ -451,14 +453,14 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                 })() : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] leading-relaxed max-w-2xl text-slate-650 font-medium">
                     <div>
-                      <p><span className="font-extrabold text-slate-800 inline-block w-28">Account name:</span> زمرة للتسويق السياحي</p>
-                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">Bank name:</span> بنك مصر</p>
-                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">Branch:</span> -</p>
+                      <p><span className="font-extrabold text-slate-800 inline-block w-28">{t('cpdf.accountName')}</span> زمرة للتسويق السياحي</p>
+                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">{t('cpdf.bankName')}</span> بنك مصر</p>
+                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-28">{t('cpdf.branch')}</span> -</p>
                     </div>
                     <div>
-                      <p><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">Account #:</span> 7810137000000095</p>
-                      <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">IBAN #:</span> EG040002078107810137000000095</p>
-                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-24 font-sans">Swift Code:</span> BMISEGCXXX</p>
+                      <p><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">{t('cpdf.accountNo')}</span> 7810137000000095</p>
+                      <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24 font-sans">{t('cpdf.iban')}</span> EG040002078107810137000000095</p>
+                      <p className="mt-0.5"><span className="font-extrabold text-slate-805 inline-block w-24 font-sans">{t('cpdf.swiftCode')}</span> BMISEGCXXX</p>
                     </div>
                   </div>
                 )}
@@ -467,7 +469,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               {/* Thanks & Regards Section */}
               <div className="flex justify-end items-end border-t border-slate-150 pt-2 mt-2 text-[10px] text-slate-500 font-sans">
                 <div className="text-right">
-                  <p className="font-bold text-slate-700 italic">Thanks, and Best Regards</p>
+                  <p className="font-bold text-slate-700 italic">{t('cpdf.thanksRegards')}</p>
                   <p className="text-sm font-bold text-slate-900 mt-1 block uppercase font-sans">{creatorName || reservation.createdBy || 'Hazem Mohey El-Din'}</p>
                   <p className="text-[10px] text-slate-450 font-medium">{creatorJobTitle}, Zumra Hotels</p>
                 </div>

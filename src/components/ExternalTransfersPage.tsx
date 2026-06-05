@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ExternalTransfer, ExternalTransferPart } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface ExternalTransfersPageProps {
   externalTransfers: ExternalTransfer[];
@@ -8,6 +9,7 @@ interface ExternalTransfersPageProps {
 }
 
 export default function ExternalTransfersPage({ externalTransfers, onSaveTransfer, onDeleteTransfer }: ExternalTransfersPageProps) {
+  const { t, lang } = useLang();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -135,36 +137,36 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
     <div className="space-y-5">
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Transfers</div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('extTrans.totalTransfers')}</div>
           <div className="text-2xl font-black text-slate-900">{externalTransfers.length}</div>
         </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Pending</div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('extTrans.pending')}</div>
           <div className="text-2xl font-black text-amber-800">{externalTransfers.filter(et => et.status === 'Pending').length}</div>
         </div>
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Completed</div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('extTrans.completed')}</div>
           <div className="text-2xl font-black text-emerald-800">{externalTransfers.filter(et => et.status === 'Done').length}</div>
         </div>
-        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Total SAR Transferred</div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('extTrans.totalSAR')}</div>
           <div className="text-xl font-black text-indigo-800">
             {externalTransfers.reduce((s, et) => s + et.amountSAR, 0).toLocaleString()}
           </div>
         </div>
-        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-blue-600 mb-1">Avg FX Rate</div>
+        <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-blue-600 mb-1">{t('extTrans.avgFX')}</div>
           <div className="text-xl font-black text-blue-800">{fxStats.avg > 0 ? fxStats.avg.toFixed(2) : '—'}</div>
           <div className="text-[9px] text-blue-500 font-mono mt-0.5">{fxStats.count > 0 ? `${fxStats.min.toFixed(2)} – ${fxStats.max.toFixed(2)}` : 'No data'}</div>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs w-full max-w-[95vw] mx-auto overflow-x-hidden">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm text-xs w-full max-w-[95vw] mx-auto overflow-x-hidden">
       <div className="border-b border-slate-100 pb-4 mb-4 flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">External Transfers Operations</h2>
-          <p className="text-xs text-slate-500 font-serif">Track third-party transfer progress to suppliers abroad.</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('extTrans.title')}</h2>
+          <p className="text-xs text-slate-500 font-serif">{t('extTrans.subtitle')}</p>
         </div>
         <button
           onClick={() => {
@@ -173,7 +175,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
           }}
           className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow"
         >
-          {showForm ? 'Cancel' : '+ New Transfer Request'}
+          {showForm ? t('common.cancel') : t('extTrans.newTransfer')}
         </button>
       </div>
 
@@ -250,7 +252,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
           </div>
 
           <div className="pt-2">
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg">Save Transfer</button>
+            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg">{t('extTrans.saveTransfer')}</button>
           </div>
         </form>
       ) : (
@@ -357,8 +359,8 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
 
       {/* Attachment Viewer Modal */}
       {viewingAttachment && (
-        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4" onClick={() => setViewingAttachment(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-0 md:p-4" onClick={() => setViewingAttachment(null)}>
+          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
               <div className="flex items-center gap-2">

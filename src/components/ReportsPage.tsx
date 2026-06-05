@@ -9,6 +9,7 @@ import ArrivalReportPDF from './ArrivalReportPDF';
 import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
 import { getReservationTotals, getAgentActualBalance, exportToCSV } from '../lib/storage';
+import { useLang } from '../lib/LanguageContext';
 
 interface ReportsPageProps {
   reservations: Reservation[];
@@ -18,6 +19,7 @@ interface ReportsPageProps {
 }
 
 export default function ReportsPage({ reservations, agents, hotels, transactions }: ReportsPageProps) {
+  const { t, lang } = useLang();
   const [activeReportTab, setActiveReportTab] = useState<'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders'>('arrival');
 
   // Shared Filters
@@ -119,42 +121,42 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
       {/* Quick KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Arrivals</div>
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('reports.arrivals')}</div>
           <div className="text-2xl font-black text-slate-900">{arrivalList.length}</div>
           <div className="text-[9px] text-emerald-600 font-mono mt-0.5">{totalArrivalsSell.toLocaleString()} SAR</div>
         </div>
         <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Cancellations</div>
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">{t('reports.cancellations')}</div>
           <div className="text-2xl font-black text-rose-800">{cancellationList.length}</div>
           <div className="text-[9px] text-rose-500 font-mono mt-0.5">{totalCancelledFee.toLocaleString()} SAR fees</div>
         </div>
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Pending Reminders</div>
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('reports.pendingReminders')}</div>
           <div className="text-2xl font-black text-amber-800">{reminderList.length}</div>
         </div>
         <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Period</div>
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('reports.period')}</div>
           <div className="text-[10px] font-mono text-indigo-800 mt-1">{fromDate}<br/>{toDate}</div>
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Total Reservations</div>
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('reports.totalReservations')}</div>
           <div className="text-2xl font-black text-emerald-800">{reservations.length}</div>
         </div>
       </div>
 
       {/* Upper sub navigation bar for report selectors */}
-      <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-5 shadow-sm">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Operational & Auditing Reports Portals</h2>
-            <p className="text-xs text-slate-500 font-serif">التقارير المالية والادارية - Download or print official statements matching the company identity</p>
+            <h2 className="text-lg font-bold text-slate-800">{t('reports.subtitle')}</h2>
+            <p className="text-xs text-slate-500 font-serif">{t('reports.subtitleDesc')}</p>
           </div>
           {(activeReportTab === 'arrival' || activeReportTab === 'cancellation' || activeReportTab === 'reminders') && (
             <button
               onClick={handleExportCSV}
               className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-1.5 rounded-lg transition border border-indigo-200"
             >
-              ⬇️ Export List CSV
+              ⬇️ {t('reports.exportCSV')}
             </button>
           )}
         </div>
@@ -166,7 +168,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               activeReportTab === 'arrival' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
             }`}
           >
-            Arrivals Report (الوصول خلال فترة)
+            {t('reports.arrivalsTab')}
           </button>
           <button
             onClick={() => setActiveReportTab('cancellation')}
@@ -174,7 +176,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               activeReportTab === 'cancellation' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
             }`}
           >
-            Cancellations Statement
+            {t('reports.cancellationsTab')}
           </button>
           <button
             onClick={() => setActiveReportTab('statement')}
@@ -182,7 +184,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               activeReportTab === 'statement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
             }`}
           >
-            Client Statement of Account (كشف حساب العميل)
+            {t('reports.clientStatement')}
           </button>
           <button
             onClick={() => setActiveReportTab('supplierStatement')}
@@ -190,7 +192,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               activeReportTab === 'supplierStatement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
             }`}
           >
-            Supplier Statement of Account
+            {t('reports.supplierStatement')}
           </button>
           <button
             onClick={() => setActiveReportTab('reminders')}
@@ -198,14 +200,14 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               activeReportTab === 'reminders' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
             }`}
           >
-            📢 Supplier Reminders (تنبيهات الموردين)
+            📢 {t('reports.supplierReminders')}
           </button>
         </div>
 
         {/* Global configuration filters */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/50 border border-slate-100 p-4 rounded-xl items-end">
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">From Date</label>
+            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('reports.fromDate')}</label>
             <input
               type="date"
               value={fromDate}
@@ -214,7 +216,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             />
           </div>
           <div>
-            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">To Date</label>
+            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('reports.toDate')}</label>
             <input
               type="date"
               value={toDate}
@@ -225,13 +227,13 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           
           {(activeReportTab === 'statement' || activeReportTab === 'arrival') ? (
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Filter by Customer / Client</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{lang === 'ar' ? 'تصفية حسب العميل' : 'Filter by Customer / Client'}</label>
               <select
                 value={selectedAgentId}
                 onChange={(e) => setSelectedAgentId(e.target.value)}
                 className="w-full bg-white px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:outline-none"
               >
-                <option value="">-- All Customers --</option>
+                <option value="">-- {t('reports.allCustomers')} --</option>
                 {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
                   <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
                 ))}
@@ -239,13 +241,13 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             </div>
           ) : activeReportTab === 'supplierStatement' ? (
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Filter by Supplier</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{lang === 'ar' ? 'تصفية حسب المورد' : 'Filter by Supplier'}</label>
               <select
                 value={selectedSupplierId}
                 onChange={(e) => setSelectedSupplierId(e.target.value)}
                 className="w-full bg-white px-2.5 py-1.5 border border-slate-200 rounded text-xs focus:outline-none"
               >
-                <option value="">-- Select Supplier --</option>
+                <option value="">-- {t('reports.selectSupplier')} --</option>
                 {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
@@ -263,18 +265,18 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
       </div>
 
       {/* Reports Display Portfolios */}
-      <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-5 shadow-sm">
         
         {/* Arrivals Report Tab Content */}
         {activeReportTab === 'arrival' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-slate-800 uppercase text-xs">Period Arrivals List Preview</h3>
+              <h3 className="font-bold text-slate-800 uppercase text-xs">{lang === 'ar' ? 'معاينة قائمة وصول الفترة' : 'Period Arrivals List Preview'}</h3>
               <button
                 onClick={() => setPrintingArrivalReport(true)}
                 className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1.5"
               >
-                📥 Save PDF & Print Arrivals
+                📥 {t('reports.savePDFPrint')} {t('reports.arrivals')}
               </button>
             </div>
 
@@ -315,7 +317,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   })}
                   {arrivalList.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400 italic">No arrival rows found in this period range.</td>
+                      <td colSpan={8} className="py-8 text-center text-slate-400 italic">{t('reports.noArrivals')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -328,12 +330,12 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         {activeReportTab === 'cancellation' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-bold text-rose-800 uppercase text-xs">Cancelled bookings during period</h3>
+              <h3 className="font-bold text-rose-800 uppercase text-xs">{t('reports.cancelledBookings')}</h3>
               <button
                 onClick={() => setPrintingCancellationReport(true)}
                 className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1.5"
               >
-                📥 Print Cancellation Report
+                📥 {t('reports.printCancellation')}
               </button>
             </div>
             <div className="overflow-x-auto text-[11px]">
@@ -371,7 +373,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   })}
                   {cancellationList.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400 italic">No cancellations registered in this period.</td>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 italic">{t('reports.noCancellations')}</td>
                     </tr>
                   )}
                 </tbody>
@@ -385,21 +387,21 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-bold text-slate-800 uppercase text-xs">Customer Statement of Ledger</h3>
-                <p className="text-[10px] text-slate-400">Statement period: {fromDate} To {toDate}</p>
+                <h3 className="font-bold text-slate-800 uppercase text-xs">{t('reports.customerLedger')}</h3>
+                <p className="text-[10px] text-slate-400">{lang === 'ar' ? 'فترة الكشف' : 'Statement period'}: {fromDate} {lang === 'ar' ? 'إلى' : 'To'} {toDate}</p>
               </div>
               <button
                 disabled={!selectedAgentId}
                 onClick={() => setPrintingStatementReport(true)}
                 className="bg-amber-600 disabled:opacity-50 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1.5"
               >
-                📥 Save PDF & Print Statement
+                📥 {t('reports.savePDFPrint')} {t('reports.statementReport')}
               </button>
             </div>
 
             {selectedAgent ? (
               <div className="border border-slate-150 rounded-xl p-4 bg-slate-50/30">
-                <p className="text-[10px] text-slate-400 font-semibold uppercase">Client Active Balances Overview:</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase">{lang === 'ar' ? 'نظرة عامة على أرصدة العميل' : 'Client Active Balances Overview'}:</p>
                 <div className="flex justify-between items-baseline mt-1">
                   <span className="text-sm font-bold text-slate-800 uppercase">{selectedAgent.companyName || selectedAgent.name}</span>
                   <span className={`text-sm font-bold font-mono ${(() => { const b = -getAgentActualBalance(selectedAgent, reservations, transactions); return b < 0 ? 'text-rose-650' : 'text-emerald-700'; })()}`}>
@@ -408,7 +410,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 </div>
               </div>
             ) : (
-              <p className="text-center py-10 text-slate-400 italic">Please select a customer agent in the dropdown above to render the statement preview.</p>
+              <p className="text-center py-10 text-slate-400 italic">{t('reports.selectCustomer')}</p>
             )}
           </div>
         )}
@@ -418,21 +420,21 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           <div className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-bold text-slate-800 uppercase text-xs">Supplier Statement Details</h3>
-                <p className="text-[10px] text-slate-450 mt-0.5">Filter all incoming supplier bills and outgoing payments</p>
+                <h3 className="font-bold text-slate-800 uppercase text-xs">{t('reports.supplierDetails')}</h3>
+                <p className="text-[10px] text-slate-450 mt-0.5">{lang === 'ar' ? 'تصفية جميع فواتير الموردين والمدفوعات' : 'Filter all incoming supplier bills and outgoing payments'}</p>
               </div>
               <button
                 disabled={!selectedSupplier}
                 onClick={() => setPrintingStatementReport(true)}
                 className="bg-amber-600 disabled:opacity-50 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1.5"
               >
-                📥 Save PDF & Print Statement
+                📥 {t('reports.savePDFPrint')} {t('reports.statementReport')}
               </button>
             </div>
 
             {selectedSupplier ? (
               <div className="border border-slate-150 rounded-xl p-4 bg-amber-50/20">
-                <p className="text-[10px] text-slate-400 font-semibold uppercase">Supplier Current Balance Overview:</p>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase">{lang === 'ar' ? 'نظرة عامة على رصيد المورد' : 'Supplier Current Balance Overview'}:</p>
                 <div className="flex justify-between items-baseline mt-1">
                   <span className="text-sm font-bold text-slate-800 uppercase">{selectedSupplier.name}</span>
                   <span className={`text-sm font-bold font-mono ${(() => { const b = -getAgentActualBalance(selectedSupplier, reservations, transactions); return b < 0 ? 'text-rose-650' : 'text-emerald-700'; })()}`}>
@@ -441,7 +443,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 </div>
               </div>
             ) : (
-              <p className="text-center py-10 text-slate-400 italic">Please select a supplier in the dropdown above to render the statement preview.</p>
+              <p className="text-center py-10 text-slate-400 italic">{t('reports.selectSupplierMsg')}</p>
             )}
           </div>
         )}
@@ -563,8 +565,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         const unpaidSupp = totalBuy - (resObj.amountPaidToSupplier || 0);
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95 text-xs text-slate-800">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-0 md:p-4">
+            <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 text-xs text-slate-800">
               
               <div className="border-b border-slate-150 pb-3 flex justify-between items-center mb-4">
                 <h4 className="font-bold text-slate-800 uppercase flex items-center gap-1.5">

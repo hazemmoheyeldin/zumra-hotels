@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { ZumraDB, getEgyptTime } from '../lib/storage';
+import { useLang } from '../lib/LanguageContext';
 
 interface InboxModalProps {
   currentUser: User;
@@ -9,6 +10,7 @@ interface InboxModalProps {
 }
 
 export default function InboxModal({ currentUser, users, onClose }: InboxModalProps) {
+  const { t } = useLang();
   const [messages, setMessages] = useState(ZumraDB.getMessages());
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -45,7 +47,7 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
         <div className="w-1/3 bg-slate-50 border-r border-slate-150 flex flex-col">
           <div className="p-4 border-b border-slate-150 bg-white flex justify-between items-center">
             <h2 className="font-bold text-slate-800 flex items-center gap-2">
-              <span>💬</span> Internal Inbox
+              <span>💬</span> {t('inbox.title')}
             </h2>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
           </div>
@@ -98,7 +100,7 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
                     </div>
                   );
                 }) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">No messages yet. Say hello!</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">{t('inbox.noMessages')}</div>
                 )}
               </div>
               <div className="p-4 bg-white border-t border-slate-150 flex gap-2">
@@ -107,21 +109,21 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Type your message..."
+                  placeholder={t('inbox.typeMessage')}
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-400"
                 />
                 <button 
                   onClick={handleSendMessage}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl transition"
                 >
-                  Send
+                  {t('inbox.send')}
                 </button>
               </div>
             </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-slate-400 flex-col">
               <span className="text-4xl mb-2 grayscale opacity-50">✉️</span>
-              <p className="font-semibold text-sm">Select a colleague to start chatting</p>
+              <p className="font-semibold text-sm">{t('inbox.selectColleague')}</p>
             </div>
           )}
         </div>

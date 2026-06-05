@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Account } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface AccountsPageProps {
   accounts: Account[];
@@ -15,6 +16,7 @@ interface AccountsPageProps {
 
 export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount, onModifyBalances }: AccountsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { t, lang } = useLang();
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('SAR');
   const [code, setCode] = useState('');
@@ -119,32 +121,32 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
       
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Balance</div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('acc.totalBalance')}</div>
           <div className="text-xl font-black text-slate-900">{totalBalance.toLocaleString()} SAR</div>
         </div>
-        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Bank Accounts</div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('acc.bankAccounts')}</div>
           <div className="text-xl font-black text-indigo-800">{bankAccounts.length}</div>
           <div className="text-[9px] text-indigo-500 font-mono mt-0.5">{bankBalance.toLocaleString()} SAR</div>
         </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Cash Safes</div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('acc.cashSafes')}</div>
           <div className="text-xl font-black text-amber-800">{cashAccounts.length}</div>
           <div className="text-[9px] text-amber-500 font-mono mt-0.5">{cashBalance.toLocaleString()} SAR</div>
         </div>
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Total Accounts</div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('acc.totalAccounts')}</div>
           <div className="text-xl font-black text-emerald-800">{accounts.length}</div>
         </div>
       </div>
 
       {/* Upper header action blocks */}
-      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm">
         <div className="border-b border-slate-100 pb-4 mb-4 flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Banks & Cash Safes Ledger</h2>
-            <p className="text-xs text-slate-500">Configure bank accounts, credit portfolios, cash tills, and handle transfers.</p>
+            <h2 className="text-lg font-bold text-slate-800">{t('acc.ledgerTitle')}</h2>
+            <p className="text-xs text-slate-500">{t('acc.ledgerSubtitle')}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -154,7 +156,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow"
             >
-              Add Bank/Safe Account
+              {t('acc.addBankSafe')}
             </button>
             <button
               onClick={() => {
@@ -163,7 +165,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
               }}
               className="bg-slate-100 hover:bg-amber-50 hover:text-amber-800 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl transition"
             >
-              Transfer Funds
+              {t('acc.transferFunds')}
             </button>
           </div>
         </div>
@@ -171,10 +173,10 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
         {/* Action Form Blocks */}
         {showAddForm && (
           <form onSubmit={handleAddAccount} className="bg-slate-50 border border-slate-200/60 p-4 rounded-xl max-w-xl space-y-3 mb-4 animate-in fade-in duration-200">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Add Account Specs</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">{t('acc.addAccountSpecs')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Type</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.accountType')}</label>
                 <select
                   value={accountType}
                   onChange={(e) => setAccountType(e.target.value as any)}
@@ -185,7 +187,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Label</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.accountLabel')}</label>
                 <input
                   type="text"
                   value={name}
@@ -196,7 +198,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Number</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{lang === 'ar' ? 'رقم الحساب' : 'Account Number'}</label>
                 <input
                   type="text"
                   value={code}
@@ -207,7 +209,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Base Currency</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.baseCurrency')}</label>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
@@ -220,7 +222,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 </select>
               </div>
               <div className="col-span-2 md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Account Holder Name (Beneficiary)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.holderName')}</label>
                 <input
                   type="text"
                   value={accountHolderName}
@@ -230,7 +232,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 />
               </div>
               <div className="col-span-2 md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">IBAN</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('cpdf.iban')}</label>
                 <input
                   type="text"
                   value={accountNumber}
@@ -240,7 +242,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Starting Balance (SAR)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.startingBalance')}</label>
                 <input
                   type="number"
                   value={balance || ''}
@@ -250,18 +252,18 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
               </div>
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg">{editingId ? 'Update Account' : 'Save Account'}</button>
-              <button type="button" onClick={resetForm} className="bg-slate-200 text-slate-700 font-medium text-xs px-4 py-1.5 rounded-lg">Cancel</button>
+              <button type="submit" className="bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg">{editingId ? t('acc.updateAccount') : t('acc.saveAccount')}</button>
+              <button type="button" onClick={resetForm} className="bg-slate-200 text-slate-700 font-medium text-xs px-4 py-1.5 rounded-lg">{t('common.cancel')}</button>
             </div>
           </form>
         )}
 
         {showTransferForm && (
           <form onSubmit={handleTransfer} className="bg-slate-50 border border-slate-200/60 p-4 rounded-xl max-w-lg space-y-3 mb-4 animate-in fade-in duration-200">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">Transfer Book Values Between Accounts</h3>
-            <div className="grid grid-cols-3 gap-2">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-700">{t('acc.transferTitle')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Origin Account</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.originAccount')}</label>
                 <select
                   value={fromAccountId}
                   onChange={(e) => setFromAccountId(e.target.value)}
@@ -274,7 +276,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Target Destination</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.targetDest')}</label>
                 <select
                   value={toAccountId}
                   onChange={(e) => setToAccountId(e.target.value)}
@@ -287,7 +289,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">Transfer Sum (SAR)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.transferSum')}</label>
                 <input
                   type="number"
                   value={transferAmount || ''}
@@ -299,8 +301,8 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
               </div>
             </div>
             <div className="flex gap-2">
-              <button type="submit" className="bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg">Execute Fund Transfer</button>
-              <button type="button" onClick={() => setShowTransferForm(false)} className="bg-slate-200 text-slate-700 font-medium text-xs px-4 py-1.5 rounded-lg">Cancel</button>
+              <button type="submit" className="bg-blue-600 text-white font-bold text-xs px-4 py-1.5 rounded-lg">{t('acc.executeTransfer')}</button>
+              <button type="button" onClick={() => setShowTransferForm(false)} className="bg-slate-200 text-slate-700 font-medium text-xs px-4 py-1.5 rounded-lg">{t('common.cancel')}</button>
             </div>
           </form>
         )}
@@ -311,7 +313,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
             onClick={() => setFilterType('')}
             className={`py-1.5 px-3 rounded-lg text-[10px] font-bold uppercase transition ${!filterType ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}
           >
-            All ({accounts.length})
+            {lang === 'ar' ? 'الكل' : 'All'} ({accounts.length})
           </button>
           <button
             onClick={() => setFilterType('Bank')}
@@ -341,7 +343,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                     <span className="text-[9px] uppercase font-mono font-bold text-slate-400">{acc.currency} Wallet</span>
                     <button 
                       onClick={() => handleEditAccount(acc)}
-                      className="text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-slate-400 hover:text-blue-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
                       title="Edit"
                     >
                       ✏️
@@ -352,7 +354,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                           onDeleteAccount(acc.id);
                         }
                       }}
-                      className="text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-slate-400 hover:text-rose-600 md:opacity-0 md:group-hover:opacity-100 transition-opacity min-w-[36px] min-h-[36px] flex items-center justify-center"
                       title="Delete Account"
                     >
                       🗑️
@@ -362,7 +364,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 <h3 className="font-bold text-slate-800 text-xs mt-3 uppercase">{acc.name}</h3>
               </div>
               <div className="mt-6 flex justify-between items-baseline">
-                <span className="text-slate-400 text-[9px] uppercase">Ledger Balance</span>
+                <span className="text-slate-400 text-[9px] uppercase">{t('acc.ledgerBalance')}</span>
                 <span className="font-mono text-lg font-bold text-slate-900">{acc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR</span>
               </div>
             </div>

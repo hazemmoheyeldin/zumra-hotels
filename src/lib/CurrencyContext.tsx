@@ -9,6 +9,7 @@ export interface CurrencyContextType {
   convertAmount: (amount: number, from: Currency, to: Currency) => number;
   fxRates: Record<Currency, number>;
   isLiveRates: boolean;
+  ratesTimestamp: string | null;
   refreshRates: () => void;
 }
 
@@ -26,23 +27,60 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [activeCurrency, setActiveCurrency] = useState<Currency>('SAR');
   const [fxRates, setFxRates] = useState<Record<Currency, number>>(DEFAULT_FX);
   const [isLiveRates, setIsLiveRates] = useState(false);
+  const [ratesTimestamp, setRatesTimestamp] = useState<string | null>(null);
 
   const fetchLiveRates = async () => {
-    try {
-      const res = await fetch('https://open.er-api.com/v6/latest/SAR');
-      const data = await res.json();
-      if (data?.rates) {
-        setFxRates({
-          SAR: 1,
-          USD: data.rates.USD || DEFAULT_FX.USD,
-          EGP: data.rates.EGP || DEFAULT_FX.EGP,
-          EUR: data.rates.EUR || DEFAULT_FX.EUR,
-        });
+    // Try multiple free APIs for reliability and accuracy
+    const fetchers = [
+      // Frankfurter.app - ECB-backed, very accurate
+      async () => {
+        const res = await fetch('https://api.frankfurter.app/latest?from=SAR');
+        const data = await res.json();
+        if (data?.rates && data.rates.USD && data.rates.EGP && data.rates.EUR) {
+          return {
+            rates: {
+              SAR: 1,
+              USD: data.rates.USD,
+              EGP: data.rates.EGP,
+              EUR: data.rates.EUR,
+            },
+            timestamp: data.date || new Date().toISOString().split('T')[0],
+          };
+        }
+        throw new Error('Frankfurter: incomplete data');
+      },
+      // ExchangeRate-API fallback
+      async () => {
+        const res = await fetch('https://open.er-api.com/v6/latest/SAR');
+        const data = await res.json();
+        if (data?.rates && data.rates.USD && data.rates.EGP && data.rates.EUR) {
+          return {
+            rates: {
+              SAR: 1,
+              USD: data.rates.USD,
+              EGP: data.rates.EGP,
+              EUR: data.rates.EUR,
+            },
+            timestamp: data.time_last_update_utc || new Date().toISOString(),
+          };
+        }
+        throw new Error('ER-API: incomplete data');
+      },
+    ];
+
+    for (const fetcher of fetchers) {
+      try {
+        const result = await fetcher();
+        setFxRates(result.rates as Record<Currency, number>);
+        setRatesTimestamp(result.timestamp);
         setIsLiveRates(true);
+        return;
+      } catch {
+        // Try next fallback
       }
-    } catch {
-      // Silently fall back to default rates
     }
+    // All APIs failed, keep defaults
+    setIsLiveRates(false);
   };
 
   useEffect(() => {
@@ -69,7 +107,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CurrencyContext.Provider value={{ activeCurrency, setActiveCurrency, formatCurrency, convertAmount, fxRates, isLiveRates, refreshRates: fetchLiveRates }}>
+    <CurrencyContext.Provider value={{ activeCurrency, setActiveCurrency, formatCurrency, convertAmount, fxRates, isLiveRates, ratesTimestamp, refreshRates: fetchLiveRates }}>
       {children}
     </CurrencyContext.Provider>
   );

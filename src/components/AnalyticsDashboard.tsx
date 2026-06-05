@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Reservation, Transaction, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
+import { useLang } from '../lib/LanguageContext';
 
 interface AnalyticsProps {
   reservations: Reservation[];
@@ -12,6 +13,7 @@ interface AnalyticsProps {
 type TimeRange = '3M' | '6M' | '12M' | 'ALL';
 
 export default function AnalyticsDashboard({ reservations, transactions, agents, hotels }: AnalyticsProps) {
+  const { t } = useLang();
   const [timeRange, setTimeRange] = useState<TimeRange>('12M');
 
   const agentMap = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
@@ -203,8 +205,8 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Analytics Dashboard</h1>
-          <p className="text-sm text-slate-500">Revenue trends, booking patterns and performance insights</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('analytics.title')}</h1>
+          <p className="text-sm text-slate-500">{t('analytics.subtitle')}</p>
         </div>
         <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
           {(['3M', '6M', '12M', 'ALL'] as TimeRange[]).map(r => (
@@ -221,19 +223,19 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        <KPICard label="Total Revenue" value={`${formatMoney(kpis.totalRevenue)}`} sub="SAR" color="blue" />
-        <KPICard label="Total Profit" value={`${formatMoney(kpis.totalProfit)}`} sub="SAR" color="emerald" />
-        <KPICard label="Profit Margin" value={`${kpis.profitMargin.toFixed(1)}%`} sub="" color="green" />
-        <KPICard label="Bookings" value={`${kpis.totalBookings}`} sub={`${kpis.totalRooms} rooms`} color="purple" />
-        <KPICard label="Avg Lead Time" value={`${kpis.avgLeadTime}`} sub="days" color="amber" />
-        <KPICard label="Cancellation Rate" value={`${cancellationStats.cancellationRate.toFixed(1)}%`} sub={`${cancellationStats.cancelled} cancelled`} color="red" />
+        <KPICard label={t('analytics.totalRevenue')} value={`${formatMoney(kpis.totalRevenue)}`} sub="SAR" color="blue" />
+        <KPICard label={t('analytics.totalProfit')} value={`${formatMoney(kpis.totalProfit)}`} sub="SAR" color="emerald" />
+        <KPICard label={t('analytics.profitMargin')} value={`${kpis.profitMargin.toFixed(1)}%`} sub="" color="green" />
+        <KPICard label={t('analytics.bookings')} value={`${kpis.totalBookings}`} sub={`${kpis.totalRooms} ${t('analytics.rooms')}`} color="purple" />
+        <KPICard label={t('analytics.avgLeadTime')} value={`${kpis.avgLeadTime}`} sub={t('analytics.days')} color="amber" />
+        <KPICard label={t('analytics.cancellationRate')} value={`${cancellationStats.cancellationRate.toFixed(1)}%`} sub={`${cancellationStats.cancelled} ${t('analytics.cancelled')}`} color="red" />
       </div>
 
       {/* Revenue Chart + Seasonal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Monthly Revenue Chart */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Monthly Revenue & Profit</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.monthlyRevenue')}</h3>
           <div className="flex items-end gap-1 h-48">
             {monthlyRevenue.map((m, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
@@ -265,7 +267,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
 
         {/* Seasonal Heatmap */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Seasonal Booking Patterns</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.seasonal')}</h3>
           <div className="grid grid-cols-6 md:grid-cols-12 gap-1">
             {seasonalData.map((s, i) => {
               const intensity = s.count / maxSeasonal;
@@ -286,7 +288,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Top Clients */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Top Clients by Revenue</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.topClients')}</h3>
           <div className="space-y-2">
             {topClients.map((c, i) => (
               <div key={i} className="flex items-center gap-2 group">
@@ -303,13 +305,13 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
                 </div>
               </div>
             ))}
-            {topClients.length === 0 && <p className="text-sm text-slate-400 text-center py-4">No data</p>}
+            {topClients.length === 0 && <p className="text-sm text-slate-400 text-center py-8">No data available for the selected period</p>}
           </div>
         </div>
 
         {/* Top Hotels */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Top Hotels by Volume</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.topHotels')}</h3>
           <div className="space-y-2">
             {topHotels.map((h, i) => (
               <div key={i} className="flex items-center gap-2 group">
@@ -326,7 +328,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
                 </div>
               </div>
             ))}
-            {topHotels.length === 0 && <p className="text-sm text-slate-400 text-center py-4">No data</p>}
+            {topHotels.length === 0 && <p className="text-sm text-slate-400 text-center py-8">No data available for the selected period</p>}
           </div>
         </div>
       </div>
@@ -335,7 +337,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Profit Margin by Hotel */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Profit Margin by Hotel</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.profitByHotel')}</h3>
           <div className="space-y-2">
             {profitByHotel.map((h, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -356,21 +358,21 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
                 </div>
               </div>
             ))}
-            {profitByHotel.length === 0 && <p className="text-sm text-slate-400 text-center py-4">No data</p>}
+            {profitByHotel.length === 0 && <p className="text-sm text-slate-400 text-center py-8">No data available for the selected period</p>}
           </div>
         </div>
 
         {/* Booking Status Distribution */}
         <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Booking Status Distribution</h3>
+          <h3 className="text-sm font-bold text-slate-700 mb-3">{t('analytics.statusDistribution')}</h3>
           <div className="flex items-center justify-center gap-8 py-4">
-            <DonutSegment label="Confirmed" value={cancellationStats.confirmed} total={cancellationStats.total} color="bg-emerald-500" />
-            <DonutSegment label="Tentative" value={cancellationStats.tentative} total={cancellationStats.total} color="bg-amber-500" />
-            <DonutSegment label="Cancelled" value={cancellationStats.cancelled} total={cancellationStats.total} color="bg-red-500" />
+            <DonutSegment label={t('analytics.confirmed')} value={cancellationStats.confirmed} total={cancellationStats.total} color="bg-emerald-500" />
+            <DonutSegment label={t('analytics.tentative')} value={cancellationStats.tentative} total={cancellationStats.total} color="bg-amber-500" />
+            <DonutSegment label={t('dash.cancelled')} value={cancellationStats.cancelled} total={cancellationStats.total} color="bg-red-500" />
           </div>
           <div className="text-center mt-2">
             <div className="text-3xl font-bold text-slate-700">{cancellationStats.total}</div>
-            <div className="text-xs text-slate-500">Total Bookings</div>
+            <div className="text-xs text-slate-500">{t('analytics.totalBookings')}</div>
           </div>
         </div>
       </div>

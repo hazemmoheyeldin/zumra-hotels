@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction, Agent, Account, Reservation } from '../types';
 import ReceiptVoucherPDF from './ReceiptVoucherPDF';
+import { useLang } from '../lib/LanguageContext';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
@@ -22,6 +23,7 @@ import { exportToCSV } from '../lib/storage';
 export default function TransactionsPage({ transactions, agents, accounts, reservations, currentUser, onSaveTransaction, onDeleteTransaction }: TransactionsPageProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { t, lang } = useLang();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund'>('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -237,32 +239,32 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Transactions</div>
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('trans.title')}</div>
           <div className="text-2xl font-black text-slate-900">{transactions.length}</div>
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Client Payments In</div>
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('trans.clientPaymentsIn')}</div>
           <div className="text-xl font-black text-emerald-800">
             {transactions.filter(t => t.type === 'ClientPayment').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="text-[9px] text-emerald-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'ClientPayment').length} payments</div>
         </div>
         <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Supplier Payments Out</div>
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">{t('trans.supplierPaymentsOut')}</div>
           <div className="text-xl font-black text-rose-800">
             {transactions.filter(t => t.type === 'SupplierPayment').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="text-[9px] text-rose-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'SupplierPayment').length} payments</div>
         </div>
         <div className="bg-orange-50 rounded-xl border border-orange-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-orange-600 mb-1">Refunds</div>
+          <div className="text-[10px] uppercase font-bold text-orange-600 mb-1">{t('trans.refunds')}</div>
           <div className="text-xl font-black text-orange-800">
             {transactions.filter(t => t.type === 'ClientRefund').reduce((s, t) => s + t.amount, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="text-[9px] text-orange-500 font-mono mt-0.5">{transactions.filter(t => t.type === 'ClientRefund').length} client refunds</div>
         </div>
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Net Cash Flow</div>
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('trans.netCashFlow')}</div>
           <div className="text-xl font-black text-amber-800">
             {(() => {
               const inflow = transactions.filter(t => t.type === 'ClientPayment' || t.type === 'SupplierRefund').reduce((s, t) => s + t.amount, 0);
@@ -274,26 +276,26 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         </div>
       </div>
 
-      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm text-xs">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm text-xs">
       
       {/* Header bar */}
       <div className="border-b border-slate-100 pb-4 mb-4 flex flex-wrap justify-between items-center gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">Financial Ledger Operations & Client Payments</h2>
-          <p className="text-xs text-slate-500 font-serif">إدارة المقبوضات والمدفوعات والمحاسبة - Choose between Cash and Bank Transfer to issue clean receipts</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('trans.ledgerTitle')}</h2>
+          <p className="text-xs text-slate-500 font-serif">{t('trans.ledgerSubtitle')}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleExportCSV}
             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition"
           >
-            ⬇️ Export CSV
+            ⬇️ {t('trans.exportCSV')}
           </button>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow"
           >
-            {showAddForm ? 'View Receipts' : 'Record New Transaction Receipt'}
+            {showAddForm ? t('trans.viewReceipts') : t('trans.recordNew')}
           </button>
         </div>
       </div>
@@ -302,15 +304,15 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         <div className="mb-4 space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
           {/* Quick filters */}
           <div className="flex flex-wrap gap-1.5 mb-2">
-            <button onClick={() => setQuickFilter('today')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">Today</button>
-            <button onClick={() => setQuickFilter('week')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">This Week</button>
-            <button onClick={() => setQuickFilter('month')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">This Month</button>
+            <button onClick={() => setQuickFilter('today')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">{t('trans.today')}</button>
+            <button onClick={() => setQuickFilter('week')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">{t('trans.thisWeek')}</button>
+            <button onClick={() => setQuickFilter('month')} className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition">{t('trans.thisMonth')}</button>
           </div>
           {/* Row 1: Search + Type */}
           <div className="flex flex-col md:flex-row gap-3 items-center">
             <input
               type="text"
-              placeholder="Search voucher, doc, desc, agent, RSV#..."
+              placeholder={t('trans.searchPlaceholder')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs flex-1 w-full"
@@ -320,26 +322,26 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               onChange={e => setFilterType(e.target.value as any)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-48"
             >
-              <option value="">All Transactions</option>
-              <option value="ClientPayment">Client Payments Received</option>
-              <option value="SupplierPayment">Supplier Payments Sent</option>
-              <option value="ClientRefund">Client Refunds</option>
-              <option value="SupplierRefund">Supplier Refunds</option>
+              <option value="">{t('trans.allTransactions')}</option>
+              <option value="ClientPayment">{t('trans.clientPayments')}</option>
+              <option value="SupplierPayment">{t('trans.supplierPayments')}</option>
+              <option value="ClientRefund">{t('trans.clientRefundsFilter')}</option>
+              <option value="SupplierRefund">{t('trans.supplierRefundsFilter')}</option>
             </select>
             <select
               value={filterMethod}
               onChange={e => setFilterMethod(e.target.value as any)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-40"
             >
-              <option value="">All Methods</option>
-              <option value="Cash">Cash</option>
-              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="">{t('trans.allMethods')}</option>
+              <option value="Cash">{t('res.cash')}</option>
+              <option value="Bank Transfer">{t('res.bankTransfer')}</option>
             </select>
           </div>
           {/* Row 2: Date range + Agent */}
           <div className="flex flex-col md:flex-row gap-3 items-center">
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">From:</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{t('common.from')}:</label>
               <input
                 type="date"
                 value={filterDateFrom}
@@ -348,7 +350,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               />
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">To:</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{t('common.to')}:</label>
               <input
                 type="date"
                 value={filterDateTo}
@@ -361,7 +363,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               onChange={e => setFilterAgentId(e.target.value)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full md:w-52"
             >
-              <option value="">All Agents</option>
+              <option value="">{t('trans.allAgents')}</option>
               {agents.map(a => (
                 <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
               ))}
@@ -371,17 +373,17 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 onClick={() => { setSearchTerm(''); setFilterType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterAgentId(''); setFilterMethod(''); }}
                 className="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100 transition whitespace-nowrap"
               >
-                ✕ Clear Filters
+                ✕ {t('common.clearFilters')}
               </button>
             )}
           </div>
           {/* Results count */}
           <div className="flex items-center justify-between">
             <div className="text-[10px] text-slate-400 font-medium">
-              Showing {filteredTransactions.length} of {transactions.length} transactions
+              {t('trans.showing', { filtered: filteredTransactions.length, total: transactions.length })}
             </div>
             <button onClick={() => setShowAgentSummary(v => !v)} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition">
-              {showAgentSummary ? '▼ Hide' : '▶ Show'} Agent Summary
+              {showAgentSummary ? '▼' : '▶'} {t('trans.agentSummary')}
             </button>
           </div>
           {/* Agent Summary Collapsible */}
@@ -390,11 +392,11 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               <table className="w-full text-[10px] border-collapse">
                 <thead>
                   <tr className="text-slate-500 font-bold uppercase border-b border-slate-100">
-                    <th className="py-1.5 px-2 text-left">Agent</th>
-                    <th className="py-1.5 px-2 text-center">Txns</th>
-                    <th className="py-1.5 px-2 text-right">Inflow</th>
-                    <th className="py-1.5 px-2 text-right">Outflow</th>
-                    <th className="py-1.5 px-2 text-right">Net</th>
+                    <th className="py-1.5 px-2 text-left">{lang === 'ar' ? 'الوكيل' : 'Agent'}</th>
+                    <th className="py-1.5 px-2 text-center">{lang === 'ar' ? 'المعاملات' : 'Txns'}</th>
+                    <th className="py-1.5 px-2 text-right">{t('trans.inflow')}</th>
+                    <th className="py-1.5 px-2 text-right">{t('trans.outflow')}</th>
+                    <th className="py-1.5 px-2 text-right">{t('trans.net')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -416,11 +418,11 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
       {showAddForm ? (
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-xs">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-705">Record Payment Inflow / Outflow</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-705">{t('trans.recordFormTitle')}</h3>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Transaction Category</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.category')}</label>
               <select
                 value={type}
                 onChange={(e) => {
@@ -438,7 +440,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             </div>
 
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Target Agent</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.targetAgent')}</label>
               <select
                 value={agentId}
                 onChange={(e) => setAgentId(e.target.value)}
@@ -453,7 +455,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             </div>
 
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Link to Reservation (Optional)</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.linkReservation')}</label>
               <select
                 value={reservationId}
                 onChange={(e) => setReservationId(e.target.value)}
@@ -467,7 +469,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             </div>
 
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Payment Method</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.paymentMethod')}</label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value as any)}
@@ -479,7 +481,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             </div>
 
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Currency</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('common.currency')}</label>
               <select
                 value={originalCurrency}
                 onChange={(e) => setOriginalCurrency(e.target.value as any)}
@@ -536,7 +538,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             )}
 
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Corporate Bank Account</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.corporateBank')}</label>
               <select
                 value={fromAccountId}
                 onChange={(e) => setFromAccountId(e.target.value)}
@@ -549,8 +551,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               </select>
             </div>
 
-            <div className="col-span-2">
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Statement Memo Description</label>
+            <div className="md:col-span-2">
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.statementMemo')}</label>
               <input
                 type="text"
                 value={description}
@@ -561,8 +563,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               />
             </div>
             
-            <div className="col-span-2 md:col-span-1">
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Attachment / Image</label>
+            <div className="md:col-span-1">
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.attachment')}</label>
               <input
                 type="file"
                 accept="image/*,application/pdf"
@@ -592,33 +594,83 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               type="submit"
               className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2 rounded-lg transition"
             >
-              {editingId ? 'Update Transaction' : 'Record Payment Receipt'}
+              {editingId ? t('trans.updateTransaction') : t('trans.recordReceipt')}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-5 py-2 rounded-lg transition"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </form>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Mobile Card Layout */}
+        <div className="md:hidden space-y-3">
+          {filteredTransactions.map((tr, idx) => (
+            <div key={tr.id} className="border border-slate-100 rounded-xl p-3 bg-white shadow-sm">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <span className="font-mono text-[9px] font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">{tr.docNo || '—'}</span>
+                  <p className="font-bold text-slate-900 text-xs mt-1">{getAgentLabel(tr.agentId || '')}</p>
+                  <p className="text-[10px] text-slate-500 font-mono">{tr.date}</p>
+                </div>
+                <span className={`font-mono font-bold text-sm ${
+                  tr.type === 'ClientPayment' ? 'text-emerald-700' :
+                  tr.type === 'SupplierRefund' ? 'text-emerald-700' :
+                  tr.type === 'ClientRefund' ? 'text-orange-600' :
+                  'text-red-600'
+                }`}>
+                  {tr.type === 'ClientPayment' ? '+' : tr.type === 'SupplierRefund' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : '-'}{tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    tr.paymentMethod === 'Cash' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
+                  }`}>{tr.paymentMethod}</span>
+                  <span>{getAccountLabel(tr.fromAccountId || '')}</span>
+                </div>
+                <span className={`font-mono font-bold ${runningBalances[idx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  Bal: {runningBalances[idx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {tr.description && <p className="text-[10px] text-slate-500 mb-2 truncate">{tr.description}</p>}
+              <div className="flex justify-between items-center border-t border-slate-50 pt-2">
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  {tr.voucherNo && <span className="font-mono text-slate-500">{tr.voucherNo}</span>}
+                  {tr.attachmentDataUrl && (
+                    <button onClick={() => setViewingAttachment({ url: tr.attachmentDataUrl!, label: `${tr.voucherNo || tr.docNo} - Attachment` })} className="text-indigo-600 font-bold underline">📎 View</button>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => setPrintingVoucher(tr)} className="min-w-[36px] min-h-[36px] flex items-center justify-center bg-slate-100 hover:bg-indigo-100 text-slate-700 rounded-lg text-sm" title="Print Receipt">🖨️</button>
+                  <button onClick={() => handleEditTransaction(tr)} className="min-w-[36px] min-h-[36px] flex items-center justify-center bg-slate-100 hover:bg-blue-100 text-slate-500 rounded-lg text-sm" title="Edit">✏️</button>
+                  <button onClick={() => { if (confirm('Are you sure you want to completely remove this transaction?')) onDeleteTransaction(tr.id); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center bg-slate-100 hover:bg-rose-100 text-rose-500 rounded-lg text-sm" title="Delete">✕</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-3">Date</th>
-                <th className="py-3 px-3">Reservation / Doc No</th>
-                <th className="py-3 px-3">Voucher No</th>
-                <th className="py-3 px-3">Agent Target</th>
-                <th className="py-3 px-3">Payment Method</th>
-                <th className="py-3 px-3">Deposit Account</th>
-                <th className="py-3 px-3">Statement Description</th>
-                <th className="py-3 px-3 text-center">Attachment</th>
-                <th className="py-3 px-3 text-right">Sum (SAR)</th>
-                <th className="py-3 px-3 text-right">Running Bal</th>
-                <th className="py-3 px-3 text-center">Voucher Layout</th>
+                <th className="py-3 px-3">{t('common.date')}</th>
+                <th className="py-3 px-3">{lang === 'ar' ? 'رقم الحجز / المستند' : 'Reservation / Doc No'}</th>
+                <th className="py-3 px-3">{lang === 'ar' ? 'رقم القسيمة' : 'Voucher No'}</th>
+                <th className="py-3 px-3">{t('trans.targetAgent')}</th>
+                <th className="py-3 px-3">{t('res.paymentMethod')}</th>
+                <th className="py-3 px-3">{t('trans.depositAccount')}</th>
+                <th className="py-3 px-3">{t('common.description')}</th>
+                <th className="py-3 px-3 text-center">{t('trans.attachment')}</th>
+                <th className="py-3 px-3 text-right">{t('trans.sumSAR')}</th>
+                <th className="py-3 px-3 text-right">{t('trans.runningBal')}</th>
+                <th className="py-3 px-3 text-center">{t('trans.voucherLayout')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 select-none">
@@ -672,14 +724,14 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                     <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => setPrintingVoucher(tr)}
-                        className="bg-slate-100 hover:bg-indigo-650 hover:text-white text-slate-700 font-semibold px-2 py-1 rounded transition text-[10px]"
+                        className="bg-slate-100 hover:bg-indigo-650 hover:text-white text-slate-700 font-semibold px-2 py-1.5 rounded transition text-[10px] min-h-[28px]"
                         title="Print Receipt"
                       >
                         🖨️
                       </button>
                       <button 
                         onClick={() => handleEditTransaction(tr)}
-                        className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-500 font-semibold px-2 py-1 rounded transition text-[10px]"
+                        className="bg-slate-100 hover:bg-blue-650 hover:text-white text-slate-500 font-semibold px-2 py-1.5 rounded transition text-[10px] min-h-[28px]"
                         title="Edit Transaction"
                       >
                         ✏️
@@ -690,7 +742,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                             onDeleteTransaction(tr.id);
                           }
                         }}
-                        className="bg-slate-100 hover:bg-rose-600 hover:text-white text-rose-500 font-semibold px-2 py-1 rounded transition text-[10px]"
+                        className="bg-slate-100 hover:bg-rose-600 hover:text-white text-rose-500 font-semibold px-2 py-1.5 rounded transition text-[10px] min-h-[28px]"
                         title="Delete Transaction"
                       >
                         ✕
@@ -701,12 +753,17 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400 italic">No ledger transactions registered.</td>
+                  <td colSpan={8} className="py-16 text-center animate-fade-in">
+                    <div className="text-5xl mb-4">💳</div>
+                    <p className="text-sm font-bold text-slate-500">{t('trans.noTransactions')}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('trans.createFirst')}</p>
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Printable Cash Receipt Voucher render */}
@@ -721,8 +778,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
       {/* Attachment Viewer Modal */}
       {viewingAttachment && (
-        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4" onClick={() => setViewingAttachment(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-0 md:p-4" onClick={() => setViewingAttachment(null)}>
+          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
               <div className="flex items-center gap-2">

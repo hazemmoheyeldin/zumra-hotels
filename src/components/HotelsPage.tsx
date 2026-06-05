@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { Hotel } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface HotelsPageProps {
   hotels: Hotel[];
@@ -246,6 +247,7 @@ const PRESET_HOTELS: Partial<Hotel>[] = [
 ];
 export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: HotelsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { t, lang } = useLang();
   
   // Form States
   const [name, setName] = useState('');
@@ -406,11 +408,11 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   };
 
   return (
-    <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
+    <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm">
       <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap justify-between items-center gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">Hotels Directory</h2>
-          <p className="text-xs text-slate-500">Configure partner hotels with custom views, meal plans, and room capacities.</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('hotels.title')}</h2>
+          <p className="text-xs text-slate-500">{lang === 'ar' ? 'إدارة الفنادق الشريكة مع الإطلالات وأنواع الوجبات والغرف.' : 'Configure partner hotels with custom views, meal plans, and room capacities.'}</p>
         </div>
         <button
           onClick={() => {
@@ -419,7 +421,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
           }}
           className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1"
         >
-          {showForm ? 'View Hotels List' : 'Add Partner Hotel'}
+          {showForm ? (lang === 'ar' ? 'عرض الفنادق' : 'View Hotels List') : t('hotels.addHotel')}
         </button>
       </div>
 
@@ -515,8 +517,8 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
             {editingId ? 'Edit Hotel Details' : 'New Hotel Specifications'}
           </h3>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Full Name</label>
               <input
                 type="text"
@@ -554,7 +556,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Full Physical Address</label>
               <input
                 type="text"
@@ -564,7 +566,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Contact Phone/Email</label>
               <input
                 type="text"
@@ -574,7 +576,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Reservations Email</label>
               <input
                 type="email"
@@ -585,7 +587,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Room Types (comma separated)</label>
               <input
                 type="text"
@@ -595,7 +597,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Views (comma separated)</label>
               <input
                 type="text"
@@ -605,7 +607,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supported Meal Plans (comma separated)</label>
               <input
                 type="text"

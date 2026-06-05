@@ -8,11 +8,19 @@ interface PDFOptions {
   landscape?: boolean;
 }
 
+// Guard flag to prevent double-triggering and "blocked from printing" errors
+let isPrinting = false;
+
 export const downloadPDF = (elementId: string, filename: string, options?: PDFOptions) => {
+  // Prevent re-entrant calls (causes "blocked from automatically printing")
+  if (isPrinting) return;
+  isPrinting = true;
+
   const element = document.getElementById(elementId);
   if (!element) {
     console.error(`[downloadPDF] Element with id "${elementId}" not found.`);
     alert('Print area not found. Please try again.');
+    isPrinting = false;
     return;
   }
 
@@ -27,7 +35,6 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   screenMarkers.forEach(marker => {
     marker.classList.remove('page-break-marker-screen');
     marker.classList.add('page-break-marker');
-    // Clear inner content
     marker.innerHTML = '';
   });
 
@@ -36,12 +43,23 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   clone.querySelectorAll('.pb-insert-zone-row').forEach(el => el.remove());
   clone.querySelectorAll('.pb-toggle-btn').forEach(el => el.remove());
 
+  // Remove any anchor <a> links from the clone so they don't appear in PDF
+  clone.querySelectorAll('a[href]').forEach(anchor => {
+    const span = document.createElement('span');
+    span.innerHTML = anchor.innerHTML;
+    Array.from(anchor.attributes).forEach(attr => {
+      if (attr.name !== 'href') span.setAttribute(attr.name, attr.value);
+    });
+    anchor.parentNode?.replaceChild(span, anchor);
+  });
+
+  // Use position: absolute instead of fixed for better mobile compatibility
+  // (position: fixed causes blank pages on mobile Safari)
   clone.style.cssText = `
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
-    width: 100vw;
-    min-height: 100vh;
+    width: 100%;
     max-height: none;
     height: auto;
     overflow: visible;
@@ -69,23 +87,31 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
       @page { size: ${pageSize}; margin: 0; }
       html, body {
         overflow: hidden !important;
-        height: 100% !important;
+        height: auto !important;
         background: white !important;
-        position: fixed !important;
         width: 100% !important;
       }
       body.printing-report > *:not(#print-area-clone) {
         display: none !important;
         visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
       }
       #print-area-clone {
-        position: fixed !important;
+        display: block !important;
+        position: absolute !important;
         top: 0 !important;
         left: 0 !important;
         width: 100% !important;
+        max-height: none !important;
+        height: auto !important;
         background: white !important;
         z-index: 999999 !important;
       }
+      /* Strip any visible URLs/links from PDF output */
+      a[href] { text-decoration: none !important; color: inherit !important; pointer-events: none !important; }
+      a[href]::after { content: none !important; display: none !important; }
     }
   `;
 
@@ -117,6 +143,8 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     // Remove dynamic page style
     const ps = document.getElementById(pageStyleId);
     if (ps) ps.remove();
+    // Release print guard after a short cooldown
+    setTimeout(() => { isPrinting = false; }, 1500);
   };
 
   // Listen for afterprint event for reliable cleanup
@@ -126,13 +154,32 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   };
   window.addEventListener('afterprint', onAfterPrint);
 
-  // Wait for images then print
-  Promise.all(imagePromises).then(() => {
-    // Small extra delay to ensure DOM is painted
+  // Also listen for focus return (mobile browsers sometimes skip afterprint)
+  const onFocusReturn = () => {
     setTimeout(() => {
-      window.print();
+      if (document.getElementById('print-area-clone')) {
+        cleanup();
+      }
+    }, 500);
+    window.removeEventListener('focus', onFocusReturn);
+  };
+  window.addEventListener('focus', onFocusReturn);
+
+  // Wait for images then print - increased delay for mobile rendering
+  Promise.all(imagePromises).then(() => {
+    setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        console.warn('Print failed:', e);
+        cleanup();
+      }
       // Fallback cleanup in case afterprint doesn't fire
-      setTimeout(cleanup, 1000);
-    }, 200);
+      setTimeout(() => {
+        if (document.getElementById('print-area-clone')) {
+          cleanup();
+        }
+      }, 2000);
+    }, 500);
   });
 };

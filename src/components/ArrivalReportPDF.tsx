@@ -8,6 +8,7 @@ import { Reservation, Agent, Hotel } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
+import { useLang } from '../lib/LanguageContext';
 
 interface ArrivalReportPDFProps {
   reservations: Reservation[];
@@ -20,6 +21,7 @@ interface ArrivalReportPDFProps {
 
 export default function ArrivalReportPDF({ reservations, agents, hotels, fromDate, toDate, onClose }: ArrivalReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
+  const { t, lang } = useLang();
 
   const getAgentName = (id: string): string => {
     const a = agents.find(agent => agent.id === id);
@@ -58,7 +60,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800">
-              Arrivals Report Print Preview
+              {t('arpdf.printPreview')}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -68,13 +70,13 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-              Print / Save to PDF
+              {t('arpdf.printSavePDF')}
             </button>
             <button
               onClick={onClose}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer"
             >
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -102,16 +104,16 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
 
           {/* Report Title Section */}
           <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
-            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">Arrival During Period</h1>
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">{t('arpdf.titleEn')}</h1>
             <h1 className="text-xl font-bold text-[#0f172a] font-serif">الوصول خلال فترة</h1>
           </div>
 
           {/* Period Details Bar */}
           <div className="grid grid-cols-4 gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50">
-            <div><span className="font-bold text-slate-900">Arrival From:</span> {new Date(fromDate).toLocaleDateString('en-GB')}</div>
-            <div><span className="font-bold text-slate-900">Arrival To:</span> {new Date(toDate).toLocaleDateString('en-GB')}</div>
-            <div><span className="font-bold text-slate-900">In House:</span> False</div>
-            <div className="text-right"><span className="font-bold text-slate-900">Record Count:</span> {reservations.length}</div>
+            <div><span className="font-bold text-slate-900">{t('arpdf.arrivalFrom')}</span> {new Date(fromDate).toLocaleDateString('en-GB')}</div>
+            <div><span className="font-bold text-slate-900">{t('arpdf.arrivalTo')}</span> {new Date(toDate).toLocaleDateString('en-GB')}</div>
+            <div><span className="font-bold text-slate-900">{t('arpdf.inHouse')}</span> False</div>
+            <div className="text-right"><span className="font-bold text-slate-900">{t('arpdf.recordCount')}</span> {reservations.length}</div>
           </div>
 
           {/* Arrivals Matrix Table */}
@@ -119,22 +121,22 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
             <table className="w-full text-left border-collapse text-[9px]">
               <thead>
                 <tr className="bg-slate-100/85 text-slate-700 border-b border-slate-200 font-extrabold">
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">SN</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">Status</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">Sent</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono"># Rsv</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">From</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">To</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono">Agent #</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">Agent</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">V.No</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">Hotel</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200"># Conf</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">Agreement</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">Guest</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200">Nat.</th>
-                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">Pax</th>
-                  <th className="py-1.5 px-1.5">Room / MP</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{t('arpdf.snCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">{t('arpdf.statusCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center">{t('arpdf.sentCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{t('arpdf.nRsvCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.fromCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.toCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 font-mono">{t('arpdf.agentNumCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.agentCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.vNoCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.hotelCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.nConfCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.agreementCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.guestCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200">{t('arpdf.natCol')}</th>
+                  <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{t('arpdf.paxCol')}</th>
+                  <th className="py-1.5 px-1.5">{t('arpdf.roomMpCol')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-150 text-slate-800 font-medium font-sans">
@@ -171,7 +173,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
                 ) : (
                   <tr>
                     <td colSpan={16} className="py-8 text-center text-slate-400 italic">
-                      No arrival records found in this range.
+                      {t('arpdf.noRecords')}
                     </td>
                   </tr>
                 )}
@@ -182,10 +184,10 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           {/* Report Metadata signatures - screen only */}
           <div className="flex justify-between items-center border-t border-slate-200 mt-10 pt-4 text-[10px] text-slate-500 font-sans no-print">
             <div className="text-left leading-relaxed">
-              <span className="font-semibold text-slate-700">Prepared by: Zumra Hotels</span> - {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-GB')}
+              <span className="font-semibold text-slate-700">{t('arpdf.preparedBy')}</span> - {new Date().toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-GB')} {new Date().toLocaleTimeString('en-GB')}
             </div>
             <div className="text-right font-semibold font-mono uppercase text-slate-600">
-              Page 1 of 1
+              {t('cpdf.pageOf')}
             </div>
           </div>
 

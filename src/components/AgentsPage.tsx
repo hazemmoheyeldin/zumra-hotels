@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Agent, Reservation, Account, Transaction } from '../types';
 import BulkPaymentDialog from './BulkPaymentDialog';
+import { useLang } from '../lib/LanguageContext';
 
 import { getAgentActualBalance } from '../lib/storage';
 
@@ -22,6 +23,7 @@ interface AgentsPageProps {
 
 export default function AgentsPage({ agents, reservations, accounts, transactions, currentUser, onSaveAgent, onDeleteAgent, onBulkPaymentSave }: AgentsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { t, lang } = useLang();
   
   // Form States
   const [name, setName] = useState('');
@@ -121,13 +123,13 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   };
 
   return (
-    <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
+    <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm">
       
       {/* Table & controls bar */}
       <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap justify-between items-center gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">System Agents & Clients Workspace</h2>
-          <p className="text-xs text-slate-500 font-serif">كشف حساب العملاء والموردين - Auto agent ID incremental counting enabled</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('agents.title')}</h2>
+          <p className="text-xs text-slate-500 font-serif">{lang === 'ar' ? 'كشف حساب العملاء والموردين' : 'Client & supplier account statements - Auto agent ID incremental counting enabled'}</p>
         </div>
         <div className="flex gap-3 text-xs w-full sm:w-auto">
           <input
@@ -165,7 +167,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
             {editingId ? 'Edit Agent Portfolio' : 'Register New Partner Agent'}
           </h3>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Agent Full Name</label>
               <input
@@ -235,7 +237,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
               />
             </div>
 
-            <div className="col-span-2">
+            <div className="md:col-span-2">
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Physical Office Address</label>
               <input
                 type="text"
@@ -273,7 +275,55 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
           </div>
         </form>
       ) : (
-        <div className="overflow-x-auto text-xs">
+        <>
+          {/* Mobile Card Layout */}
+          <div className="md:hidden space-y-3">
+            {agents.filter(a => {
+              const searchLower = searchQuery.toLowerCase();
+              const matchesSearch = a.name.toLowerCase().includes(searchLower) || (a.companyName && a.companyName.toLowerCase().includes(searchLower)) || a.phone.includes(searchLower);
+              if (filterType !== 'All' && a.type !== filterType) return false;
+              return matchesSearch;
+            }).map((agent) => {
+              const bal = getAgentActualBalance(agent, reservations, transactions);
+              return (
+                <div key={agent.id} className="border border-slate-100 rounded-xl p-3 bg-white shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="font-mono text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">ID#{agent.agentNumber}</span>
+                      <h4 className="font-bold text-slate-900 text-xs mt-1">{agent.name}</h4>
+                      <p className="text-[10px] text-slate-500">{agent.companyName || '-'}</p>
+                    </div>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                      agent.type === 'Customer' ? 'bg-indigo-50 text-indigo-700' :
+                      agent.type === 'Supplier' ? 'bg-amber-50 text-amber-800' :
+                      'bg-emerald-50 text-emerald-800'
+                    }`}>{agent.type}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] text-slate-500 mb-2">
+                    <span>{agent.country}</span>
+                    <span className="font-mono">{agent.phone}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-t border-slate-50 pt-2">
+                    <span className={`font-mono font-bold text-xs ${bal < 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                      {bal < 0 ? `(${Math.abs(bal).toLocaleString()})` : bal.toLocaleString()} SAR
+                    </span>
+                    <div className="flex gap-1">
+                      <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm">👁️</button>
+                      <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm">✏️</button>
+                      <button onClick={() => { setAuditingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-sm">📋</button>
+                      {agent.type !== 'Supplier' && (
+                        <button onClick={() => setBulkPaymentAgent(agent)} className="min-h-[36px] bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold px-2 rounded-lg text-[10px] border border-emerald-100">Bulk Pay</button>
+                      )}
+                      <button onClick={() => { if (confirm('Delete this agent directory registry?')) onDeleteAgent(agent.id); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-300 hover:text-red-600 rounded-lg text-sm">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400 font-semibold tracking-wider text-[10px] uppercase">
@@ -324,14 +374,14 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                           setViewingAgent(agent);
                           setActiveMenuId(null);
                         }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
                         title="View details"
                       >
                         👁️
                       </button>
                       <button
                         onClick={() => handleEdit(agent)}
-                        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-55/40 rounded"
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-55/40 rounded"
                         title="Edit Details"
                       >
                         ✏️
@@ -341,7 +391,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                           setAuditingAgent(agent);
                           setActiveMenuId(null);
                         }}
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded"
                         title="Audit Log"
                       >
                         📋
@@ -351,7 +401,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       {agent.type !== 'Supplier' && (
                         <button
                           onClick={() => setBulkPaymentAgent(agent)}
-                          className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[9px] border border-emerald-100"
+                          className="bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold px-2 py-1 rounded text-[10px] border border-emerald-100 min-h-[28px]"
                           title="Auto distribute payment FIFO across unpaid reservations"
                         >
                           Bulk Pay
@@ -362,7 +412,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                         onClick={() => {
                           if (confirm('Delete this agent directory registry?')) onDeleteAgent(agent.id);
                         }}
-                        className="p-1 text-slate-300 hover:text-red-650 rounded"
+                        className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-300 hover:text-red-650 rounded"
                         title="Remove"
                       >
                         🗑️
@@ -374,12 +424,13 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Viewing details overlay */}
       {viewingAgent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
+          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-md w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2.5">Agent Specifications</h3>
             <div className="mt-4 space-y-2.5 text-xs text-slate-600">
               <p><span className="font-bold text-slate-500 uppercase text-[9px] block">Agent ID Number:</span> {viewingAgent.agentNumber}</p>
@@ -402,8 +453,8 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
 
       {/* Auditing logging details overlay */}
       {auditingAgent && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4">
+          <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 border-b border-slate-100 pb-2.5">Audit Security Logs — Agent ID# {auditingAgent.agentNumber}</h3>
             <div className="mt-4 space-y-3 max-h-60 overflow-y-auto pr-1 no-scrollbar text-xs">
               {auditingAgent.auditLogs && auditingAgent.auditLogs.length > 0 ? (

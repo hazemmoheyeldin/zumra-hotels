@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
+import { useLang } from '../lib/LanguageContext';
 
 interface LoginPageProps {
   users: User[];
@@ -13,6 +14,7 @@ interface LoginPageProps {
 }
 
 export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
+  const { t, lang } = useLang();
   const [username, setUsername] = useState(() => {
     const saved = localStorage.getItem('zumra_remembered_user');
     return saved || '';
@@ -95,7 +97,7 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
           </div>
           <div className="mt-1">
             <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
-            <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Operations Portal</p>
+            <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">{t('login.operationsPortal')}</p>
           </div>
         </div>
 
@@ -114,7 +116,7 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
           {/* Username */}
           <div className="group relative">
             <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${username ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
-              Username or Email
+              {t('login.usernameOrEmail')}
             </label>
             <div className="relative">
               <span className="absolute left-4 top-3.5 text-slate-500 text-xs">👤</span>
@@ -133,7 +135,7 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
           {/* Password */}
           <div className="group relative">
             <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${password ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
-              Password
+              {t('login.password')}
             </label>
             <div className="relative">
               <span className="absolute left-4 top-3.5 text-slate-500 text-xs">🔒</span>
@@ -157,10 +159,10 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
             <label className="flex items-center gap-2 cursor-pointer group">
               <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
                 className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-amber-500 focus:ring-amber-400/30 focus:ring-offset-0 cursor-pointer" />
-              <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-mono transition">Remember me on this device</span>
+              <span className="text-[10px] text-slate-400 group-hover:text-slate-300 font-mono transition">{t('login.rememberMe')}</span>
             </label>
             {rememberMe && (
-              <span className="text-[8px] text-emerald-400/60 font-mono flex items-center gap-1">🔒 Trusted Device</span>
+              <span className="text-[8px] text-emerald-400/60 font-mono flex items-center gap-1">🔒 {t('login.trustedDevice')}</span>
             )}
           </div>
 
@@ -176,11 +178,11 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Authenticating...
+                {t('login.authenticating')}
               </>
             ) : (
               <>
-                <span>🔐</span> Sign In to Dashboard
+                <span>🔐</span> {t('login.signinToDash')}
               </>
             )}
           </button>
@@ -191,7 +193,7 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
 
         {/* Footer */}
         <div className="text-center space-y-1.5">
-          <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[0.2em]">System Protected — Authorized Access Only</p>
+          <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[0.2em]">{t('login.authorizedAccess')}</p>
           <p className="text-[9px] text-slate-600 font-serif">زمرة للفنادق — EST Zumra Hotels for Hotel Operation</p>
         </div>
       </div>

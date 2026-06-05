@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Agent, FollowUp, ActivityLogEntry } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface SalesPageProps {
   agents: Agent[];
@@ -18,6 +19,7 @@ type Priority = 'High' | 'Medium' | 'Low';
 type ViewMode = 'Upcoming' | 'Completed' | 'All';
 
 export default function SalesPage({ agents, followUps, currentUser, onSaveFollowUp, onDeleteFollowUp }: SalesPageProps) {
+  const { t, lang } = useLang();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState('');
@@ -148,40 +150,40 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
     <div className="space-y-5">
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Activities</div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('sales.totalActivities')}</div>
           <div className="text-2xl font-black text-slate-900">{kpis.total}</div>
         </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Pending</div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('sales.pending')}</div>
           <div className="text-2xl font-black text-amber-800">{kpis.pending}</div>
         </div>
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Completed</div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('sales.completed')}</div>
           <div className="text-2xl font-black text-emerald-800">{kpis.completed}</div>
         </div>
-        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Overdue</div>
+        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">{t('sales.overdue')}</div>
           <div className="text-2xl font-black text-rose-700">{kpis.overdue}</div>
         </div>
-        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Due Today</div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('sales.dueToday')}</div>
           <div className="text-2xl font-black text-indigo-800">{kpis.dueToday}</div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
-            <h2 className="text-lg font-extrabold text-slate-800">Sales & CRM Engine</h2>
-            <p className="text-xs text-slate-500">Track meetings, follow-ups, and client interactions</p>
+            <h2 className="text-lg font-extrabold text-slate-800">{t('sales.title')}</h2>
+            <p className="text-xs text-slate-500">{t('sales.subtitle')}</p>
           </div>
           <button
             onClick={() => { if (showForm) resetForm(); else setShowForm(true); }}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-xl transition shadow text-xs"
           >
-            {showForm ? '← Back to List' : '+ New Activity'}
+            {showForm ? t('sales.backToList') : t('sales.newActivity')}
           </button>
         </div>
 
@@ -189,7 +191,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
           <form onSubmit={handleSubmit} className="bg-gradient-to-br from-slate-50 to-indigo-50/30 p-6 rounded-2xl border border-slate-200 max-w-2xl">
             <h3 className="text-sm font-bold text-slate-700 mb-4 uppercase tracking-wider flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-              {editingId ? 'Edit Activity' : 'New Follow-Up Activity'}
+              {editingId ? t('sales.editActivity') : t('sales.newFollowUp')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -263,9 +265,9 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
             </div>
             <div className="mt-5 flex gap-3">
               <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 font-bold text-white px-6 py-2.5 rounded-xl text-xs transition shadow">
-                {editingId ? 'Update Activity' : 'Save Activity'}
+                {editingId ? t('sales.updateActivity') : t('sales.saveActivity')}
               </button>
-              <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 font-bold px-5 py-2.5 rounded-xl text-xs hover:bg-slate-50">Cancel</button>
+              <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 font-bold px-5 py-2.5 rounded-xl text-xs hover:bg-slate-50">{t('common.cancel')}</button>
             </div>
           </form>
         ) : (
@@ -277,7 +279,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`py-1.5 px-4 rounded-lg text-[10px] font-bold uppercase transition ${
+                    className={`py-2 px-4 rounded-lg text-[10px] font-bold uppercase transition min-h-[36px] ${
                       activeTab === tab
                         ? tab === 'Completed' ? 'bg-emerald-600 text-white shadow' : tab === 'Upcoming' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-700 text-white shadow'
                         : 'text-slate-500 hover:text-slate-700'
@@ -293,7 +295,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                   placeholder="Search activities..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs w-56 focus:border-indigo-400 focus:outline-none"
+                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs w-full sm:w-56 focus:border-indigo-400 focus:outline-none"
                 />
               </div>
             </div>
@@ -365,7 +367,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                           {fu.activityLog && fu.activityLog.length > 0 && showLogFor === fu.id && (
                             <div className="mt-3 border-t border-slate-200 pt-3">
                               <h5 className="text-[9px] uppercase font-bold text-slate-500 mb-2">Activity Timeline ({fu.activityLog.length} entries)</h5>
-                              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                              <div className="space-y-1.5 max-h-48 overflow-y-auto thin-scrollbar">
                                 {fu.activityLog.slice().reverse().map((log) => (
                                   <div key={log.id} className="flex items-start gap-2 text-[10px] bg-slate-50 p-2 rounded-lg border border-slate-100">
                                     <span className="text-slate-400 font-mono shrink-0">{new Date(log.timestamp).toLocaleDateString('en-GB')} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

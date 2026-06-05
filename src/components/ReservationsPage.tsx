@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage';
+import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
 
@@ -90,6 +91,7 @@ export default function ReservationsPage({
   const [payMethod, setPayMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
   const [payVoucher, setPayVoucher] = useState<string>('');
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents'>('overview');
+  const { t, lang } = useLang();
 
   // Trigger loading active reservation specifics
   React.useEffect(() => {
@@ -680,10 +682,10 @@ export default function ReservationsPage({
       {printingRoomingList && (
         <div className="fixed inset-0 bg-white z-[9999] overflow-y-auto block print:block pb-16">
           <div className="flex justify-between items-center p-4 bg-slate-100 border-b border-slate-200 print:hidden text-xs">
-            <h2 className="font-bold text-slate-800">Print Rooming List</h2>
+            <h2 className="font-bold text-slate-800">{t('res.printRoomingList')}</h2>
             <div className="flex gap-2">
-              <button onClick={() => window.print()} className="bg-indigo-650 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded shadow transition">Print List</button>
-              <button onClick={() => setPrintingRoomingList(null)} className="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold px-4 py-2 rounded transition">Close (Esc)</button>
+              <button onClick={() => window.print()} className="bg-indigo-650 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded shadow transition">{t('res.printList')}</button>
+              <button onClick={() => setPrintingRoomingList(null)} className="bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold px-4 py-2 rounded transition">{t('res.closeEsc')}</button>
             </div>
           </div>
           
@@ -703,25 +705,25 @@ export default function ReservationsPage({
             </div>
             
             <div className="flex justify-between items-end mb-4 border-b border-slate-900 pb-1">
-              <h2 className="text-[20px] font-extrabold tracking-tight">Rooming List</h2>
+              <h2 className="text-[20px] font-extrabold tracking-tight">{t('res.roomingListTitle')}</h2>
               <h2 className="text-[22px] font-extrabold" dir="rtl">طھط³ظƒظٹظ† ط§ظ„ط؛ط±ظپ</h2>
             </div>
 
             <div className="grid grid-cols-2 gap-y-2 text-[13px] font-medium mb-6">
               <div className="flex">
-                <span className="w-32 font-bold">Res No :</span>
+                <span className="w-32 font-bold">{t('res.id')} :</span>
                 <span>{printingRoomingList.id}</span>
               </div>
               <div className="flex">
-                <span className="w-32 font-bold">Hotel :</span>
+                <span className="w-32 font-bold">{t('res.hotel')} :</span>
                 <span>{hotels.find(h => h.id === printingRoomingList.hotelId)?.name}</span>
               </div>
               <div className="flex">
-                <span className="w-32 font-bold">Arrival Date :</span>
+                <span className="w-32 font-bold">{t('res.arrivalDate')} :</span>
                 <span>{new Date(printingRoomingList.checkIn).toLocaleDateString('en-GB')}</span>
               </div>
               <div className="flex">
-                <span className="w-32 font-bold">Departure Date :</span>
+                <span className="w-32 font-bold">{t('res.departureDate')} :</span>
                 <span>{new Date(printingRoomingList.checkOut).toLocaleDateString('en-GB')}</span>
               </div>
             </div>
@@ -729,12 +731,12 @@ export default function ReservationsPage({
             <table className="w-full text-left text-[12px] border-collapse" style={{ border: '1px solid #1e293b' }}>
               <thead>
                 <tr className="bg-slate-100/50">
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Room Type</th>
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Meal Plan</th>
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Guest Name</th>
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Conf. No</th>
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Room No</th>
-                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>Remarks</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.roomType')}</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.mealPlan')}</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.guestName')}</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.confNo')}</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.roomNo')}</th>
+                  <th className="p-1.5 font-bold" style={{ border: '1px solid #1e293b' }}>{t('res.remarks')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -760,7 +762,7 @@ export default function ReservationsPage({
                             <td className="p-1.5 font-semibold" style={{ border: '1px solid #1e293b' }}>{rDetails.name || (i === 0 ? printingRoomingList.guestName : '')}</td>
                             <td className="p-1.5" style={{ border: '1px solid #1e293b' }}>{rDetails.confNo || printingRoomingList.hotelConfirmationNo || ''}</td>
                             <td className="p-1.5" style={{ border: '1px solid #1e293b' }}></td>
-                            <td className="p-1.5 text-[11px]" style={{ border: '1px solid #1e293b' }}>{rm.hasExtraBed ? '+ Extra Bed' : ''}</td>
+                            <td className="p-1.5 text-[11px]" style={{ border: '1px solid #1e293b' }}>{rm.hasExtraBed ? t('res.extraBedLabel') : ''}</td>
                           </tr>
                         );
                       }
@@ -770,7 +772,7 @@ export default function ReservationsPage({
                 ) : (
                   <tr>
                     <td colSpan={6} className="p-4 text-center" style={{ border: '1px solid #1e293b' }}>
-                      No rooms allocated.
+                      {t('res.noRoomsAllocated')}
                     </td>
                   </tr>
                 )}
@@ -788,15 +790,15 @@ export default function ReservationsPage({
         <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-3">
             <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">Reservation ledgers & Operations Console</h2>
-              <p className="text-[10px] text-slate-450 mt-0.5">Filter, search, review details, and trigger confirmation PDF letters.</p>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">{t('res.title')}</h2>
+              <p className="text-[10px] text-slate-450 mt-0.5">{t('res.subtitle')}</p>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
               >
-                â¬‡ï¸ڈ Export CSV
+                â¬‡ï¸ڈ {t('res.exportCSV')}
               </button>
               <button
                 onClick={() => {
@@ -811,7 +813,7 @@ export default function ReservationsPage({
               }}
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow flex items-center gap-1.5"
             >
-              â‍• Book New Reservation
+              â‍• {t('res.newReservation')}
             </button>
           </div>
         </div>
@@ -819,17 +821,17 @@ export default function ReservationsPage({
           {/* Filtering row */}
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Search RSV# / Guest / Hotel</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('common.search')}</label>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="RSV-1001 or guest name"
+                placeholder={t('res.searchPlaceholder')}
                 className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs"
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Check-In Date</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.checkIn')}</label>
               <input
                 type="date"
                 value={filterDate}
@@ -838,42 +840,42 @@ export default function ReservationsPage({
               />
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Client / Agent</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.client')}</label>
               <select
                 value={filterAgentId}
                 onChange={(e) => setFilterAgentId(e.target.value)}
                 className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs"
               >
-                <option value="">-- All Clients --</option>
+                <option value="">{t('res.allClients')}</option>
                 {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
                   <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Status</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('common.status')}</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs"
               >
-                <option value="">-- All Statuses --</option>
-                <option value="Tentative">Tentative (ظ…ط¹ظ„ظ‚)</option>
-                <option value="Confirmed">Confirmed (ظ…ط¤ظƒط¯)</option>
-                <option value="Cancelled">Cancelled (ظ…ظ„ط؛ظٹ)</option>
+                <option value="">-- {t('dash.allStatuses')} --</option>
+                <option value="Tentative">{t('res.tentative')}</option>
+                <option value="Confirmed">{t('res.confirmed')}</option>
+                <option value="Cancelled">{t('res.cancelled')}</option>
               </select>
             </div>
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Sort By</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.sortBy')}</label>
               <select
                 value={filterSort}
                 onChange={(e) => setFilterSort(e.target.value)}
                 className="w-full bg-white px-3 py-1.5 border border-slate-200 rounded text-xs font-bold"
               >
-                <option value="Newest">Creation: Newest</option>
-                <option value="Oldest">Creation: Earliest</option>
-                <option value="Check-In (Up)">Check-In: Earliest</option>
-                <option value="Check-In (Down)">Check-In: Latest</option>
+                <option value="Newest">{t('res.sortNewest')}</option>
+                <option value="Oldest">{t('res.sortOldest')}</option>
+                <option value="Check-In (Up)">{t('res.sortCheckInUp')}</option>
+                <option value="Check-In (Down)">{t('res.sortCheckInDown')}</option>
               </select>
             </div>
           </div>
@@ -888,50 +890,50 @@ export default function ReservationsPage({
           <div className="flex justify-between items-center border-b border-slate-200 pb-4">
             <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
               <span className="p-2 bg-amber-100 text-amber-700 rounded-xl">ًںڈ¨</span>
-              {editingId ? `Edit Booking RSV-${editingId}` : 'New Reservation'}
+              {editingId ? `${t('res.editBooking')} RSV-${editingId}` : t('res.newReservation')}
             </h3>
             <div className="flex items-center gap-3">
               {/* Live Pricing Summary Badge */}
               {selectedHotelObj && checkIn && checkOut && (
                 <div className="flex items-center gap-4 text-[10px] bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-                  <span className="text-slate-500">Nights: <strong className="text-slate-800">{calculateNightsCount()}</strong></span>
-                                  <span className="text-red-600">Cost: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'buy'), 0).toLocaleString()}</strong></span>
-                                  <span className="text-emerald-700">Sell: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0).toLocaleString()}</strong></span>
-                                  <span className="text-amber-700">Profit: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + (roomFullTotal(rm, 'sell') - roomFullTotal(rm, 'buy')), 0).toLocaleString()}</strong></span>
+                  <span className="text-slate-500">{t('res.nights')}: <strong className="text-slate-800">{calculateNightsCount()}</strong></span>
+                                  <span className="text-red-600">{t('res.cost')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'buy'), 0).toLocaleString()}</strong></span>
+                                  <span className="text-emerald-700">{t('res.sell')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0).toLocaleString()}</strong></span>
+                                  <span className="text-amber-700">{t('res.profit')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + (roomFullTotal(rm, 'sell') - roomFullTotal(rm, 'buy')), 0).toLocaleString()}</strong></span>
                 </div>
               )}
-              <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition shadow-sm">âœ• Close</button>
+              <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition shadow-sm">{t('common.close')}</button>
             </div>
           </div>
 
           {/* Section 1: Booking Details */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <span className="text-amber-600">â—ڈ</span> Booking Assignment
+              <span className="text-amber-600">â—ڈ</span> {t('res.bookingAssignment')}
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں‘¤ Customer / Agent</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.customerAgent')}</label>
                 <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">-- Choose Customer --</option>
+                  <option value="">{t('res.chooseCustomer')}</option>
                   {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
                     <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًںڈ­ Supplier</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplier')}</label>
                 <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">-- Choose Supplier --</option>
+                  <option value="">{t('res.chooseSupplier')}</option>
                   {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًںڈ¨ Destination Hotel</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.destinationHotel')}</label>
                 <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); const matchedH = hotels.find(h => h.id === e.target.value); if (matchedH) { setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]); } }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">-- Select Partner Hotel --</option>
+                  <option value="">{t('res.selectPartnerHotel')}</option>
                   {hotels.map(h => (
                     <option key={h.id} value={h.id}>{h.city === 'Makkah' ? 'ًں•‹' : 'ًں•Œ'} {h.name}</option>
                   ))}
@@ -948,15 +950,15 @@ export default function ReservationsPage({
                 <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="w-full bg-slate-50 font-mono px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white" required />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں§³ Lead Guest Name</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.leadGuest')}</label>
                 <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="MOHAMED AL-AHMADI" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white transition-colors" required />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًںŒچ Nationality</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.nationality')}</label>
                 <input type="text" list="nationalities" value={guestNationality} onChange={(e) => setGuestNationality(e.target.value)} placeholder="Saudi" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm uppercase focus:bg-white transition-colors" />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں“ٹ Status</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.statusLabel')}</label>
                 <div className="inline-flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
                   {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => {
                     const abbr = s === 'Tentative' ? 'TNT' : s === 'Confirmed' ? 'CNF' : 'CNL';
@@ -990,9 +992,9 @@ export default function ReservationsPage({
             <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
               <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
                 <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
-                  <span className="text-amber-600">â—ڈ</span> Room Configuration
+                  <span className="text-amber-600">â—ڈ</span> {t('res.roomConfig')}
                 </h4>
-                <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">+ Add Room Line</button>
+                <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">{t('res.addRoomLine')}</button>
               </div>
 
               <div className="space-y-3">
@@ -1004,29 +1006,29 @@ export default function ReservationsPage({
                     <div key={idx} className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
                       <div className="grid grid-cols-2 md:grid-cols-8 gap-3 items-end">
                         <div className="col-span-2">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Room Type</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.roomType')}</label>
                           <select value={rm.roomType} onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })} className="w-full px-2.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold">
                             {selectedHotelObj.roomTypes.map((t, i) => (<option key={i} value={t}>{t}</option>))}
                           </select>
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">View</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.view')}</label>
                           <select value={rm.view} onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
                             {selectedHotelObj.views.map((v, i) => (<option key={i} value={v}>{v}</option>))}
                           </select>
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Meal Plan</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.mealPlan')}</label>
                           <select value={rm.mealPlan} onChange={(e) => handleUpdateRoomRow(idx, { mealPlan: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
                             {selectedHotelObj.mealPlans.map((mp, i) => (<option key={i} value={mp}>{mp}</option>))}
                           </select>
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Qty</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.qty')}</label>
                           <input type="number" min={1} value={rm.qty} onChange={(e) => handleUpdateRoomRow(idx, { qty: Number(e.target.value) })} className="w-full px-2 py-2 border border-slate-200 rounded-lg font-bold font-mono text-xs text-center" />
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Pax</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.pax')}</label>
                           {rm.roomType.toLowerCase().includes('suite') ? (
                             <select value={rm.pax || 2} onChange={(e) => handleUpdateRoomRow(idx, { pax: Number(e.target.value) })} className="w-full bg-white px-1 py-2 border border-slate-200 rounded-lg text-[11px] font-mono font-bold text-center">
                               {[2,3,4,5,6].map(n => (<option key={n} value={n}>{n} Pax</option>))}
@@ -1036,22 +1038,22 @@ export default function ReservationsPage({
                           )}
                         </div>
                         <div className="flex items-end justify-end">
-                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="Delete Room Line">ًں—‘ï¸ڈ</button>
+                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="{t('res.deleteRoomLine')}">ًں—‘ï¸ڈ</button>
                         </div>
                       </div>
 
                       {/* Pricing Row */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200">
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-red-500 block mb-0.5">Buy Rate / Night</label>
+                          <label className="text-[9px] uppercase font-bold text-red-500 block mb-0.5">{t('res.buyRateNight')}</label>
                           <input type="number" value={rm.buyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { buyPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-red-200 rounded-lg text-red-700 font-bold font-mono text-xs bg-red-50/30" />
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-0.5">Sell Rate / Night</label>
+                          <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-0.5">{t('res.sellRateNight')}</label>
                           <input type="number" value={rm.sellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-emerald-800 font-bold font-mono text-xs bg-emerald-50/30" />
                         </div>
                         <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                          <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">Room Totals ({calculateNightsCount()}N أ— {rm.qty} rooms)</div>
+                          <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">{t('res.roomTotals')} ({calculateNightsCount()}N أ— {rm.qty} rooms)</div>
                           <div className="flex justify-between text-[10px]">
                             <span className="text-red-600 font-mono font-bold">-{roomBuyTotal.toLocaleString()}</span>
                             <span className="text-emerald-700 font-mono font-bold">+{roomSellTotal.toLocaleString()}</span>
@@ -1061,27 +1063,27 @@ export default function ReservationsPage({
                         <div className="flex flex-col gap-1.5">
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasWeekend || false} onChange={(e) => handleUpdateRoomRow(idx, { hasWeekend: e.target.checked })} className="rounded text-amber-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">Weekend Rate</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.weekendRate')}</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasExtraBed || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraBed: e.target.checked })} className="rounded text-indigo-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Bed</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraBed')}</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasSeparateMealRate || false} onChange={(e) => handleUpdateRoomRow(idx, { hasSeparateMealRate: e.target.checked })} className="rounded text-rose-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">Separate Meal</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.separateMealRate')}</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasViewSupplement || false} onChange={(e) => handleUpdateRoomRow(idx, { hasViewSupplement: e.target.checked })} className="rounded text-sky-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">View Supplement</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.viewSupplement')}</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasExtraMeal1 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal1: e.target.checked })} className="rounded text-orange-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Meal 1</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraMeal')} 1</span>
                           </label>
                           <label className="flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" checked={rm.hasExtraMeal2 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal2: e.target.checked })} className="rounded text-teal-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">Extra Meal 2</span>
+                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraMeal')} 2</span>
                           </label>
                         </div>
                       </div>
@@ -1089,40 +1091,40 @@ export default function ReservationsPage({
                       {/* Expandable option rows */}
                       {rm.hasWeekend && (
                         <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-amber-200 bg-amber-50/30 py-2 mt-3 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Buy/Night (Thu-Fri)</label><input type="number" value={rm.weekendBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">Weekend Sell/Night (Thu-Fri)</label><input type="number" value={rm.weekendSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">{t('res.weekendBuyNight')}</label><input type="number" value={rm.weekendBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">{t('res.weekendSellNight')}</label><input type="number" value={rm.weekendSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraBed && (
                         <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-indigo-200 bg-indigo-50/30 py-2 mt-2 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Buy/Night</label><input type="number" value={rm.extraBedBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">Extra Bed Sell/Night</label><input type="number" value={rm.extraBedSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">{t('res.extraBedBuyNight')}</label><input type="number" value={rm.extraBedBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">{t('res.extraBedSellNight')}</label><input type="number" value={rm.extraBedSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasSeparateMealRate && (
                         <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-rose-200 bg-rose-50/30 py-2 mt-2 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Buy/Pax/Night</label><input type="number" value={rm.mealRateBuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateBuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">Meal Sell/Pax/Night</label><input type="number" value={rm.mealRateSellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateSellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">{t('res.mealBuyPaxNight')}</label><input type="number" value={rm.mealRateBuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateBuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">{t('res.mealSellPaxNight')}</label><input type="number" value={rm.mealRateSellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateSellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasViewSupplement && (
                         <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-sky-200 bg-sky-50/30 py-2 mt-2 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">View Supp. Buy/Room/Night</label><input type="number" value={rm.viewSuppBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">View Supp. Sell/Room/Night</label><input type="number" value={rm.viewSuppSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">{t('res.viewSuppBuyRoomNight')}</label><input type="number" value={rm.viewSuppBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">{t('res.viewSuppSellRoomNight')}</label><input type="number" value={rm.viewSuppSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraMeal1 && (
                         <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-orange-200 bg-orange-50/30 py-2 mt-2 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Meal Label</label><input type="text" value={rm.extraMeal1Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-slate-800 font-bold text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Buy/Pax/Night</label><input type="number" value={rm.extraMeal1BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">Sell/Pax/Night</label><input type="number" value={rm.extraMeal1SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.mealLabel')}</label><input type="text" value={rm.extraMeal1Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-slate-800 font-bold text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.buyPaxNight')}</label><input type="number" value={rm.extraMeal1BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.sellPaxNight')}</label><input type="number" value={rm.extraMeal1SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraMeal2 && (
                         <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-teal-200 bg-teal-50/30 py-2 mt-2 rounded-r">
-                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Meal Label</label><input type="text" value={rm.extraMeal2Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-slate-800 font-bold text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Buy/Pax/Night</label><input type="number" value={rm.extraMeal2BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
-                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">Sell/Pax/Night</label><input type="number" value={rm.extraMeal2SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.mealLabel')}</label><input type="text" value={rm.extraMeal2Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-slate-800 font-bold text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.buyPaxNight')}</label><input type="number" value={rm.extraMeal2BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
+                          <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.sellPaxNight')}</label><input type="number" value={rm.extraMeal2SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                     </div>
@@ -1135,7 +1137,7 @@ export default function ReservationsPage({
           {/* Section 3: Status-Specific Fields & References */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <span className="text-amber-600">â—ڈ</span> References & Status Details
+              <span className="text-amber-600">â—ڈ</span> {t('res.referencesStatus')}
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1143,11 +1145,11 @@ export default function ReservationsPage({
               {status === 'Tentative' && (
                 <>
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-rose-800 block mb-1 font-serif">âڈ° Client Option Expire</label>
+                    <label className="text-[10px] uppercase font-bold text-rose-800 block mb-1 font-serif">{t('res.clientOptionExpire')}</label>
                     <input type="date" value={clientOptionDate} onChange={(e) => setClientOptionDate(e.target.value)} className="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-xs bg-rose-50/50 font-semibold text-rose-900 focus:bg-white" required />
                   </div>
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-red-800 block mb-1 font-serif">âڈ° Supplier Option Expire</label>
+                    <label className="text-[10px] uppercase font-bold text-red-800 block mb-1 font-serif">{t('res.supplierOptionExpire')}</label>
                     <input type="date" value={supplierOptionDate} onChange={(e) => setSupplierOptionDate(e.target.value)} className="w-full px-3 py-2.5 border border-red-200 rounded-xl text-xs bg-red-50/50 font-semibold text-red-900 focus:bg-white" required />
                   </div>
                 </>
@@ -1157,7 +1159,7 @@ export default function ReservationsPage({
               {status === 'Confirmed' && (
                 <>
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-emerald-800 block mb-1">âœ… Hotel Confirmation #</label>
+                    <label className="text-[10px] uppercase font-bold text-emerald-800 block mb-1">{t('res.hotelConfNo')}</label>
                     <input type="text" value={hotelConfirmationNo} onChange={(e) => setHotelConfirmationNo(e.target.value)} placeholder="CONF-559021" className="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm font-bold focus:bg-white font-mono bg-emerald-50/30 text-emerald-900" required />
                   </div>
                 </>
@@ -1167,38 +1169,38 @@ export default function ReservationsPage({
               {status === 'Cancelled' && (
                 <>
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">ًں’° Cancellation Penalty (SAR)</label>
+                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">{t('res.cancellationPenalty')}</label>
                     <input type="number" value={cancellationFee || ''} onChange={(e) => setCancellationFee(Number(e.target.value))} className="w-full px-3 py-2.5 border border-rose-200 bg-rose-50/30 rounded-xl text-sm font-mono font-bold text-rose-700" />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">ًں“‌ Reason / ط³ط¨ط¨ ط§ظ„ط¥ظ„ط؛ط§ط،</label>
+                    <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">{t('res.reason')}</label>
                     <select value={cancellationReason.startsWith('Other') ? 'Other' : cancellationReason} onChange={(e) => { const sel = e.target.value; if (sel === 'Other') { setCancellationReason('Other: '); } else { setCancellationReason(sel); } }} className="w-full px-3 py-2.5 border border-rose-200 bg-rose-50/30 rounded-xl text-xs font-medium focus:bg-white">
-                      <option value="Customer requested cancellation (ط·ظ„ط¨ ط§ظ„ط¹ظ…ظٹظ„)">Customer requested cancellation</option>
-                      <option value="Supplier unable to confirm allotment (ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ‚ط§ط¯ط± ط¹ظ„ظ‰ ط§ظ„طھط£ظƒظٹط¯)">Supplier unable to confirm</option>
-                      <option value="Expiry of Option Date without deposit (ط§ظ†طھظ‡ط§ط، ظ…ظ‡ظ„ط© ط§ظ„ط­ط¬ط²)">Expiry of Option Date</option>
-                      <option value="Duplicate booking reservation (ط­ط¬ط² ظ…ظƒط±ط±)">Duplicate booking</option>
-                      <option value="Pricing discrepancy / agreement dispute (ط®ظ„ط§ظپ ظپظٹ ط§ظ„ط³ط¹ط±)">Pricing discrepancy</option>
-                      <option value="Other">Other reason (ط³ط¨ط¨ ط¢ط®ط±)</option>
+                      <option value="Customer requested cancellation (ط·ظ„ط¨ ط§ظ„ط¹ظ…ظٹظ„)">{t('res.cancellationReasons')}</option>
+                      <option value="Supplier unable to confirm allotment (ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ‚ط§ط¯ط± ط¹ظ„ظ‰ ط§ظ„طھط£ظƒظٹط¯)">{t('res.supplierUnableConfirm')}</option>
+                      <option value="Expiry of Option Date without deposit (ط§ظ†طھظ‡ط§ط، ظ…ظ‡ظ„ط© ط§ظ„ط­ط¬ط²)">{t('res.expiryOptionDate')}</option>
+                      <option value="Duplicate booking reservation (ط­ط¬ط² ظ…ظƒط±ط±)">{t('res.duplicateBooking')}</option>
+                      <option value="Pricing discrepancy / agreement dispute (ط®ظ„ط§ظپ ظپظٹ ط§ظ„ط³ط¹ط±)">{t('res.pricingDiscrepancy')}</option>
+                      <option value="Other">{t('res.otherReason')} (ط³ط¨ط¨ ط¢ط®ط±)</option>
                     </select>
                     {cancellationReason.startsWith('Other') && (
-                      <input type="text" value={cancellationReason.replace('Other: ', '')} onChange={(e) => setCancellationReason('Other: ' + e.target.value)} placeholder="Describe exact reason..." className="w-full mt-2 px-3 py-2 border border-rose-200 bg-white rounded-xl text-xs font-semibold focus:border-rose-400" required />
+                      <input type="text" value={cancellationReason.replace('Other: ', '')} onChange={(e) => setCancellationReason('Other: ' + e.target.value)} placeholder={t('res.describeReason')} className="w-full mt-2 px-3 py-2 border border-rose-200 bg-white rounded-xl text-xs font-semibold focus:border-rose-400" required />
                     )}
                   </div>
 
                   {/* Client Credit Disposition */}
                   {amountPaidByClient > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">💵 Client Paid: {amountPaidByClient.toLocaleString()} SAR — What happened?</label>
+                      <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">{t('res.clientPaidWhat', { amount: amountPaidByClient.toLocaleString() })}</label>
                       <div className="flex gap-1">
                         {(['Refunded', 'Kept as Credit', 'N/A'] as const).map(opt => (
                           <button key={opt} type="button" onClick={() => setClientCreditDisposition(opt)}
                             className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${clientCreditDisposition === opt ? opt === 'Refunded' ? 'bg-emerald-600 text-white border-emerald-600' : opt === 'Kept as Credit' ? 'bg-amber-500 text-white border-amber-500' : 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'}`}>
-                            {opt === 'Refunded' ? '💸 Refunded' : opt === 'Kept as Credit' ? '🏦 Kept as Credit' : '— N/A'}
+                            {opt === 'Refunded' ? '💸 ' + t('res.refunded') : opt === 'Kept as Credit' ? '🏦 ' + t('res.keptAsCredit') : '— ' + t('res.na')}
                           </button>
                         ))}
                       </div>
                       {clientCreditDisposition !== 'N/A' && (
-                        <input type="text" value={clientCreditNote} onChange={(e) => setClientCreditNote(e.target.value)} placeholder={clientCreditDisposition === 'Refunded' ? 'Refund details / receipt #...' : 'Credit for future booking...'} className="w-full mt-1.5 px-3 py-2 border border-rose-200 bg-white rounded-xl text-[10px] font-semibold focus:border-rose-400" />
+                        <input type="text" value={clientCreditNote} onChange={(e) => setClientCreditNote(e.target.value)} placeholder={clientCreditDisposition === 'Refunded' ? t('res.refundDetails') : t('res.creditFutureBooking')} className="w-full mt-1.5 px-3 py-2 border border-rose-200 bg-white rounded-xl text-[10px] font-semibold focus:border-rose-400" />
                       )}
                     </div>
                   )}
@@ -1206,17 +1208,17 @@ export default function ReservationsPage({
                   {/* Supplier Credit Disposition */}
                   {amountPaidToSupplier > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">💸 Supplier Paid: {amountPaidToSupplier.toLocaleString()} SAR — What happened?</label>
+                      <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">{t('res.supplierPaidWhat', { amount: amountPaidToSupplier.toLocaleString() })}</label>
                       <div className="flex gap-1">
                         {(['Refunded', 'Kept as Credit', 'N/A'] as const).map(opt => (
                           <button key={opt} type="button" onClick={() => setSupplierCreditDisposition(opt)}
                             className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${supplierCreditDisposition === opt ? opt === 'Refunded' ? 'bg-emerald-600 text-white border-emerald-600' : opt === 'Kept as Credit' ? 'bg-amber-500 text-white border-amber-500' : 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200 hover:border-rose-300'}`}>
-                            {opt === 'Refunded' ? '💸 Refunded' : opt === 'Kept as Credit' ? '🏦 Kept as Credit' : '— N/A'}
+                            {opt === 'Refunded' ? '💸 ' + t('res.refunded') : opt === 'Kept as Credit' ? '🏦 ' + t('res.keptAsCredit') : '— ' + t('res.na')}
                           </button>
                         ))}
                       </div>
                       {supplierCreditDisposition !== 'N/A' && (
-                        <input type="text" value={supplierCreditNote} onChange={(e) => setSupplierCreditNote(e.target.value)} placeholder={supplierCreditDisposition === 'Refunded' ? 'Refund details / receipt #...' : 'Credit for future booking...'} className="w-full mt-1.5 px-3 py-2 border border-rose-200 bg-white rounded-xl text-[10px] font-semibold focus:border-rose-400" />
+                        <input type="text" value={supplierCreditNote} onChange={(e) => setSupplierCreditNote(e.target.value)} placeholder={supplierCreditDisposition === 'Refunded' ? t('res.refundDetails') : t('res.creditFutureBooking')} className="w-full mt-1.5 px-3 py-2 border border-rose-200 bg-white rounded-xl text-[10px] font-semibold focus:border-rose-400" />
                       )}
                     </div>
                   )}
@@ -1225,26 +1227,26 @@ export default function ReservationsPage({
 
               {/* Common reference fields */}
               <div>
-                <label className="text-[10px] uppercase font-bold text-indigo-800 block mb-1">ًںڈ›ï¸ڈ Bank Account (Confirmation PDF)</label>
+                <label className="text-[10px] uppercase font-bold text-indigo-800 block mb-1">{t('res.bankAccount')}</label>
                 <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} className="w-full px-3 py-2.5 border border-indigo-200 bg-indigo-50/30 rounded-xl text-xs font-semibold focus:bg-white text-indigo-900">
-                  <option value="">Default Bank Info</option>
+                  <option value="">{t('res.defaultBankInfo')}</option>
                   {accounts?.filter(a => a.type === 'Bank').map(acc => (<option key={acc.id} value={acc.id}>{acc.name} ({acc.currency || 'SAR'})</option>))}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں“‹ Agreement No</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.agreementNo')}</label>
                 <input type="text" value={agreementNo} onChange={(e) => setAgreementNo(e.target.value)} placeholder="Contract No" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں§¾ Supplier Voucher</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>
                 <input type="text" value={supplierVoucher} onChange={(e) => setSupplierVoucher(e.target.value)} placeholder="Supplier Ref" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں’³ Client Downpay (SAR)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.clientDownpay')}</label>
                 <input type="number" value={amountPaidByClient || ''} onChange={(e) => setAmountPaidByClient(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں’¸ Supplier Downpay (SAR)</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierDownpay')}</label>
                 <input type="number" value={amountPaidToSupplier || ''} onChange={(e) => setAmountPaidToSupplier(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
             </div>
@@ -1254,7 +1256,7 @@ export default function ReservationsPage({
           {selectedHotelObj && checkIn && checkOut && (
             <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <span className="text-amber-600">â—ڈ</span> Financial Summary
+                <span className="text-amber-600">â—ڈ</span> {t('res.financialSummary')}
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
                 {(() => {
@@ -1267,30 +1269,30 @@ export default function ReservationsPage({
                   return (
                     <>
                       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Cost</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.totalCost')}</div>
                         <div className="text-sm font-extrabold font-mono text-red-600">{totalBuy.toLocaleString()} SAR</div>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Sell</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.totalSell')}</div>
                         <div className="text-sm font-extrabold font-mono text-emerald-700">{totalSell.toLocaleString()} SAR</div>
                       </div>
                       <div className={`rounded-xl p-3 border ${profit >= 0 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'}`}>
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Profit</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.profit')}</div>
                         <div className={`text-sm font-extrabold font-mono ${profit >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</div>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Rooms / Pax</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.roomsPax')}</div>
                         <div className="text-sm font-extrabold font-mono text-slate-800">{totalRooms} / {totalPax}</div>
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Client Paid</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.clientPaid')}</div>
                         <div className="text-sm font-extrabold font-mono text-indigo-700">{amountPaidByClient.toLocaleString()} SAR</div>
-                        {clientOutstanding > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {clientOutstanding.toLocaleString()}</div>}
+                        {clientOutstanding > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">{t('res.due')}: {clientOutstanding.toLocaleString()}</div>}
                       </div>
                       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">Supplier Paid</div>
+                        <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.supplierPaid')}</div>
                         <div className="text-sm font-extrabold font-mono text-indigo-700">{amountPaidToSupplier.toLocaleString()} SAR</div>
-                        {(totalBuy - amountPaidToSupplier) > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalBuy - amountPaidToSupplier).toLocaleString()}</div>}
+                        {(totalBuy - amountPaidToSupplier) > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">{t('res.due')}: {(totalBuy - amountPaidToSupplier).toLocaleString()}</div>}
                       </div>
                     </>
                   );
@@ -1306,34 +1308,88 @@ export default function ReservationsPage({
               type="submit"
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm"
             >
-              Commit Save Booking
+              {t('common.save')} {t('res.saveBooking')}
             </button>
             <button
               type="button"
               onClick={resetForm}
               className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-6 py-2.5 rounded-xl transition"
             >
-              Cancel Block
+              {t('common.cancel')}
             </button>
           </div>
 
         </form>
       ) : (
         /* Dynamic table listing of filter output */
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm overflow-x-auto text-[11px]">
-          <table className="w-full text-left border-collapse">
+        <>
+        {/* Mobile Card Layout */}
+        <div className="md:hidden space-y-3">
+          {sortedReservations.map((res) => {
+            const client = agents.find(a => a.id === res.clientId);
+            const hotel = hotels.find(h => h.id === res.hotelId);
+            const { totalSell, totalBuy, profit } = getReservationTotals(res);
+            const clientPaid = res.amountPaidByClient || 0;
+            const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
+            return (
+              <div key={res.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className="font-bold font-mono text-slate-900 bg-amber-50 px-2 py-0.5 rounded text-[10px]">RSV-{res.id}</span>
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold ${res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800' : res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{res.status === 'Confirmed' ? t('res.confirmed') : res.status === 'Cancelled' ? t('res.cancelled') : t('res.tentative')}</span>
+                  </div>
+                  <span className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
+                </div>
+                <div className="font-semibold uppercase text-slate-900 text-sm mb-1">{res.guestName}</div>
+                <div className="text-[10px] text-slate-600 mb-2">{hotel?.name} &bull; {client?.companyName || client?.name}</div>
+                <div className="flex justify-between text-[10px] font-mono text-slate-600 mb-2">
+                  <span>{res.checkIn} → {res.checkOut} ({res.nights}N)</span>
+                </div>
+                <div className="flex gap-2 mb-3">
+                  <div className="flex-1 text-center bg-slate-50 rounded-lg p-2 border border-slate-100">
+                    <div className="text-[8px] uppercase font-bold text-slate-400">{t('res.clientPaid')}</div>
+                    <div className="font-mono font-bold text-emerald-700 text-[11px]">{clientPaid.toLocaleString()}</div>
+                    <div className="w-full bg-slate-100 h-1 rounded-full mt-1 overflow-hidden"><div className={`h-full rounded-full ${paidPercent >= 100 ? 'bg-emerald-500' : paidPercent > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${Math.min(paidPercent, 100)}%` }}></div></div>
+                  </div>
+                  <div className="flex-1 text-center bg-slate-50 rounded-lg p-2 border border-slate-100">
+                    <div className="text-[8px] uppercase font-bold text-slate-400">{t('res.supplierPaid')}</div>
+                    <div className="font-mono font-bold text-indigo-700 text-[11px]">{(res.amountPaidToSupplier || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button onClick={() => setViewingId(res.id.toString())} className="flex-1 min-w-[100px] bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-3 py-2.5 rounded-lg border border-slate-200 text-[10px]">{t('res.detailsPay')}</button>
+                  <button onClick={() => setPrintingDoc({ res, isVoucher: false })} className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2.5 rounded-lg border border-indigo-200 text-[10px]">{t('res.confirmation')}</button>
+                  <button onClick={() => setPrintingDoc({ res, isVoucher: true })} className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2.5 rounded-lg border border-emerald-200 text-[10px]">{t('res.voucher')}</button>
+                  <button onClick={() => handleEdit(res)} className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-lg border border-amber-200 text-[10px]">{t('common.edit')}</button>
+                  <button onClick={() => { if (confirm('Delete RSV-' + res.id + '?')) onDeleteReservation(res.id.toString()); }} className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2.5 rounded-lg border border-rose-200 text-[10px]">{t('common.delete')}</button>
+                </div>
+              </div>
+            );
+          })}
+          {filteredReservations.length === 0 && (
+            <div className="py-16 text-center animate-fade-in">
+              <div className="text-5xl mb-4">📋</div>
+              <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
+              <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table Layout */}
+        <div className="hidden md:block bg-white border border-slate-150 rounded-2xl p-4 shadow-sm overflow-x-auto text-[11px] -webkit-overflow-scrolling: touch">
+          <table className="w-full text-left border-collapse min-w-[900px] md:min-w-0">
             <thead>
               <tr className="border-b border-light text-slate-400 font-semibold bg-slate-50/50 uppercase tracking-wider text-[10px]">
-                <th className="py-2.5 px-3 font-mono">RSV ID</th>
-                <th className="py-2.5 px-3">Lead Guest</th>
-                <th className="py-2.5 px-3 text-left">Tour Agent Client</th>
-                <th className="py-2.5 px-3 text-left">Hotel</th>
-                <th className="py-2.5 px-3 font-mono">Dates & Nights</th>
-                <th className="py-2.5 px-3 text-center">Status</th>
-                <th className="py-2.5 px-3 text-right">Client Payment</th>
-                <th className="py-2.5 px-3 text-right">Supplier Payment</th>
-                <th className="py-2.5 px-3 text-right text-indigo-950">Profit</th>
-                <th className="py-2.5 px-3 text-center">Actions</th>
+                <th className="py-2.5 px-3 font-mono">{t('res.id')}</th>
+                <th className="py-2.5 px-3">{t('res.guestName')}</th>
+                <th className="py-2.5 px-3 text-left">{t('res.client')}</th>
+                <th className="py-2.5 px-3 text-left">{t('res.hotel')}</th>
+                <th className="py-2.5 px-3 font-mono">{t('res.checkIn')} / {t('res.checkOut')}</th>
+                <th className="py-2.5 px-3 text-center">{t('common.status')}</th>
+                <th className="py-2.5 px-3 text-right">{t('res.paymentsByClient')}</th>
+                <th className="py-2.5 px-3 text-right">{t('res.paymentsToSupplier')}</th>
+                <th className="py-2.5 px-3 text-right text-indigo-950">{t('res.profit')}</th>
+                <th className="py-2.5 px-3 text-center">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -1356,8 +1412,8 @@ export default function ReservationsPage({
                     <td className="py-3 px-3 font-medium text-slate-900">{hotel?.name}</td>
                     <td className="py-3 px-3 font-mono text-[10px] text-slate-650">
                       <div>{res.checkIn}</div>
-                      <div className="text-[9px] text-slate-400 font-bold">To: {res.checkOut}</div>
-                      <div className="text-[10px] text-indigo-700 font-bold mt-0.5">{res.nights} Nights</div>
+                      <div className="text-[9px] text-slate-400 font-bold">{t('res.to')}: {res.checkOut}</div>
+                      <div className="text-[10px] text-indigo-700 font-bold mt-0.5">{res.nights} {t('res.nightsLabel')}</div>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <select 
@@ -1388,11 +1444,11 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap">
                       <div className="font-mono font-bold text-emerald-700">{clientPaid.toLocaleString()} <span className="text-[8px] text-slate-400">SAR</span></div>
-                      <div className="text-[9px] text-slate-400 font-bold">of {totalSell.toLocaleString()} ({paidPercent}%)</div>
+                      <div className="text-[9px] text-slate-400 font-bold">{t('res.of')} {totalSell.toLocaleString()} ({paidPercent}%)</div>
                       <div className="w-16 bg-slate-100 h-1.5 rounded-full mt-1 ml-auto overflow-hidden">
                         <div className={`h-full rounded-full ${paidPercent >= 100 ? 'bg-emerald-500' : paidPercent > 0 ? 'bg-amber-400' : 'bg-slate-200'}`} style={{ width: `${Math.min(paidPercent, 100)}%` }}></div>
                       </div>
-                      {paidPercent < 100 && totalSell > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalSell - clientPaid).toLocaleString()}</div>}
+                      {paidPercent < 100 && totalSell > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">{t('res.due')}: {(totalSell - clientPaid).toLocaleString()}</div>}
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap">
                       {(() => {
@@ -1401,11 +1457,11 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         return (
                           <>
                             <div className="font-mono font-bold text-indigo-700">{suppPaid.toLocaleString()} <span className="text-[8px] text-slate-400">SAR</span></div>
-                            <div className="text-[9px] text-slate-400 font-bold">of {totalBuy.toLocaleString()} ({suppPercent}%)</div>
+                            <div className="text-[9px] text-slate-400 font-bold">{t('res.of')} {totalBuy.toLocaleString()} ({suppPercent}%)</div>
                             <div className="w-16 bg-slate-100 h-1.5 rounded-full mt-1 ml-auto overflow-hidden">
                               <div className={`h-full rounded-full ${suppPercent >= 100 ? 'bg-emerald-500' : suppPercent > 0 ? 'bg-blue-400' : 'bg-slate-200'}`} style={{ width: `${Math.min(suppPercent, 100)}%` }}></div>
                             </div>
-                            {suppPercent < 100 && totalBuy > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">Due: {(totalBuy - suppPaid).toLocaleString()}</div>}
+                            {suppPercent < 100 && totalBuy > 0 && <div className="text-[8px] text-rose-500 font-bold mt-0.5">{t('res.due')}: {(totalBuy - suppPaid).toLocaleString()}</div>}
                           </>
                         );
                       })()}
@@ -1418,9 +1474,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         <button
                           onClick={() => setViewingId(res.id.toString())}
                           className="bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-2 py-1 rounded border border-slate-200 text-[10px] whitespace-nowrap"
-                          title="View full details and register payments"
+                          title={t('res.viewReservation')}
                         >
-                          ًں”چ Details & Pay
+                          {t('res.detailsPay')}
                         </button>
                         <button
                           onClick={() => {
@@ -1433,9 +1489,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                             }
                           }}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-1.5 py-1 rounded border border-emerald-200 text-[9px] whitespace-nowrap"
-                          title="Quick record client payment"
+                          title={t('res.recordPayment')}
                         >
-                          ًں’° Client Pay
+                          {t('res.clientPay')}
                         </button>
                         <button
                           onClick={() => {
@@ -1448,30 +1504,30 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                             }
                           }}
                           className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-1.5 py-1 rounded border border-blue-200 text-[9px] whitespace-nowrap"
-                          title="Quick record supplier payment"
+                          title={t('res.recordPayment')}
                         >
-                          ًںڈ¦ Supplier Pay
+                          {t('res.supplierPay')}
                         </button>
                         <button
                           onClick={() => setPrintingDoc({ res: res, isVoucher: false })}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] whitespace-nowrap hidden lg:block"
-                          title="Print Client Confirmation PDF"
+                          title={t('res.printPDF')}
                         >
-                          ًں“„ Print PDF
+                          {t('res.printPDF')}
                         </button>
                         <button
                           onClick={() => setPrintingDoc({ res: res, isVoucher: true })}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded border border-emerald-200 text-[10px] whitespace-nowrap hidden lg:block"
-                          title="Print Hotel Check-in Voucher"
+                          title={t('res.printVoucher')}
                         >
-                          ًںژ« Voucher
+                          {t('res.voucher')}
                         </button>
                         <button
                           onClick={() => setPrintingInvoice(res)}
                           className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-2 py-1 rounded border border-purple-200 text-[10px] whitespace-nowrap hidden lg:block"
-                          title="Generate Professional Invoice"
+                          title={t('res.printInvoice')}
                         >
-                          ًں§¾ Invoice
+                          {t('res.invoice')}
                         </button>
                         <button
                           onClick={() => handleEdit(res)}
@@ -1496,12 +1552,17 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
               })}
               {filteredReservations.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-450 italic">No bookings found satisfying filters.</td>
+                  <td colSpan={10} className="py-16 text-center animate-fade-in">
+                    <div className="text-5xl mb-4">📋</div>
+                    <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
+                    <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Detailed Reservation overlay card - Redesigned with tabs */}
@@ -1521,8 +1582,8 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
         const relatedTrs = transactions.filter(t => t.reservationId === resObj.id.toString());
 
         return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
+            <div className="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full my-0 md:my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden max-h-[100vh] md:max-h-[95vh] overflow-y-auto">
 
               {/* Header Bar */}
               <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center">
@@ -1541,23 +1602,23 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     resObj.status === 'Cancelled' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
                     'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}>{resObj.status}</span>
-                  <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-white/10 hover:bg-white/20 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition">âœڈï¸ڈ Edit</button>
+                  <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-white/10 hover:bg-white/20 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition">{t('common.edit')}</button>
                   <button onClick={() => setViewingId(null)} className="text-slate-400 hover:text-white text-lg transition">âœ•</button>
                 </div>
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex border-b border-slate-200 bg-slate-50/50 px-4">
+              <div className="flex border-b border-slate-200 bg-slate-50/50 px-2 md:px-4 overflow-x-auto">
                 {([
-                  { key: 'overview' as const, label: 'Overview', icon: 'ًں“‹' },
-                  { key: 'payment' as const, label: 'Record Payment', icon: 'ًں’³' },
-                  { key: 'agreements' as const, label: 'Agreements & Rooms', icon: 'âڑ™ï¸ڈ' },
-                  { key: 'documents' as const, label: 'Documents', icon: 'ًں“„' },
+                  { key: 'overview' as const, label: t('res.overview'), icon: '📋' },
+                  { key: 'payment' as const, label: t('res.recordPaymentTitle'), icon: '💳' },
+                  { key: 'agreements' as const, label: t('res.agreementsRooms'), icon: '⚙️' },
+                  { key: 'documents' as const, label: t('res.documents'), icon: '📄' },
                 ]).map(tab => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveDetailTab(tab.key)}
-                    className={`px-4 py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all ${
+                    className={`px-3 md:px-4 py-3 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap flex-shrink-0 ${
                       activeDetailTab === tab.key
                         ? 'border-amber-500 text-amber-700 bg-white'
                         : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-white/50'
@@ -1569,7 +1630,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
               </div>
 
               {/* Tab Content */}
-              <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 md:p-6 max-h-[70vh] overflow-y-auto thin-scrollbar">
 
                 {/* ===== OVERVIEW TAB ===== */}
                 {activeDetailTab === 'overview' && (
@@ -1577,35 +1638,35 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Guest & Booking Info Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
-                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">Guest Information</h5>
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">{t('res.guestInformation')}</h5>
                         <div className="grid grid-cols-2 gap-y-1.5">
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Lead Guest</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.leadGuest')}</span>
                           <span className="font-bold text-slate-900 text-sm uppercase">{resObj.guestName}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Nationality</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.nationality')}</span>
                           <span className="font-semibold text-slate-700">{resObj.guestNationality}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Stay Period</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.stayPeriod')}</span>
                           <span className="font-mono text-slate-700 text-[10px]">{resObj.checkIn} â†’ {resObj.checkOut}</span>
                         </div>
                         {resObj.status === 'Tentative' && (
                           <div className="mt-2 bg-rose-50 rounded-lg p-2.5 border border-rose-200 space-y-1">
-                            <div className="text-[9px] uppercase font-bold text-rose-400 mb-1">Option Deadlines</div>
+                            <div className="text-[9px] uppercase font-bold text-rose-400 mb-1">{t('res.optionDeadlines')}</div>
                             <div className="flex justify-between text-[10px] font-mono">
-                              <span className="text-rose-700">Client: {resObj.clientOptionDate || 'Not Set'}</span>
-                              <span className="text-rose-700">Supplier: {resObj.supplierOptionDate || 'Not Set'}</span>
+                              <span className="text-rose-700">{t('res.client')}: {resObj.clientOptionDate || t('res.notSet')}</span>
+                              <span className="text-rose-700">{t('res.supplier')}: {resObj.supplierOptionDate || t('res.notSet')}</span>
                             </div>
                           </div>
                         )}
                         {resObj.status === 'Confirmed' && (
                           <div className="mt-2 bg-emerald-50 rounded-lg p-2.5 border border-emerald-200">
-                            <div className="text-[9px] uppercase font-bold text-emerald-400">Hotel Confirmation #</div>
+                            <div className="text-[9px] uppercase font-bold text-emerald-400">{t('res.hotelConfirmation')}</div>
                             <div className="font-mono font-bold text-emerald-800 text-sm">{resObj.hotelConfirmationNo || 'Pending'}</div>
                           </div>
                         )}
                         {resObj.status === 'Cancelled' && (
                           <div className="mt-2 bg-rose-50 rounded-lg p-2.5 border border-rose-200">
-                            <div className="text-[9px] uppercase font-bold text-rose-400">Cancellation</div>
-                            <div className="text-[10px] text-rose-700">{resObj.cancellationReason || 'N/A'}</div>
-                            {resObj.cancellationFee ? <div className="text-[10px] font-bold text-rose-800 mt-1">Penalty: {resObj.cancellationFee.toLocaleString()} SAR</div> : null}
+                            <div className="text-[9px] uppercase font-bold text-rose-400">{t('res.cancellation')}</div>
+                            <div className="text-[10px] text-rose-700">{resObj.cancellationReason || t('res.na')}</div>
+                            {resObj.cancellationFee ? <div className="text-[10px] font-bold text-rose-800 mt-1">{t('res.penalty')}: {resObj.cancellationFee.toLocaleString()} SAR</div> : null}
                             {(resObj.clientCreditDisposition && resObj.clientCreditDisposition !== 'N/A') && (
                               <div className={`mt-1.5 text-[9px] font-bold px-2 py-1 rounded ${resObj.clientCreditDisposition === 'Refunded' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                 💵 Client: {resObj.clientCreditDisposition} {resObj.clientCreditNote ? ` — ${resObj.clientCreditNote}` : ''}
@@ -1620,21 +1681,21 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         )}
                       </div>
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
-                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">Booking Details</h5>
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-2">{t('res.bookingDetails')}</h5>
                         <div className="grid grid-cols-2 gap-y-1.5">
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Client</span>
-                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.clientId)?.companyName || 'N/A'}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Supplier</span>
-                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.supplierId)?.name || 'Direct'}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Hotel</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.client')}</span>
+                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.clientId)?.companyName || t('res.na')}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.supplier')}</span>
+                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.supplierId)?.name || t('res.direct')}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.hotel')}</span>
                           <span className="font-semibold text-slate-800">{hotelObj?.name}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Agreement</span>
-                          <span className="font-mono text-slate-700">{resObj.agreementNo || 'Direct'}</span>
-                          <span className="text-[9px] uppercase font-bold text-slate-400">Agreement Status</span>
-                          <span className="font-bold uppercase font-mono text-indigo-700">{resObj.agreementStatus || 'Pending'}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.agreements')}</span>
+                          <span className="font-mono text-slate-700">{resObj.agreementNo || t('res.direct')}</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.agreementStatus')}</span>
+                          <span className="font-bold uppercase font-mono text-indigo-700">{resObj.agreementStatus || t('res.pending')}</span>
                         </div>
                         <div className="mt-2 bg-indigo-50 rounded-lg p-2.5 border border-indigo-200">
-                          <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">Rooms</div>
+                          <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">{t('res.rooms')}</div>
                           {resObj.rooms.map((rm, i) => (
                             <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty}أ— {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
                           ))}
@@ -1644,30 +1705,30 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
 
                     {/* Financial Summary */}
                     <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
-                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-3">Financial Summary</h5>
+                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest border-b border-slate-200 pb-1.5 mb-3">{t('res.financialSummary')}</h5>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center mb-4">
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Sale</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.totalSale')}</span>
                           <span className="font-mono font-extrabold text-emerald-700 text-sm">{totalSell.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Supplier Cost</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.supplierCost')}</span>
                           <span className="font-mono font-extrabold text-amber-800 text-sm">{totalBuy.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
                         <div className={`rounded-lg p-2.5 border ${profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Net Profit</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.netProfit')}</span>
                           <span className={`font-mono font-extrabold text-sm ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Client Due</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.clientDue')}</span>
                           <span className={`font-mono font-extrabold text-sm ${clientRemaining > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{clientRemaining.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
-                          <span className="text-[9px] uppercase font-bold text-slate-400 block">Supplier Due</span>
+                          <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.supplierDue')}</span>
                           <span className={`font-mono font-extrabold text-sm ${supplierRemaining > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{supplierRemaining.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
@@ -1677,9 +1738,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="bg-white rounded-lg p-3 border border-slate-200">
                           <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-[10px] font-bold text-slate-600">Client Payment</span>
+                            <span className="text-[10px] font-bold text-slate-600">{t('res.clientPaid')}</span>
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${clientPct >= 100 ? 'bg-emerald-100 text-emerald-800' : clientPct > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'}`}>
-                              {clientPct >= 100 ? 'Paid' : clientPct > 0 ? 'Partial' : 'Unpaid'} {clientPct}%
+                              {clientPct >= 100 ? t('res.paid') : clientPct > 0 ? t('res.partial') : t('res.unpaid')} {clientPct}%
                             </span>
                           </div>
                           <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-1">
@@ -1687,14 +1748,14 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           </div>
                           <div className="flex justify-between text-[10px] font-mono">
                             <span className="text-emerald-700 font-bold">{clientPaid.toLocaleString()} SAR</span>
-                            <span className="text-slate-400">of {totalSell.toLocaleString()} SAR</span>
+                            <span className="text-slate-400">{t('res.of')} {totalSell.toLocaleString()} SAR</span>
                           </div>
                         </div>
                         <div className="bg-white rounded-lg p-3 border border-slate-200">
                           <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-[10px] font-bold text-slate-600">Supplier Payment</span>
+                            <span className="text-[10px] font-bold text-slate-600">{t('res.supplierPaid')}</span>
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${supplierPct >= 100 ? 'bg-emerald-100 text-emerald-800' : supplierPct > 0 ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-700'}`}>
-                              {supplierPct >= 100 ? 'Paid' : supplierPct > 0 ? 'Partial' : 'Unpaid'} {supplierPct}%
+                              {supplierPct >= 100 ? t('res.paid') : supplierPct > 0 ? t('res.partial') : t('res.unpaid')} {supplierPct}%
                             </span>
                           </div>
                           <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-1">
@@ -1702,7 +1763,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           </div>
                           <div className="flex justify-between text-[10px] font-mono">
                             <span className="text-indigo-700 font-bold">{supplierPaid.toLocaleString()} SAR</span>
-                            <span className="text-slate-400">of {totalBuy.toLocaleString()} SAR</span>
+                            <span className="text-slate-400">{t('res.of')} {totalBuy.toLocaleString()} SAR</span>
                           </div>
                         </div>
                       </div>
@@ -1711,7 +1772,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Payment History */}
                     {relatedTrs.length > 0 && (
                       <div className="bg-white rounded-xl p-4 border border-slate-200">
-                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">Payment History ({relatedTrs.length} transactions)</h5>
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">{t('res.paymentHistory')} ({relatedTrs.length} {t('res.transactions')})</h5>
                         <div className="space-y-1 max-h-32 overflow-y-auto">
                           {relatedTrs.map(tr => (
                             <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-3 py-1.5 rounded-lg">
@@ -1749,9 +1810,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                       >
                         <div className="flex justify-between items-center">
                           <div>
-                            <div className="text-[9px] font-bold uppercase text-emerald-600">Receive from Client</div>
+                            <div className="text-[9px] font-bold uppercase text-emerald-600">{t('res.receiveFromClient')}</div>
                             <div className="font-mono font-extrabold text-emerald-800 text-lg">{clientRemaining.toLocaleString()} SAR</div>
-                            <div className="text-[9px] text-slate-500">Outstanding balance from {agents.find(a => a.id === resObj.clientId)?.companyName || 'client'}</div>
+                            <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.from')} {agents.find(a => a.id === resObj.clientId)?.companyName || 'client'}</div>
                           </div>
                           <div className="text-3xl">ًں“¥</div>
                         </div>
@@ -1772,9 +1833,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                       >
                         <div className="flex justify-between items-center">
                           <div>
-                            <div className="text-[9px] font-bold uppercase text-blue-600">Pay Supplier</div>
+                            <div className="text-[9px] font-bold uppercase text-blue-600">{t('res.paySupplier')}</div>
                             <div className="font-mono font-extrabold text-blue-800 text-lg">{supplierRemaining.toLocaleString()} SAR</div>
-                            <div className="text-[9px] text-slate-500">Outstanding to {agents.find(a => a.id === resObj.supplierId)?.name || 'supplier'}</div>
+                            <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.to')} {agents.find(a => a.id === resObj.supplierId)?.name || 'supplier'}</div>
                           </div>
                           <div className="text-3xl">ًں“¤</div>
                         </div>
@@ -1787,13 +1848,13 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Payment Form */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> Payment Details
+                        <span className="text-amber-500">â—ڈ</span> {t('res.paymentDetails')}
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Amount Section */}
                         <div className="space-y-3">
                           <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Payment Amount (SAR)</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.paymentAmount')}</label>
                             <input
                               type="number"
                               value={payAmount || ''}
@@ -1813,11 +1874,11 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           {payCurrency === 'EGP' && (
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">EGP Amount</label>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.egpAmount')}</label>
                                 <input type="number" value={payOriginalAmount || ''} onChange={(e) => setPayOriginalAmount(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-bold" required />
                               </div>
                               <div>
-                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Exchange Rate</label>
+                                <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.exchangeRate')}</label>
                                 <input type="number" value={payExchangeRate || ''} step="0.01" onChange={(e) => setPayExchangeRate(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-bold" required />
                               </div>
                             </div>
@@ -1827,23 +1888,23 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         {/* Method & Account Section */}
                         <div className="space-y-3">
                           <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Payment Method</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.paymentMethod')}</label>
                             <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
                               <button type="button" onClick={() => setPayMethod('Bank Transfer')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Bank Transfer' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>ًںڈ¦ Bank Transfer</button>
                               <button type="button" onClick={() => setPayMethod('Cash')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Cash' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>ًں’µ Cash</button>
                             </div>
                           </div>
                           <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Treasury / Bank Account</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.treasuryAccount')}</label>
                             <select value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500" required>
-                              <option value="">-- Select Account --</option>
+                              <option value="">{t('res.selectAccount')}</option>
                               {accounts.map(acc => (
                                 <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toLocaleString()} SAR)</option>
                               ))}
                             </select>
                           </div>
                           <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Voucher / Reference</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.voucherReference')}</label>
                             <input type="text" value={payVoucher} onChange={(e) => setPayVoucher(e.target.value)} placeholder="REC-5509" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-lg py-1.5 text-xs font-mono font-semibold" />
                           </div>
                         </div>
@@ -1856,14 +1917,14 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           onClick={() => handlePostBookingPayment(true)}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
                         >
-                          ًں“¥ Post Client Payment
+                          {t('res.postClientPayment')}
                         </button>
                         <button
                           type="button"
                           onClick={() => handlePostBookingPayment(false)}
                           className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
                         >
-                          ًں“¤ Post Supplier Payment
+                          {t('res.postSupplierPayment')}
                         </button>
                       </div>
                     </div>
@@ -1871,7 +1932,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Recent Payment Transactions */}
                     {relatedTrs.length > 0 && (
                       <div className="bg-white rounded-xl p-4 border border-slate-200">
-                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">Recent Transactions</h5>
+                        <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-2">{t('res.recentTransactions')}</h5>
                         <div className="space-y-1">
                           {relatedTrs.slice().reverse().map(tr => (
                             <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
@@ -1897,19 +1958,19 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Confirmation Details */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> Confirmation & Agreement Details
+                        <span className="text-amber-500">â—ڈ</span> {t('res.confAgreementDetails')}
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Hotel Confirmation Number</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.hotelConfNumber')}</label>
                           <input type="text" value={localHotelConf} onChange={(e) => setLocalHotelConf(e.target.value)} placeholder="e.g. CONF-99201" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-mono font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none" />
                         </div>
                         <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Agreement / Contract ID</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.agreementContractId')}</label>
                           <input type="text" value={localAgreementNo} onChange={(e) => setLocalAgreementNo(e.target.value)} placeholder="e.g. CONTRACT-ZM502" className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-mono font-semibold focus:ring-2 focus:ring-amber-500 focus:outline-none" />
                         </div>
                         <div className="md:col-span-2">
-                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-2">Agreement Status</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-500 block mb-2">{t('res.agreementStatus')}</label>
                           <div className="grid grid-cols-3 gap-1.5">
                             {(['Approved', 'Pending', 'Declined'] as const).map((statusVal) => (
                               <button
@@ -1935,9 +1996,9 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Rooming List */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> Rooming List / Guest Names
+                        <span className="text-amber-500">â—ڈ</span> {t('res.roomingListGuests')}
                       </h5>
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                      <div className="space-y-2 max-h-60 overflow-y-auto thin-scrollbar">
                         {localRoomDetails.map((rm, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
                             <div className="flex bg-slate-100 rounded-lg px-2.5 items-center justify-center font-bold text-slate-400 text-xs w-8 h-8 shrink-0">
@@ -1965,14 +2026,14 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Action Buttons */}
                     <div className="flex gap-2">
                       <button type="button" onClick={handleUpdateConfirmationSpecs} className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition text-[10px] uppercase tracking-wider shadow-md flex items-center justify-center gap-2">
-                        ًں’¾ Save Confirmation Details
+                        {t('res.saveConfDetails')}
                       </button>
                       <button
                         type="button"
                         onClick={() => { const r = reservations.find(r => r.id.toString() === viewingId); if (r) setPrintingRoomingList(r); }}
                         className="flex-1 bg-white hover:bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl transition text-[10px] uppercase tracking-wider flex items-center justify-center gap-2"
                       >
-                        ًں–¨ï¸ڈ Print Rooming List
+                        {t('res.printRoomingList')}
                       </button>
                     </div>
                   </div>
@@ -1984,43 +2045,43 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200 text-center hover:shadow-lg transition-shadow">
                         <div className="text-4xl mb-3">ًں“„</div>
-                        <h5 className="font-bold text-sm text-slate-800 mb-1">Agent Confirmation</h5>
-                        <p className="text-[10px] text-slate-500 mb-4">Official booking confirmation letter for the tour operator / client agent.</p>
+                        <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.agentConfirmation')}</h5>
+                        <p className="text-[10px] text-slate-500 mb-4">{t('res.agentConfDesc')}</p>
                         <button
                           onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })}
                           className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
                         >
-                          Print Confirmation PDF
+                          {t('res.printConfirmationPDF')}
                         </button>
                       </div>
                       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 text-center hover:shadow-lg transition-shadow">
                         <div className="text-4xl mb-3">ًںژ«</div>
-                        <h5 className="font-bold text-sm text-slate-800 mb-1">Guest Card Voucher</h5>
-                        <p className="text-[10px] text-slate-500 mb-4">Hotel check-in voucher for the guest with booking and room details.</p>
+                        <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.guestCardVoucher')}</h5>
+                        <p className="text-[10px] text-slate-500 mb-4">{t('res.guestCardDesc')}</p>
                         <button
                           onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
                         >
-                          Print Voucher PDF
+                          {t('res.printVoucherPDF')}
                         </button>
                       </div>
                     </div>
 
                     {/* Quick Actions */}
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-3">Quick Actions</h5>
+                      <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest mb-3">{t('res.quickActions')}</h5>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                         <button
                           onClick={() => { setViewingId(null); handleEdit(resObj); }}
                           className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
                         >
-                          âœڈï¸ڈ Edit Booking
+                          {t('res.editBooking')}
                         </button>
                         <button
                           onClick={() => { const r = reservations.find(r => r.id.toString() === viewingId); if (r) setPrintingRoomingList(r); }}
                           className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
                         >
-                          ًں–¨ï¸ڈ Rooming List
+                          {t('res.roomingList')}
                         </button>
                         <button
                           onClick={() => {
@@ -2031,7 +2092,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           }}
                           className="bg-white hover:bg-rose-50 border border-rose-200 text-rose-600 font-bold py-2.5 rounded-xl transition text-[10px] uppercase flex items-center justify-center gap-1.5"
                         >
-                          ًں—‘ï¸ڈ Delete Booking
+                          {t('res.deleteBooking')}
                         </button>
                       </div>
                     </div>
@@ -2043,11 +2104,11 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
               {/* Footer */}
               <div className="border-t border-slate-200 px-6 py-3 bg-slate-50/50 flex justify-between items-center">
                 <div className="flex gap-2">
-                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">ًں“„ Confirmation</button>
-                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">ًںژ« Voucher</button>
-                  <button onClick={() => setPrintingInvoice(resObj)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">ًں§¾ Invoice</button>
+                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.confirmation')}</button>
+                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.voucher')}</button>
+                  <button onClick={() => setPrintingInvoice(resObj)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.invoice')}</button>
                 </div>
-                <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">Close</button>
+                <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">{t('common.close')}</button>
               </div>
 
             </div>

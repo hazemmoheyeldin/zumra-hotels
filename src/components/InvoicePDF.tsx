@@ -3,6 +3,7 @@ import { Reservation, Agent, Hotel, Transaction } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import { downloadPDF } from '../lib/pdfGenerator';
+import { useLang } from '../lib/LanguageContext';
 
 interface InvoicePDFProps {
   reservation: Reservation;
@@ -14,6 +15,7 @@ interface InvoicePDFProps {
 
 export default function InvoicePDF({ reservation, client, hotel, transactions, onClose }: InvoicePDFProps) {
   const totals = getReservationTotals(reservation);
+  const { t, lang } = useLang();
 
   // Filter payments for this reservation
   const payments = transactions.filter(t =>
@@ -51,13 +53,13 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Action bar */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 no-print">
-          <h2 className="font-bold text-slate-800">Invoice Preview</h2>
+          <h2 className="font-bold text-slate-800">{t('ipdf.preview')}</h2>
           <div className="flex gap-2">
             <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-              Print / Save PDF
+              {t('ipdf.printSave')}
             </button>
             <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200">
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -71,8 +73,8 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             {/* Header */}
             <div className="flex items-start justify-between border-b-2 border-slate-300 pb-4 mb-4">
               <div>
-                <h1 className="text-2xl font-bold text-slate-800">INVOICE</h1>
-                <p className="text-sm text-slate-500">Zumra Hotels - Reservations Management</p>
+                <h1 className="text-2xl font-bold text-slate-800">{t('ipdf.invoiceTitle')}</h1>
+                <p className="text-sm text-slate-500">{t('ipdf.subtitle')}</p>
               </div>
               <ZumraLogo size="xxl" />
             </div>
@@ -80,7 +82,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             {/* Invoice details */}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
-                <h3 className="text-xs font-bold text-slate-500 uppercase mb-1">Bill To</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase mb-1">{t('ipdf.billTo')}</h3>
                 <p className="font-bold text-slate-800">{client?.companyName || client?.name || 'N/A'}</p>
                 <p className="text-sm text-slate-600">{client?.address || ''}</p>
                 <p className="text-sm text-slate-600">{client?.phone || ''}</p>
@@ -89,19 +91,19 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
               <div className="text-right">
                 <div className="inline-block text-left">
                   <div className="flex justify-between gap-6 text-sm">
-                    <span className="text-slate-500">Invoice #:</span>
+                    <span className="text-slate-500">{t('ipdf.invoiceNo')}</span>
                     <span className="font-bold">{invoiceNo}</span>
                   </div>
                   <div className="flex justify-between gap-6 text-sm">
-                    <span className="text-slate-500">Date:</span>
+                    <span className="text-slate-500">{t('ipdf.dateLabel')}</span>
                     <span className="font-medium">{formatDate(invoiceDate)}</span>
                   </div>
                   <div className="flex justify-between gap-6 text-sm">
-                    <span className="text-slate-500">RSV #:</span>
+                    <span className="text-slate-500">{lang === 'ar' ? 'رقم الحجز:' : 'RSV #:'}</span>
                     <span className="font-medium">{reservation.id}</span>
                   </div>
                   <div className="flex justify-between gap-6 text-sm">
-                    <span className="text-slate-500">Status:</span>
+                    <span className="text-slate-500">{t('ipdf.statusLabel')}</span>
                     <span className={`font-bold ${reservation.status === 'Cancelled' ? 'text-red-600' : reservation.status === 'Confirmed' ? 'text-emerald-600' : 'text-amber-600'}`}>
                       {reservation.status}
                     </span>
@@ -114,7 +116,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
               <div className="grid grid-cols-4 gap-3 text-sm">
                 <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Guest</div>
+                  <div className="text-[10px] text-slate-500 uppercase">{t('ipdf.guest')}</div>
                   <div className="font-bold">{reservation.guestName}</div>
                 </div>
                 <div>
@@ -122,11 +124,11 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                   <div className="font-bold">{hotel?.name || 'N/A'}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Check-in / Check-out</div>
+                  <div className="text-[10px] text-slate-500 uppercase">{t('ipdf.checkInCheckOut')}</div>
                   <div className="font-medium">{formatDate(reservation.checkIn)} - {formatDate(reservation.checkOut)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Nights</div>
+                  <div className="text-[10px] text-slate-500 uppercase">{t('ipdf.nightsLabel')}</div>
                   <div className="font-bold">{reservation.nights}</div>
                 </div>
               </div>
@@ -136,12 +138,12 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             <table className="w-full border-collapse text-sm mb-4">
               <thead>
                 <tr className="bg-slate-800 text-white">
-                  <th className="px-3 py-2 text-left text-xs font-bold">#</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold">Description</th>
-                  <th className="px-3 py-2 text-center text-xs font-bold">Qty</th>
-                  <th className="px-3 py-2 text-center text-xs font-bold">Nights</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold">Rate</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold">Amount (SAR)</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold">{lang === 'ar' ? '#' : '#'}</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold">{t('ipdf.descriptionCol')}</th>
+                  <th className="px-3 py-2 text-center text-xs font-bold">{t('ipdf.qtyCol')}</th>
+                  <th className="px-3 py-2 text-center text-xs font-bold">{t('ipdf.nightsLabel')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold">{t('ipdf.rateCol')}</th>
+                  <th className="px-3 py-2 text-right text-xs font-bold">{t('ipdf.amountSAR')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,7 +175,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                         <tr className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                           <td className="px-3 py-2 border border-slate-200"></td>
                           <td className="px-3 py-2 border border-slate-200 text-xs text-slate-600">
-                            Meal Plan: {mealLabel} ({pax} pax)
+                            {t('ipdf.mealPlanLabel')} {mealLabel} ({pax} {lang === 'ar' ? 'أشخاص' : 'pax'})
                           </td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{pax * qty}</td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{nights}</td>
@@ -187,7 +189,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                         <tr className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                           <td className="px-3 py-2 border border-slate-200"></td>
                           <td className="px-3 py-2 border border-slate-200 text-xs text-slate-600">
-                            Extra Bed(s)
+                            {t('ipdf.extraBeds')}
                           </td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{Math.max(0, pax - 2) * qty}</td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{nights}</td>
@@ -201,7 +203,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                         <tr className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                           <td className="px-3 py-2 border border-slate-200"></td>
                           <td className="px-3 py-2 border border-slate-200 text-xs text-slate-600">
-                            View Supplement: {room.view || 'N/A'}
+                            {t('ipdf.viewSuppLabel')} {room.view || (lang === 'ar' ? 'غير متاح' : 'N/A')}
                           </td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{qty}</td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{nights}</td>
@@ -215,7 +217,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                         <tr className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                           <td className="px-3 py-2 border border-slate-200"></td>
                           <td className="px-3 py-2 border border-slate-200 text-xs text-slate-600">
-                            Extra: {room.extraMeal1Label || 'Meal 1'} ({pax} pax)
+                            {t('ipdf.extraLabel')} {room.extraMeal1Label || (lang === 'ar' ? 'وجبة 1' : 'Meal 1')} ({pax} {lang === 'ar' ? 'أشخاص' : 'pax'})
                           </td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{pax * qty}</td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{nights}</td>
@@ -227,7 +229,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                         <tr className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                           <td className="px-3 py-2 border border-slate-200"></td>
                           <td className="px-3 py-2 border border-slate-200 text-xs text-slate-600">
-                            Extra: {room.extraMeal2Label || 'Meal 2'} ({pax} pax)
+                            {t('ipdf.extraLabel')} {room.extraMeal2Label || (lang === 'ar' ? 'وجبة 2' : 'Meal 2')} ({pax} {lang === 'ar' ? 'أشخاص' : 'pax'})
                           </td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{pax * qty}</td>
                           <td className="px-3 py-2 border border-slate-200 text-center">{nights}</td>
@@ -245,29 +247,29 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             <div className="flex justify-end mb-6">
               <div className="w-72">
                 <div className="flex justify-between text-sm py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">Subtotal</span>
+                  <span className="text-slate-600">{t('ipdf.subtotal')}</span>
                   <span className="font-medium">{fmt(totals.totalSell)}</span>
                 </div>
                 <div className="flex justify-between text-sm py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">VAT (15% incl.)</span>
+                  <span className="text-slate-600">{t('ipdf.vatIncl')}</span>
                   <span className="font-medium">{fmt(totals.vat)}</span>
                 </div>
                 <div className="flex justify-between text-base py-2 border-b-2 border-slate-800 font-bold">
-                  <span>Total</span>
+                  <span>{t('ipdf.totalLabel')}</span>
                   <span>{fmt(totals.totalWithVat)} SAR</span>
                 </div>
                 <div className="flex justify-between text-sm py-1.5 border-b border-emerald-200 bg-emerald-50 px-2 -mx-2">
-                  <span className="text-emerald-700">Amount Paid</span>
+                  <span className="text-emerald-700">{t('ipdf.amountPaid')}</span>
                   <span className="font-medium text-emerald-700">- {fmt(totalPaid)}</span>
                 </div>
                 {totalRefunded > 0 && (
                   <div className="flex justify-between text-sm py-1.5 border-b border-orange-200 bg-orange-50 px-2 -mx-2">
-                    <span className="text-orange-700">Refunded</span>
+                    <span className="text-orange-700">{t('ipdf.refunded')}</span>
                     <span className="font-medium text-orange-700">+ {fmt(totalRefunded)}</span>
                   </div>
                 )}
                 <div className={`flex justify-between text-base py-2 font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  <span>{balance > 0 ? 'Balance Due' : balance < 0 ? 'Overpaid' : 'Settled'}</span>
+                  <span>{balance > 0 ? t('ipdf.balanceDue') : balance < 0 ? t('ipdf.overpaid') : t('ipdf.settled')}</span>
                   <span>{fmt(Math.abs(balance))} SAR</span>
                 </div>
               </div>
@@ -276,22 +278,22 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             {/* Payment History */}
             {payments.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-200 pb-1">Payment History</h3>
+                <h3 className="text-sm font-bold text-slate-700 mb-2 border-b border-slate-200 pb-1">{t('ipdf.paymentHistory')}</h3>
                 <table className="w-full text-xs border-collapse">
                   <thead>
                     <tr className="bg-slate-100">
-                      <th className="px-2 py-1.5 text-left font-bold">Date</th>
-                      <th className="px-2 py-1.5 text-left font-bold">Type</th>
-                      <th className="px-2 py-1.5 text-left font-bold">Voucher</th>
-                      <th className="px-2 py-1.5 text-left font-bold">Method</th>
-                      <th className="px-2 py-1.5 text-right font-bold">Amount (SAR)</th>
+                      <th className="px-2 py-1.5 text-left font-bold">{t('common.date')}</th>
+                      <th className="px-2 py-1.5 text-left font-bold">{t('common.type')}</th>
+                      <th className="px-2 py-1.5 text-left font-bold">{t('ipdf.voucherCol')}</th>
+                      <th className="px-2 py-1.5 text-left font-bold">{t('ipdf.methodCol')}</th>
+                      <th className="px-2 py-1.5 text-right font-bold">{t('ipdf.amountSAR')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {payments.map(p => (
                       <tr key={p.id} className="border-b border-slate-100">
                         <td className="px-2 py-1.5">{formatDate(p.date)}</td>
-                        <td className="px-2 py-1.5">{p.type === 'ClientPayment' ? 'Payment' : 'Refund'}</td>
+                        <td className="px-2 py-1.5">{p.type === 'ClientPayment' ? t('ipdf.payment') : t('ipdf.refund')}</td>
                         <td className="px-2 py-1.5">{p.voucherNo || '-'}</td>
                         <td className="px-2 py-1.5">{p.paymentMethod}</td>
                         <td className={`px-2 py-1.5 text-right font-medium ${p.type === 'ClientRefund' ? 'text-orange-600' : 'text-emerald-600'}`}>
@@ -308,19 +310,19 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             <div className="border-t border-slate-200 pt-4 mt-4">
               <div className="grid grid-cols-2 gap-6 text-xs text-slate-500">
                 <div>
-                  <h4 className="font-bold text-slate-700 mb-1">Terms & Conditions</h4>
-                  <p>{reservation.termsAndConditions || 'Payment due as per agreement. All rates in SAR.'}</p>
+                  <h4 className="font-bold text-slate-700 mb-1">{t('pdf.termsConditions')}</h4>
+                  <p>{reservation.termsAndConditions || t('ipdf.termsText')}</p>
                 </div>
                 <div>
-                  <h4 className="font-bold text-slate-700 mb-1">Bank Details</h4>
-                  <p>Available upon request. Please reference invoice number on all transfers.</p>
+                  <h4 className="font-bold text-slate-700 mb-1">{t('ipdf.bankDetailsTitle')}</h4>
+                  <p>{t('ipdf.bankDetailsText')}</p>
                 </div>
               </div>
             </div>
 
             {/* Footer */}
             <div className="border-t border-slate-300 pt-3 mt-4 text-center text-[10px] text-slate-400">
-              Zumra Hotels - Reservations Management System | Invoice generated on {formatDate(invoiceDate)}
+              {t('ipdf.footerText')} {formatDate(invoiceDate)}
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { User } from '../types';
+import { useLang } from '../lib/LanguageContext';
 
 interface UserManagementPageProps {
   users: User[];
@@ -15,6 +16,7 @@ interface UserManagementPageProps {
 }
 
 export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser }: UserManagementPageProps) {
+  const { t, lang } = useLang();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
@@ -88,31 +90,31 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Users</div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('users.totalUsers')}</div>
           <div className="text-2xl font-black text-slate-900">{users.length}</div>
         </div>
-        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">Admins</div>
+        <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-rose-600 mb-1">{t('users.admins')}</div>
           <div className="text-2xl font-black text-rose-800">{adminCount}</div>
         </div>
-        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">Sales</div>
+        <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('users.sales')}</div>
           <div className="text-2xl font-black text-indigo-800">{salesCount}</div>
         </div>
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Finance</div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('users.finance')}</div>
           <div className="text-2xl font-black text-emerald-800">{financeCount}</div>
         </div>
-        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm">
-          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">Reservationists</div>
+        <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm card-hover-lift">
+          <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('users.reservationists')}</div>
           <div className="text-2xl font-black text-amber-800">{resCount}</div>
         </div>
       </div>
 
       {/* Role Permission Matrix */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm overflow-x-auto">
-        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3">Role Permission Matrix</h3>
+        <h3 className="text-xs font-bold uppercase text-slate-500 mb-3">{t('users.permissionMatrix')}</h3>
         <table className="w-full text-[10px] border-collapse">
           <thead>
             <tr className="bg-slate-50">
@@ -150,11 +152,11 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
         </table>
       </div>
 
-      <div className="bg-white border border-slate-150 rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm">
       <div className="border-b border-slate-100 pb-4 mb-6 flex flex-wrap justify-between items-center gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">User accounts & Access Controls</h2>
-          <p className="text-xs text-slate-500">Manage portal workers, track reservation creators, and switch sessions.</p>
+          <h2 className="text-lg font-bold text-slate-800">{t('users.subtitle')}</h2>
+          <p className="text-xs text-slate-500">{t('users.subtitleDesc')}</p>
         </div>
         <button
           onClick={() => {
@@ -163,13 +165,13 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
           }}
           className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow flex items-center gap-1"
         >
-          {showAddForm ? 'View User List' : 'Add New Operator / User'}
+          {showAddForm ? t('users.viewList') : t('users.addNew')}
         </button>
       </div>
 
       {showAddForm ? (
         <form onSubmit={handleSubmit} className="space-y-4 max-w-md bg-slate-50 border border-slate-200/60 p-5 rounded-2xl">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">{editingUserId ? 'Edit User' : 'New User Details'}</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">{editingUserId ? t('users.editUser') : t('users.newUser')}</h3>
           
           <div>
             <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Worker Username</label>
@@ -249,7 +251,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
               type="submit"
               className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition"
             >
-              {editingUserId ? 'Update Account' : 'Create Account'}
+              {editingUserId ? t('users.updateAccount') : t('users.createAccount')}
             </button>
             <button
               type="button"
@@ -264,7 +266,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
         <div className="space-y-4">
           <div className="bg-amber-50/40 p-4 border border-amber-200/65 rounded-2xl flex flex-wrap justify-between items-center gap-3">
             <div>
-              <p className="text-xs font-semibold text-slate-500">CURRENT ACTIVE USER SESSION / جلسة العمل الحالية:</p>
+              <p className="text-xs font-semibold text-slate-500">{t('users.currentSession')}:</p>
               <p className="text-sm font-bold text-slate-800 uppercase mt-1">{currentUser.name}</p>
               <p className="text-[10px] text-slate-600 font-mono mt-0.5">Role: {currentUser.role} | Email: {currentUser.email}</p>
             </div>
@@ -289,7 +291,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
             </div>
           </div>
 
-          <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">All Configured Portal Users</h3>
+          <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">{t('users.allUsers')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {users.map((u) => {
               const isActive = u.id === currentUser.id;
