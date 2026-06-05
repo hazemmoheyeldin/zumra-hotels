@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -114,6 +114,10 @@ export interface Reservation {
   createdAt: string;
   cancellationFee?: number;
   cancellationReason?: string;
+  clientCreditDisposition?: 'Refunded' | 'Kept as Credit' | 'N/A';
+  supplierCreditDisposition?: 'Refunded' | 'Kept as Credit' | 'N/A';
+  clientCreditNote?: string;
+  supplierCreditNote?: string;
   roomingList?: string;
 }
 

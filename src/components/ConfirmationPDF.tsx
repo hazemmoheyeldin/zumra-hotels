@@ -248,8 +248,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                 </div>
                 
                 <div className="text-right">
-                  <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-none uppercase font-sans">
-                    {getStatusLabel()} Confirmation
+                  <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-tight uppercase font-sans whitespace-normal break-words max-w-[220px] ml-auto">
+                    {reservation.status === 'Cancelled' ? 'Cancelled' : `${getStatusLabel()} Confirmation`}
                   </h2>
                   {reservation.status === 'Tentative' && reservation.clientOptionDate && (
                     <span className="text-rose-600 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-100 mt-2.5 inline-block">
