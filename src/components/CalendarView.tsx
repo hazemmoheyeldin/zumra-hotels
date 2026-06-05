@@ -303,7 +303,7 @@ export default function CalendarView({ reservations, transactions, followUps, ag
                 className={`p-3 rounded-lg border ${ev.bgColor} cursor-pointer hover:shadow-sm transition-shadow`}
                 onClick={() => {
                   if (ev.reservationId && onNavigate) {
-                    onNavigate('Reservations', { highlightId: ev.reservationId });
+                    onNavigate('Reservations', { viewReservationId: ev.reservationId });
                   }
                 }}
               >

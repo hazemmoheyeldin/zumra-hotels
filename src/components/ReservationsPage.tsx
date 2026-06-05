@@ -940,9 +940,11 @@ export default function ReservationsPage({
                 <input type="text" list="nationalities" value={guestNationality} onChange={(e) => setGuestNationality(e.target.value)} placeholder="Saudi" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm uppercase focus:bg-white transition-colors" />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5">📊 Booking Status</label>
-                <div className="inline-flex gap-1 bg-slate-100 p-1 rounded-lg">
-                  {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => (
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📊 Status</label>
+                <div className="inline-flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+                  {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => {
+                    const abbr = s === 'Tentative' ? 'TNT' : s === 'Confirmed' ? 'CNF' : 'CNL';
+                    return (
                     <button key={s} type="button" onClick={() => {
                       if (s === 'Confirmed' && status !== 'Confirmed') {
                         const formTotalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
@@ -957,10 +959,11 @@ export default function ReservationsPage({
                       if (s !== 'Cancelled') { setCancellationFee(0); setCancellationReason(''); }
                       else { setCancellationReason('Customer requested cancellation (\u0637\u0644\u0628 \u0627\u0644\u0639\u0645\u064a\u0644)'); }
                       if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
-                    }} className={`px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
-                      <span className="text-[10px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{s}
+                    }} className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
+                      <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{abbr}
                     </button>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             </div>

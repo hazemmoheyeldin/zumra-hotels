@@ -281,7 +281,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                     <tr className="bg-slate-100 sticky top-0 z-10">
                       <th className="py-2 px-2 border-r border-slate-200 font-bold text-slate-600 min-w-[180px]">Block</th>
                       {visibleDates.map(d => (
-                        <th key={d} className={`py-1 px-1.5 border-r border-slate-200 text-center font-bold min-w-[48px] ${new Date(d).getDay() === 5 || new Date(d).getDay() === 6 ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}>
+                        <th key={d} className={`py-1 px-1.5 border-r border-slate-200 text-center font-bold min-w-[48px] ${new Date(d).getDay() === 4 || new Date(d).getDay() === 5 ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}>
                           <div className="leading-tight">{dayName(d)}<br />{shortDate(d)}</div>
                         </th>
                       ))}

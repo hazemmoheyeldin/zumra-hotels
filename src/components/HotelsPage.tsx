@@ -658,91 +658,78 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full max-w-sm"
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {hotels.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase())).map((hotel) => (
-              <div key={hotel.id} className="border border-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition text-xs relative flex flex-col justify-between bg-white">
-              <div>
-                <div className="flex justify-between items-start">
+              <div key={hotel.id} className="border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg transition-all text-xs bg-white overflow-hidden group">
+                {/* Header strip */}
+                <div className={`px-4 py-3 flex items-center justify-between ${hotel.city === 'Makkah' ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100' : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100'}`}>
                   <div>
-                    <span className="bg-amber-50 text-amber-800 text-[9px] uppercase tracking-wide px-2 py-0.5 rounded font-bold">
-                      🏢 {hotel.city === 'Makkah' ? 'Makkah Al Mukarramah' : 'Madinah Al Munawwarah'}
-                    </span>
-                    <h3 className="font-bold text-slate-800 text-sm uppercase mt-2">{hotel.name}</h3>
+                    <h3 className="font-black text-slate-800 text-sm leading-tight">{hotel.name}</h3>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${hotel.city === 'Makkah' ? 'bg-amber-200/50 text-amber-800' : 'bg-emerald-200/50 text-emerald-800'}`}>
+                        {hotel.city === 'Makkah' ? '🕋 Makkah' : '🕌 Madinah'}
+                      </span>
+                      <span className="text-amber-500 font-mono text-[10px]">{'★'.repeat(hotel.stars)}</span>
+                    </div>
                   </div>
-                  <div className="text-amber-500 font-bold font-mono">
-                    {'★'.repeat(hotel.stars)}
+                  <div className="flex gap-1">
+                    <button onClick={() => handleEdit(hotel)} className="p-1.5 bg-white/80 hover:bg-amber-100 rounded-lg transition text-amber-700" title="Edit">✏️</button>
+                    <button onClick={() => { if (confirm('Delete this hotel?')) onDeleteHotel(hotel.id); }} className="p-1.5 bg-white/80 hover:bg-red-100 rounded-lg transition text-red-600" title="Delete">🗑️</button>
                   </div>
                 </div>
 
-                <div className="mt-3 space-y-1.5 text-slate-600">
-                  <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Address:</span> {hotel.address || 'N/A'}</p>
-                  <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Contact:</span> {hotel.contact || 'N/A'}</p>
+                {/* Quick info */}
+                <div className="px-4 py-3 space-y-2">
+                  <div className="flex items-start gap-2 text-slate-600">
+                    <span className="text-[10px] mt-0.5">📍</span>
+                    <span className="text-[10px] leading-tight">{hotel.address || 'No address'}</span>
+                  </div>
+                  {hotel.contact && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="text-[10px]">📞</span>
+                      <span className="text-[10px]">{hotel.contact}</span>
+                    </div>
+                  )}
                   {hotel.reservationsEmail && (
-                    <p><span className="font-semibold text-slate-450 uppercase text-[9px] block">Reservations Email:</span> <a href={`mailto:${hotel.reservationsEmail}`} className="text-blue-600 hover:underline">{hotel.reservationsEmail}</a></p>
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <span className="text-[10px]">✉️</span>
+                      <a href={`mailto:${hotel.reservationsEmail}`} className="text-[10px] text-blue-600 hover:underline truncate">{hotel.reservationsEmail}</a>
+                    </div>
                   )}
                 </div>
 
-                {/* Tags matrix for specs */}
-                <div className="mt-4 pt-3 border-t border-slate-150 space-y-2">
-                  <div>
-                    <span className="font-semibold text-slate-400 block text-[9px] uppercase mb-1">Room Capacities:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {hotel.roomTypes.map((t, idx) => (
-                        <span key={idx} className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-600 font-medium">{t}</span>
-                      ))}
-                    </div>
+                {/* Tags - compact */}
+                <div className="px-4 pb-3 space-y-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    {hotel.roomTypes.map((t, i) => (
+                      <span key={i} className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-600">{t}</span>
+                    ))}
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-400 block text-[9px] uppercase mb-1">Allowed Views:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {hotel.views.map((v, idx) => (
-                        <span key={idx} className="bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-medium">{v}</span>
-                      ))}
-                    </div>
+                  <div className="flex flex-wrap gap-1">
+                    {hotel.mealPlans.map((mp, i) => (
+                      <span key={i} className="bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[9px] font-bold border border-amber-100">{mp}</span>
+                    ))}
                   </div>
-                  <div>
-                    <span className="font-semibold text-slate-400 block text-[9px] uppercase mb-1">Meal Systems:</span>
-                    <div className="flex flex-wrap gap-1">
-                      {hotel.mealPlans.map((mp, idx) => (
-                        <span key={idx} className="bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded text-[10px] font-bold">{mp}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-2 pt-2 border-t border-slate-100">
-                    <span className="font-semibold text-slate-400 block text-[9px] uppercase mb-1 text-emerald-800 font-serif">🤝 Affiliated Booking Suppliers:</span>
-                    {hotel.suppliers && hotel.suppliers.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {hotel.suppliers.map((s, idx) => (
-                          <span key={idx} className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-1.5 py-0.5 rounded text-[10px] font-bold">{s}</span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 italic text-[10px]">Direct contract or general channels</span>
-                    )}
+                  <div className="flex flex-wrap gap-1">
+                    {hotel.views.map((v, i) => (
+                      <span key={i} className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded text-[9px] border border-indigo-100">{v}</span>
+                    ))}
                   </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
-                <button
-                  onClick={() => handleEdit(hotel)}
-                  className="bg-amber-50 text-amber-800 hover:bg-amber-800 hover:text-white px-3 py-1 rounded-lg text-xs transition font-semibold"
-                >
-                  Edit Specifications
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm('Delete this partner hotel?')) onDeleteHotel(hotel.id);
-                  }}
-                  className="text-red-650 hover:bg-red-50 px-3 py-1 rounded-lg text-xs transition font-semibold"
-                >
-                  Remove Partner
-                </button>
+                {/* Suppliers footer */}
+                {hotel.suppliers && hotel.suppliers.length > 0 && (
+                  <div className="px-4 py-2 bg-slate-50 border-t border-slate-100">
+                    <span className="text-[8px] uppercase font-bold text-slate-400 block mb-1">Suppliers</span>
+                    <div className="flex flex-wrap gap-1">
+                      {hotel.suppliers.map((s, i) => (
+                        <span key={i} className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded text-[9px] font-bold">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-
-            </div>
-          ))}
+            ))}
           </div>
         </div>
       )}

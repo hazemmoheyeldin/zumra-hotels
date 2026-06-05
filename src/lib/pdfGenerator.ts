@@ -40,7 +40,8 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
+    width: 100vw;
+    min-height: 100vh;
     max-height: none;
     height: auto;
     overflow: visible;
@@ -54,7 +55,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     break-inside: avoid;
   `;
 
-  // Inject dynamic @page style for landscape/portrait
+  // Inject dynamic @page style for landscape/portrait + mobile print fixes
   const pageStyleId = 'dynamic-page-style';
   let pageStyle = document.getElementById(pageStyleId) as HTMLStyleElement | null;
   if (!pageStyle) {
@@ -62,11 +63,31 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     pageStyle.id = pageStyleId;
     document.head.appendChild(pageStyle);
   }
-  if (landscape) {
-    pageStyle.textContent = `@media print { @page { size: A4 landscape; margin: 0; } }`;
-  } else {
-    pageStyle.textContent = `@media print { @page { size: A4 portrait; margin: 0; } }`;
-  }
+  const pageSize = landscape ? 'A4 landscape' : 'A4 portrait';
+  pageStyle.textContent = `
+    @media print {
+      @page { size: ${pageSize}; margin: 0; }
+      html, body {
+        overflow: hidden !important;
+        height: 100% !important;
+        background: white !important;
+        position: fixed !important;
+        width: 100% !important;
+      }
+      body.printing-report > *:not(#print-area-clone) {
+        display: none !important;
+        visibility: hidden !important;
+      }
+      #print-area-clone {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        background: white !important;
+        z-index: 999999 !important;
+      }
+    }
+  `;
 
   document.body.appendChild(clone);
   document.body.classList.add('printing-report');

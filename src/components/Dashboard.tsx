@@ -658,11 +658,15 @@ function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) 
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {currencies.map(c => {
-          const converted = amount * fxRates[c.code as keyof typeof fxRates];
+          const rate = fxRates[c.code as keyof typeof fxRates];
+          const converted = amount * rate;
           return (
-            <div key={c.code} className="bg-slate-50 rounded-lg p-2 text-center">
+            <div key={c.code} className="bg-slate-50 rounded-lg p-2 text-center group relative cursor-default" title={`1 SAR = ${rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} ${c.code}`}>
               <div className="text-[10px] text-slate-500">{c.flag} {c.code}</div>
               <div className="text-sm font-bold text-slate-800 font-mono">{converted.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 mb-1 transition-opacity">
+                1 SAR = {rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} {c.code}
+              </div>
             </div>
           );
         })}
