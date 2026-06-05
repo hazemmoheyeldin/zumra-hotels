@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ZumraDB } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert } from './types';
 import { getEgyptTime, getReservationTotals } from './lib/storage';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -453,6 +453,98 @@ export default function App() {
       ZumraDB.saveAllotments(newAllotments);
     };
     recalcAllotments();
+
+    // Process cancellation wallet updates and transactions
+    if (res.status === 'Cancelled') {
+      const oldRes = reservations.find(r => r.id === res.id);
+      const wasAlreadyCancelled = oldRes?.status === 'Cancelled';
+      if (!wasAlreadyCancelled) {
+        const now = new Date().toISOString();
+        const newTransactions: Transaction[] = [];
+        const newAlerts: RefundAlert[] = [];
+        let updatedAgents = [...agents];
+
+        // Client disposition
+        const clientPaid = res.amountPaidByClient || 0;
+        if (res.clientCreditDisposition === 'Kept as Credit' && clientPaid > 0) {
+          updatedAgents = updatedAgents.map(a => a.id === res.clientId ? { ...a, walletBalance: (a.walletBalance || 0) + clientPaid } : a);
+          newTransactions.push({
+            id: `tr_cancel_client_${res.id}_${Date.now()}`,
+            docNo: `CRED-C-${res.id}`,
+            date: now.split('T')[0],
+            type: 'CreditApplied',
+            amount: clientPaid,
+            agentId: res.clientId,
+            reservationId: res.id.toString(),
+            description: `Credit from cancellation of RSV-${res.id} (${res.guestName})`,
+            paymentMethod: 'Bank Transfer',
+            voucherNo: `CRED-${Date.now()}`,
+            createdBy: currentUser.name,
+          });
+        } else if (res.clientCreditDisposition === 'Refunded' && clientPaid > 0) {
+          newAlerts.push({
+            id: `refund_client_${res.id}_${Date.now()}`,
+            bookingId: res.id,
+            amount: clientPaid,
+            party: 'Client',
+            partyId: res.clientId,
+            status: 'Pending',
+            createdAt: now,
+            note: res.clientCreditNote || undefined,
+          });
+        }
+
+        // Supplier disposition
+        const supplierPaid = res.amountPaidToSupplier || 0;
+        if (res.supplierCreditDisposition === 'Kept as Credit' && supplierPaid > 0) {
+          updatedAgents = updatedAgents.map(a => a.id === res.supplierId ? { ...a, walletBalance: (a.walletBalance || 0) + supplierPaid } : a);
+          newTransactions.push({
+            id: `tr_cancel_supp_${res.id}_${Date.now()}`,
+            docNo: `CRED-S-${res.id}`,
+            date: now.split('T')[0],
+            type: 'CreditApplied',
+            amount: supplierPaid,
+            agentId: res.supplierId,
+            reservationId: res.id.toString(),
+            description: `Credit from cancellation of RSV-${res.id} (${res.guestName})`,
+            paymentMethod: 'Bank Transfer',
+            voucherNo: `CRED-${Date.now() + 1}`,
+            createdBy: currentUser.name,
+          });
+        } else if (res.supplierCreditDisposition === 'Refunded' && supplierPaid > 0) {
+          newAlerts.push({
+            id: `refund_supp_${res.id}_${Date.now()}`,
+            bookingId: res.id,
+            amount: supplierPaid,
+            party: 'Supplier',
+            partyId: res.supplierId,
+            status: 'Pending',
+            createdAt: now,
+            note: res.supplierCreditNote || undefined,
+          });
+        }
+
+        if (newTransactions.length > 0) {
+          const allTx = [...transactions, ...newTransactions];
+          setTransactions(allTx);
+          ZumraDB.saveTransactions(allTx);
+        }
+        // Merge refund alerts into agents
+        if (newAlerts.length > 0) {
+          updatedAgents = updatedAgents.map(a => {
+            const agentAlerts = newAlerts.filter(al => al.partyId === a.id);
+            if (agentAlerts.length > 0) {
+              return { ...a, pendingRefunds: [...(a.pendingRefunds || []), ...agentAlerts] };
+            }
+            return a;
+          });
+        }
+        if (JSON.stringify(updatedAgents) !== JSON.stringify(agents)) {
+          setAgents(updatedAgents);
+          ZumraDB.saveAgents(updatedAgents);
+        }
+      }
+    }
   };
   const handleSaveReservation = (res: Reservation) => {
     const { totalSell } = getReservationTotals(res);
@@ -804,6 +896,8 @@ export default function App() {
             accounts={accounts}
             onSaveTransaction={handleSaveTransaction}
             transactions={transactions}
+            allotments={allotments}
+            onSaveAllotment={handleSaveAllotment}
           />
           </ErrorBoundary>
         );
@@ -1325,6 +1419,72 @@ export default function App() {
 
         {/* Scrollable central content area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={activeTab}>
+          {/* Pending Refund Alerts Banner */}
+          {(() => {
+            const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
+            if (pendingRefunds.length === 0) return null;
+            return (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-3 no-print animate-in slide-in-from-top-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base animate-pulse">⚠️</span>
+                  <div>
+                    <p className="text-xs font-bold text-rose-800">{pendingRefunds.length} pending refund{pendingRefunds.length > 1 ? 's' : ''} need{pendingRefunds.length === 1 ? 's' : ''} your attention</p>
+                    <p className="text-[10px] text-rose-600">Total: {pendingRefunds.reduce((s, r) => s + r.amount, 0).toLocaleString()} SAR</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {pendingRefunds.slice(0, 3).map(rf => {
+                    const a = agents.find(ag => ag.id === rf.partyId);
+                    return (
+                      <button
+                        key={rf.id}
+                        onClick={() => {
+                          const updatedAgents = agents.map(ag => {
+                            if (ag.id !== rf.partyId) return ag;
+                            return {
+                              ...ag,
+                              pendingRefunds: (ag.pendingRefunds || []).map(pr => pr.id === rf.id ? { ...pr, status: 'Processed' as const } : pr),
+                              walletBalance: (ag.walletBalance || 0) - rf.amount,
+                            };
+                          });
+                          setAgents(updatedAgents);
+                          ZumraDB.saveAgents(updatedAgents);
+                          // Create RefundProcessed transaction
+                          const now = new Date().toISOString();
+                          const newTr: Transaction = {
+                            id: `tr_refund_${rf.id}_${Date.now()}`,
+                            docNo: `REF-${rf.party}-${rf.bookingId}`,
+                            date: now.split('T')[0],
+                            type: 'RefundProcessed',
+                            amount: rf.amount,
+                            agentId: rf.partyId,
+                            reservationId: rf.bookingId.toString(),
+                            description: `Refund processed for ${a?.name || rf.partyId} (RSV-${rf.bookingId})`,
+                            paymentMethod: 'Bank Transfer',
+                            voucherNo: `REF-${Date.now()}`,
+                            createdBy: currentUser.name,
+                          };
+                          const allTx = [...transactions, newTr];
+                          setTransactions(allTx);
+                          ZumraDB.saveTransactions(allTx);
+                          toast.success(`Refund of ${rf.amount.toLocaleString()} SAR marked as processed for ${a?.name || 'agent'}`);
+                        }}
+                        className="bg-white hover:bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-rose-200 transition cursor-pointer"
+                      >
+                        ✅ {rf.party}: {rf.amount.toLocaleString()} SAR (RSV-{rf.bookingId})
+                      </button>
+                    );
+                  })}
+                  {pendingRefunds.length > 3 && (
+                    <span className="bg-rose-200 text-rose-800 text-[10px] font-bold px-2.5 py-1.5 rounded-lg">
+                      +{pendingRefunds.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {renderActivePage()}
         </div>
 

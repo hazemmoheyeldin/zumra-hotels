@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
@@ -13,6 +13,7 @@ import InvoicePDF from './InvoicePDF';
 import ConfirmDialog from './ConfirmDialog';
 import { useToast, ToastContainer } from './Toast';
 import { hasDraft, loadDraft, clearDraft } from '../hooks/useDraft';
+import CancellationWizard, { CancellationResult } from './CancellationWizard';
 
 interface RoomSelection {
   roomType: string;
@@ -56,6 +57,8 @@ interface ReservationsPageProps {
   accounts?: Account[];
   onSaveTransaction?: (tr: Transaction) => void;
   transactions?: Transaction[];
+  allotments?: Allotment[];
+  onSaveAllotment?: (allotment: Allotment) => void;
 }
 
 export default function ReservationsPage({
@@ -69,7 +72,9 @@ export default function ReservationsPage({
   onDeleteReservation,
   accounts = [],
   onSaveTransaction,
-  transactions = []
+  transactions = [],
+  allotments = [],
+  onSaveAllotment
 }: ReservationsPageProps) {
   
   // View states
@@ -102,6 +107,36 @@ export default function ReservationsPage({
   };
   const closeConfirmDlg = () => setConfirmDlg(prev => ({ ...prev, open: false, action: null }));
   const execConfirm = () => { confirmDlg.action?.(); closeConfirmDlg(); };
+
+  // Cancellation Wizard state - holds the reservation being cancelled, or null
+  const [cancelWizardRes, setCancelWizardRes] = useState<Reservation | null>(null);
+
+  const handleCancellationConfirm = (result: CancellationResult) => {
+    if (cancelWizardRes && cancelWizardRes.id > 0 && cancelWizardRes.id.toString() !== editingId) {
+      // List view quick cancel - save directly
+      onSaveReservation({
+        ...cancelWizardRes,
+        status: 'Cancelled',
+        cancellationReason: result.cancellationReason,
+        cancellationFee: result.cancellationFee,
+        clientCreditDisposition: result.clientDisposition,
+        supplierCreditDisposition: result.supplierDisposition,
+        clientCreditNote: result.clientNote,
+        supplierCreditNote: result.supplierNote,
+      });
+    } else {
+      // Form view - set fields for later save
+      setStatus('Cancelled');
+      setCancellationReason(result.cancellationReason);
+      setCancellationFee(result.cancellationFee);
+      setClientCreditDisposition(result.clientDisposition);
+      setSupplierCreditDisposition(result.supplierDisposition);
+      setClientCreditNote(result.clientNote);
+      setSupplierCreditNote(result.supplierNote);
+      toast.info('Cancellation details set. Click Save to apply.');
+    }
+    setCancelWizardRes(null);
+  };
 
   // Draft recovery
   const [showDraftBanner, setShowDraftBanner] = useState(() => hasDraft('reservation_form'));
@@ -233,6 +268,9 @@ export default function ReservationsPage({
   const [amountPaidByClient, setAmountPaidByClient] = useState<number>(0);
   const [amountPaidToSupplier, setAmountPaidToSupplier] = useState<number>(0);
 
+  // Allotment booking state
+  const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
+
   // Rooms breakdown block
   const [rooms, setRooms] = useState<RoomSelection[]>([
     { roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }
@@ -249,6 +287,53 @@ export default function ReservationsPage({
   }, [showForm, guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms]);
 
   const selectedHotelObj = hotels.find(h => h.id === hotelId);
+
+  // Allotment helpers
+  const selectedAllotment = allotments.find(a => a.id === selectedAllotmentId) || null;
+  const getAllotmentAvailability = (allotment: Allotment | null): { available: number; message: string } => {
+    if (!allotment || !checkIn || !checkOut) return { available: 0, message: '' };
+    if (!allotment.dailyAvailability) {
+      const avail = allotment.totalRooms - allotment.bookedRooms;
+      return { available: avail, message: `${avail} rooms available (flat)` };
+    }
+    const [y, m, d] = checkIn.split('-');
+    const start = new Date(Number(y), Number(m) - 1, Number(d));
+    const [ey, em, ed] = checkOut.split('-');
+    const end = new Date(Number(ey), Number(em) - 1, Number(ed));
+    const nights = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    let minAvail = Infinity;
+    for (let i = 0; i < nights; i++) {
+      const curr = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+      const dateStr = curr.toISOString().split('T')[0];
+      const day = allotment.dailyAvailability[dateStr];
+      if (!day) { minAvail = 0; break; }
+      const avail = day.total - day.booked;
+      if (avail < minAvail) minAvail = avail;
+    }
+    return { available: minAvail, message: `Min ${minAvail} rooms available across dates` };
+  };
+
+  const handleSelectAllotment = (allotmentId: string) => {
+    setSelectedAllotmentId(allotmentId);
+    if (!allotmentId) return;
+    const a = allotments.find(al => al.id === allotmentId);
+    if (a) {
+      setHotelId(a.hotelId);
+      setSupplierId(a.supplierId);
+      const hotel = hotels.find(h => h.id === a.hotelId);
+      if (hotel) {
+        setRooms([{
+          roomType: a.roomType || hotel.roomTypes[0] || 'Double',
+          view: hotel.views[0] || 'City View',
+          mealPlan: hotel.mealPlans[0] || 'B.B',
+          qty: 1,
+          pax: getPaxForRoomType(a.roomType || hotel.roomTypes[0] || 'Double'),
+          buyPriceNum: 100,
+          sellPriceNum: 150
+        }]);
+      }
+    }
+  };
 
   // Auto calculate nights
   const calculateNightsCount = (): number => {
@@ -273,6 +358,21 @@ export default function ReservationsPage({
   };
 
   // Calculate the actual total rate across all nights (accounting for weekend rates)
+  // Check if booking date range contains weekend days (Thu=4, Fri=5)
+  const hasWeekendDays = (ci: string, co: string): boolean => {
+    if (!ci || !co) return false;
+    const [y, m, d] = ci.split('-');
+    const start = new Date(Number(y), Number(m) - 1, Number(d));
+    const [ey, em, ed] = co.split('-');
+    const end = new Date(Number(ey), Number(em) - 1, Number(ed));
+    const nights = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    for (let i = 0; i < nights; i++) {
+      const curr = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+      if (curr.getDay() === 4 || curr.getDay() === 5) return true;
+    }
+    return false;
+  };
+
   const calcNightlyTotal = (baseRate: number, hasWeekend?: boolean, weekendRate?: number): number => {
     const n = calculateNightsCount();
     if (!hasWeekend || weekendRate === undefined || !checkIn) return baseRate * n;
@@ -336,8 +436,12 @@ export default function ReservationsPage({
     setRooms(rooms.filter((_, i) => i !== index));
   };
 
+  const handleCopyRoomRow = (index: number) => {
+    setRooms([...rooms, { ...rooms[index] }]);
+  };
+
   const handleEdit = (res: Reservation) => {
-    setEditingId(res.id);
+    setEditingId(res.id.toString());
     setClientId(res.clientId);
     setSupplierId(res.supplierId);
     setHotelId(res.hotelId);
@@ -424,19 +528,13 @@ export default function ReservationsPage({
     setShowForm(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut || !guestName) {
-      toast.warning('Please fill out all mandatory booking specs.');
-      return;
-    }
-
+  const doSaveReservation = () => {
     // Direct auto incremental RSV ID counting
     let nextId = 1;
     if (!editingId) {
       nextId = reservations.reduce((max, r) => r.id > max ? r.id : max, 0) + 1;
     } else {
-      nextId = editingId;
+      nextId = parseInt(editingId);
     }
 
     const calculatedNights = calculateNightsCount();
@@ -510,7 +608,8 @@ export default function ReservationsPage({
       bankAccountId: bankAccountId || undefined,
       agreementNo,
       supplierVoucher,
-      createdAt: editingId ? (reservations.find(r => r.id === editingId)?.createdAt || getEgyptTime().toISOString().replace('T', ' ').substring(0, 19)) : getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
+      allotmentId: selectedAllotmentId || undefined,
+      createdAt: editingId ? (reservations.find(r => r.id.toString() === editingId)?.createdAt || getEgyptTime().toISOString().replace('T', ' ').substring(0, 19)) : getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
       createdBy: currentUser
     };
 
@@ -518,6 +617,26 @@ export default function ReservationsPage({
     clearDraft('reservation_form');
     resetForm();
     toast.success(`Booking Reservation RSV-${nextId} saved successfully!`);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut || !guestName) {
+      toast.warning('Please fill out all mandatory booking specs.');
+      return;
+    }
+
+    // Weekend rate reminder: warn if booking spans weekend days but no weekend rate is set
+    if (hasWeekendDays(checkIn, checkOut) && !rooms.some(rm => rm.hasWeekend)) {
+      openConfirm(
+        'Weekend Rate Reminder',
+        'This booking contains weekend days (Thu/Fri) but no weekend rate is set.\n\nHotels sometimes sell at flat rates on weekdays same as weekends.\n\nDo you want to proceed without weekend rates, or go back and add them?',
+        () => doSaveReservation()
+      );
+      return;
+    }
+
+    doSaveReservation();
   };
 
   const resetForm = () => {
@@ -536,6 +655,7 @@ export default function ReservationsPage({
     setAgreementNo('');
     setSupplierVoucher('');
     setCancellationFee(0);
+    setSelectedAllotmentId('');
     setCancellationReason('');
     setClientCreditDisposition('N/A');
     setSupplierCreditDisposition('N/A');
@@ -728,6 +848,57 @@ export default function ReservationsPage({
     exportToCSV('reservations-export.csv', reportData);
   };
 
+  const handleExportFullReport = () => {
+    const rows: object[] = [];
+    filteredReservations.forEach(res => {
+      const h = hotels.find(ht => ht.id === res.hotelId);
+      const c = agents.find(ac => ac.id === res.clientId);
+      const s = agents.find(as => as.id === res.supplierId);
+      const totals = getReservationTotals(res);
+      // One row per room line with full booking context
+      res.rooms.forEach((rm, rmIdx) => {
+        const buyRate = typeof rm.buyRate === 'number' ? rm.buyRate : 0;
+        const sellRate = typeof rm.nightlyRates === 'number' ? rm.nightlyRates : 0;
+        rows.push({
+          'RSV ID': `RSV-${res.id}`,
+          'Guest Name': res.guestName,
+          'Nationality': res.guestNationality,
+          'Status': res.status,
+          'Check In': res.checkIn,
+          'Check Out': res.checkOut,
+          'Nights': res.nights,
+          'Hotel': h?.name || '',
+          'City': h?.city || '',
+          'Client': c?.name || c?.companyName || '',
+          'Supplier': s?.name || '',
+          'Room #': rmIdx + 1,
+          'Room Type': rm.roomType,
+          'View': rm.view || '',
+          'Meal Plan': rm.mealPlan,
+          'Qty': rm.qty,
+          'Pax': rm.pax,
+          'Buy Rate/Night': buyRate,
+          'Sell Rate/Night': sellRate,
+          'Has Weekend Rate': rm.nightlyRates && typeof rm.nightlyRates !== 'number' ? 'Yes' : 'No',
+          'Has Extra Bed': rm.hasExtraBed ? 'Yes' : 'No',
+          'Total Buy': totals.totalBuy,
+          'Total Sell': totals.totalSell,
+          'Profit': totals.profit,
+          'Paid by Client': res.amountPaidByClient || 0,
+          'Paid to Supplier': res.amountPaidToSupplier || 0,
+          'Client Outstanding': Math.max(0, totals.totalSell - (res.amountPaidByClient || 0)),
+          'Supplier Outstanding': Math.max(0, totals.totalBuy - (res.amountPaidToSupplier || 0)),
+          'Cancel Reason': res.cancellationReason || '',
+          'Cancel Fee': res.cancellationFee || 0,
+          'Hotel Conf#': res.hotelConfirmationNo || '',
+          'Booking Date': res.createdAt?.split(' ')[0] || '',
+          'Created By': res.createdBy || ''
+        });
+      });
+    });
+    exportToCSV('reservations-full-report.csv', rows);
+  };
+
   const [printingRoomingList, setPrintingRoomingList] = useState<Reservation | null>(null);
 
   return (
@@ -864,6 +1035,12 @@ export default function ReservationsPage({
             </div>
             <div className="flex gap-2">
               <button
+                onClick={handleExportFullReport}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-emerald-200"
+              >
+                📊 Export Full Report
+              </button>
+              <button
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
               >
@@ -980,6 +1157,34 @@ export default function ReservationsPage({
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
               <span className="text-amber-600">●</span> {t('res.bookingAssignment')}
             </h4>
+
+            {/* Allotment Selection */}
+            {allotments.length > 0 && (
+              <div className="mb-4 bg-indigo-50/50 border border-indigo-200 rounded-xl p-3">
+                <label className="text-[10px] uppercase font-bold text-indigo-700 block mb-1">Book from Allotment (optional)</label>
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <select value={selectedAllotmentId} onChange={(e) => handleSelectAllotment(e.target.value)} className="w-full px-3 py-2.5 border border-indigo-200 rounded-xl text-sm font-medium bg-white focus:border-indigo-500 transition-colors">
+                      <option value="">-- No allotment (manual entry) --</option>
+                      {allotments.map(a => {
+                        const hotel = hotels.find(h => h.id === a.hotelId);
+                        const supplier = agents.find(ag => ag.id === a.supplierId);
+                        return <option key={a.id} value={a.id}>{hotel?.name} | {a.roomType} | {supplier?.name || 'N/A'} | {a.startDate} to {a.endDate}</option>;
+                      })}
+                    </select>
+                  </div>
+                  {selectedAllotment && checkIn && checkOut && (() => {
+                    const avail = getAllotmentAvailability(selectedAllotment);
+                    return (
+                      <div className={`text-[10px] font-bold px-3 py-2 rounded-lg ${avail.available > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        {avail.available > 0 ? `✓ ${avail.message}` : `✗ No availability for selected dates`}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.customerAgent')}</label>
@@ -1024,7 +1229,7 @@ export default function ReservationsPage({
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.leadGuest')}</label>
-                <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="MOHAMED AL-AHMADI" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white transition-colors" required />
+                <input type="text" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Enter Guest Name" className="w-full bg-slate-50 px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white transition-colors" required />
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.nationality')}</label>
@@ -1043,6 +1248,15 @@ export default function ReservationsPage({
                         else { setCancellationReason('Customer requested cancellation'); }
                         if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
                       };
+                      if (s === 'Cancelled' && status !== 'Cancelled') {
+                        setCancelWizardRes({
+                          id: editingId ? parseInt(editingId) : 0, checkIn, checkOut, nights: calculateNightsCount(),
+                          clientId, hotelId, guestName, guestNationality, supplierId,
+                          rooms: rooms.map((rm, idx) => ({ id: `room_${idx}`, roomType: rm.roomType, qty: rm.qty, nightlyRates: rm.sellPriceNum, buyRate: rm.buyPriceNum, mealPlan: rm.mealPlan, hasSeparateMealRate: false, mealRate: 0, pax: rm.pax, view: rm.view })),
+                          status: 'Tentative', amountPaidByClient, amountPaidToSupplier, createdBy: currentUser, createdAt: '',
+                        });
+                        return;
+                      }
                       if (s === 'Confirmed' && status !== 'Confirmed') {
                         const formTotalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
                         if (amountPaidByClient < formTotalSell && formTotalSell > 0) {
@@ -1065,149 +1279,178 @@ export default function ReservationsPage({
           {/* Section 2: Room Configuration */}
           {selectedHotelObj && (
             <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
-              <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
+              {/* Header + Summary Bar */}
+              <div className="flex flex-wrap justify-between items-center mb-3 border-b border-slate-100 pb-3 gap-2">
                 <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
                   <span className="text-amber-600">●</span> {t('res.roomConfig')}
                 </h4>
-                <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">{t('res.addRoomLine')}</button>
+                <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">+ {t('res.addRoomLine')}</button>
               </div>
 
-              <div className="space-y-3">
+              {/* Room Summary Bar */}
+              {(() => {
+                const totalRooms = rooms.reduce((s, rm) => s + rm.qty, 0);
+                const totalBuy = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
+                const totalSell = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
+                const totalProfit = totalSell - totalBuy;
+                return (
+                  <div className="flex flex-wrap gap-3 mb-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl p-3 border border-slate-200 text-[10px] font-bold">
+                    <span className="text-slate-600">Rooms: <span className="text-slate-900">{totalRooms}</span></span>
+                    <span className="text-red-500">Buy: <span className="font-mono">{totalBuy.toLocaleString()}</span></span>
+                    <span className="text-emerald-600">Sell: <span className="font-mono">{totalSell.toLocaleString()}</span></span>
+                    <span className={totalProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}>Profit: <span className="font-mono font-extrabold">{totalProfit.toLocaleString()}</span></span>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-4">
                 {rooms.map((rm, idx) => {
                   const roomBuyTotal = roomFullTotal(rm, 'buy');
                   const roomSellTotal = roomFullTotal(rm, 'sell');
                   const roomProfit = roomSellTotal - roomBuyTotal;
                   return (
-                    <div key={idx} className="border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-                      <div className="grid grid-cols-2 md:grid-cols-8 gap-3 items-end">
-                        <div className="col-span-2">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.roomType')}</label>
-                          <select value={rm.roomType} onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })} className="w-full px-2.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold">
-                            {selectedHotelObj.roomTypes.map((t, i) => (<option key={i} value={t}>{t}</option>))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.view')}</label>
-                          <select value={rm.view} onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
-                            {selectedHotelObj.views.map((v, i) => (<option key={i} value={v}>{v}</option>))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.mealPlan')}</label>
-                          <select value={rm.mealPlan} onChange={(e) => handleUpdateRoomRow(idx, { mealPlan: e.target.value })} className="w-full px-2 py-2 border border-slate-200 bg-white rounded-lg text-xs">
-                            {selectedHotelObj.mealPlans.map((mp, i) => (<option key={i} value={mp}>{mp}</option>))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.qty')}</label>
-                          <input type="number" min={1} value={rm.qty} onChange={(e) => handleUpdateRoomRow(idx, { qty: Number(e.target.value) })} className="w-full px-2 py-2 border border-slate-200 rounded-lg font-bold font-mono text-xs text-center" />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">{t('res.pax')}</label>
-                          {rm.roomType.toLowerCase().includes('suite') ? (
-                            <select value={rm.pax || 2} onChange={(e) => handleUpdateRoomRow(idx, { pax: Number(e.target.value) })} className="w-full bg-white px-1 py-2 border border-slate-200 rounded-lg text-[11px] font-mono font-bold text-center">
-                              {[2,3,4,5,6].map(n => (<option key={n} value={n}>{n} Pax</option>))}
-                            </select>
-                          ) : (
-                            <span className="w-full bg-slate-100 font-mono text-[11px] font-bold block text-center py-2 border border-slate-200 rounded-lg select-none">{rm.pax} Pax</span>
-                          )}
-                        </div>
-                        <div className="flex items-end justify-end">
-                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="{t('res.deleteRoomLine')}">🗑️</button>
+                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
+                      {/* Room Header Bar */}
+                      <div className="bg-slate-50 px-4 py-2 flex items-center justify-between border-b border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Room Line #{idx + 1}</span>
+                        <div className="flex gap-1.5">
+                          <button type="button" onClick={() => handleCopyRoomRow(idx)} className="text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition" title="Copy this room line">📋 Copy</button>
+                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-[9px] font-bold text-red-500 hover:bg-rose-50 px-2 py-1 rounded-lg transition" title="Delete room line">🗑️ Delete</button>
                         </div>
                       </div>
 
-                      {/* Pricing Row */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200">
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-red-500 block mb-0.5">{t('res.buyRateNight')}</label>
-                          <input type="number" value={rm.buyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { buyPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-red-200 rounded-lg text-red-700 font-bold font-mono text-xs bg-red-50/30" />
-                        </div>
-                        <div>
-                          <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-0.5">{t('res.sellRateNight')}</label>
-                          <input type="number" value={rm.sellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })} className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-emerald-800 font-bold font-mono text-xs bg-emerald-50/30" />
-                        </div>
-                        <div className="bg-slate-50 rounded-lg p-2 border border-slate-200">
-                          <div className="text-[9px] uppercase font-bold text-slate-400 mb-0.5">{t('res.roomTotals')} ({calculateNightsCount()}N أ— {rm.qty} rooms)</div>
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-red-600 font-mono font-bold">-{roomBuyTotal.toLocaleString()}</span>
-                            <span className="text-emerald-700 font-mono font-bold">+{roomSellTotal.toLocaleString()}</span>
-                            <span className={`font-mono font-extrabold ${roomProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>{roomProfit.toLocaleString()}</span>
+                      <div className="p-4">
+                        {/* Room Info Row */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.roomType')}</label>
+                            <select value={rm.roomType} onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })} className="w-full px-2.5 py-2.5 border border-slate-200 bg-white rounded-lg text-xs font-semibold">
+                              {selectedHotelObj.roomTypes.map((rt, i) => (<option key={i} value={rt}>{rt}</option>))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.view')}</label>
+                            <select value={rm.view} onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })} className="w-full px-2 py-2.5 border border-slate-200 bg-white rounded-lg text-xs">
+                              {selectedHotelObj.views.map((v, i) => (<option key={i} value={v}>{v}</option>))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.mealPlan')}</label>
+                            <select value={rm.mealPlan} onChange={(e) => handleUpdateRoomRow(idx, { mealPlan: e.target.value })} className="w-full px-2 py-2.5 border border-slate-200 bg-white rounded-lg text-xs">
+                              {selectedHotelObj.mealPlans.map((mp, i) => (<option key={i} value={mp}>{mp}</option>))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.qty')} / {t('res.pax')}</label>
+                            <div className="flex gap-1.5">
+                              <input type="number" min={1} value={rm.qty} onChange={(e) => handleUpdateRoomRow(idx, { qty: Number(e.target.value) })} className="w-full px-2 py-2.5 border border-slate-200 rounded-lg font-bold font-mono text-xs text-center" />
+                              {rm.roomType.toLowerCase().includes('suite') ? (
+                                <select value={rm.pax || 2} onChange={(e) => handleUpdateRoomRow(idx, { pax: Number(e.target.value) })} className="w-full bg-white px-1 py-2.5 border border-slate-200 rounded-lg text-[11px] font-mono font-bold text-center">
+                                  {[2,3,4,5,6].map(n => (<option key={n} value={n}>{n} Pax</option>))}
+                                </select>
+                              ) : (
+                                <span className="w-full bg-slate-100 font-mono text-[11px] font-bold block text-center py-2.5 border border-slate-200 rounded-lg select-none">{rm.pax} Pax</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Quick Totals */}
+                          <div className="col-span-2 md:col-span-1 bg-slate-50 rounded-lg p-2.5 border border-slate-200 flex flex-col justify-center">
+                            <div className="text-[9px] uppercase font-bold text-slate-400 mb-1">{t('res.roomTotals')} ({calculateNightsCount()}N × {rm.qty})</div>
+                            <div className="flex justify-between text-[10px] font-mono">
+                              <span className="text-red-600 font-bold">-{roomBuyTotal.toLocaleString()}</span>
+                              <span className="text-emerald-700 font-bold">+{roomSellTotal.toLocaleString()}</span>
+                              <span className={`font-extrabold ${roomProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}`}>{roomProfit.toLocaleString()}</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasWeekend || false} onChange={(e) => handleUpdateRoomRow(idx, { hasWeekend: e.target.checked })} className="rounded text-amber-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.weekendRate')}</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasExtraBed || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraBed: e.target.checked })} className="rounded text-indigo-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraBed')}</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasSeparateMealRate || false} onChange={(e) => handleUpdateRoomRow(idx, { hasSeparateMealRate: e.target.checked })} className="rounded text-rose-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.separateMealRate')}</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasViewSupplement || false} onChange={(e) => handleUpdateRoomRow(idx, { hasViewSupplement: e.target.checked })} className="rounded text-sky-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.viewSupplement')}</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasExtraMeal1 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal1: e.target.checked })} className="rounded text-orange-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraMeal')} 1</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={rm.hasExtraMeal2 || false} onChange={(e) => handleUpdateRoomRow(idx, { hasExtraMeal2: e.target.checked })} className="rounded text-teal-600 w-3 h-3" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase">{t('res.extraMeal')} 2</span>
-                          </label>
-                        </div>
-                      </div>
 
-                      {/* Expandable option rows */}
+                        {/* Pricing Row */}
+                        <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-dashed border-slate-200">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-red-500 block mb-1">{t('res.buyRateNight')}</label>
+                            <input type="number" value={rm.buyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { buyPriceNum: Number(e.target.value) })} className="w-full px-3 py-2.5 border border-red-200 rounded-lg text-red-700 font-bold font-mono text-xs bg-red-50/30" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-1">{t('res.sellRateNight')}</label>
+                            <input type="number" value={rm.sellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })} className="w-full px-3 py-2.5 border border-emerald-200 rounded-lg text-emerald-800 font-bold font-mono text-xs bg-emerald-50/30" />
+                          </div>
+                        </div>
+
+                        {/* Supplements Toggle Bar */}
+                        <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
+                          <div className="text-[9px] uppercase font-bold text-slate-400 mb-2">Supplements</div>
+                          <div className="flex flex-wrap gap-2">
+                            {([
+                              { key: 'hasWeekend', label: t('res.weekendRate'), activeClass: 'bg-amber-100 border-amber-300 text-amber-800 shadow-sm' },
+                              { key: 'hasExtraBed', label: t('res.extraBed'), activeClass: 'bg-indigo-100 border-indigo-300 text-indigo-800 shadow-sm' },
+                              { key: 'hasSeparateMealRate', label: t('res.separateMealRate'), activeClass: 'bg-rose-100 border-rose-300 text-rose-800 shadow-sm' },
+                              { key: 'hasViewSupplement', label: t('res.viewSupplement'), activeClass: 'bg-sky-100 border-sky-300 text-sky-800 shadow-sm' },
+                              { key: 'hasExtraMeal1', label: `${t('res.extraMeal')} 1`, activeClass: 'bg-orange-100 border-orange-300 text-orange-800 shadow-sm' },
+                              { key: 'hasExtraMeal2', label: `${t('res.extraMeal')} 2`, activeClass: 'bg-teal-100 border-teal-300 text-teal-800 shadow-sm' },
+                            ] as const).map(supp => (
+                              <button
+                                key={supp.key}
+                                type="button"
+                                onClick={() => handleUpdateRoomRow(idx, { [supp.key]: !rm[supp.key] } as any)}
+                                className={`px-3 py-1.5 rounded-full text-[9px] font-bold uppercase transition-all border ${
+                                  rm[supp.key]
+                                    ? supp.activeClass
+                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+                                }`}
+                              >
+                                {rm[supp.key] ? '✓ ' : '+ '}{supp.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                      {/* Expandable supplement fields */}
                       {rm.hasWeekend && (
-                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-amber-200 bg-amber-50/30 py-2 mt-3 rounded-r">
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-amber-300 bg-amber-50/50 py-2 mt-3 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">{t('res.weekendBuyNight')}</label><input type="number" value={rm.weekendBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-amber-700 block mb-0.5">{t('res.weekendSellNight')}</label><input type="number" value={rm.weekendSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { weekendSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-amber-200 bg-amber-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraBed && (
-                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-indigo-200 bg-indigo-50/30 py-2 mt-2 rounded-r">
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-indigo-300 bg-indigo-50/50 py-2 mt-2 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">{t('res.extraBedBuyNight')}</label><input type="number" value={rm.extraBedBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-indigo-700 block mb-0.5">{t('res.extraBedSellNight')}</label><input type="number" value={rm.extraBedSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraBedSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-indigo-200 bg-indigo-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasSeparateMealRate && (
-                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-rose-200 bg-rose-50/30 py-2 mt-2 rounded-r">
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-rose-300 bg-rose-50/50 py-2 mt-2 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">{t('res.mealBuyPaxNight')}</label><input type="number" value={rm.mealRateBuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateBuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-rose-700 block mb-0.5">{t('res.mealSellPaxNight')}</label><input type="number" value={rm.mealRateSellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { mealRateSellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-rose-200 bg-rose-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasViewSupplement && (
-                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-sky-200 bg-sky-50/30 py-2 mt-2 rounded-r">
+                        <div className="grid grid-cols-2 gap-3 pl-4 border-l-2 border-sky-300 bg-sky-50/50 py-2 mt-2 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">{t('res.viewSuppBuyRoomNight')}</label><input type="number" value={rm.viewSuppBuyPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppBuyPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-sky-700 block mb-0.5">{t('res.viewSuppSellRoomNight')}</label><input type="number" value={rm.viewSuppSellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { viewSuppSellPriceNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-sky-200 bg-sky-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraMeal1 && (
-                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-orange-200 bg-orange-50/30 py-2 mt-2 rounded-r">
+                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-orange-300 bg-orange-50/50 py-2 mt-2 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.mealLabel')}</label><input type="text" value={rm.extraMeal1Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-slate-800 font-bold text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.buyPaxNight')}</label><input type="number" value={rm.extraMeal1BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-orange-700 block mb-0.5">{t('res.sellPaxNight')}</label><input type="number" value={rm.extraMeal1SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal1SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-orange-200 bg-orange-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
                       {rm.hasExtraMeal2 && (
-                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-teal-200 bg-teal-50/30 py-2 mt-2 rounded-r">
+                        <div className="grid grid-cols-3 gap-3 pl-4 border-l-2 border-teal-300 bg-teal-50/50 py-2 mt-2 rounded-r">
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.mealLabel')}</label><input type="text" value={rm.extraMeal2Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-slate-800 font-bold text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.buyPaxNight')}</label><input type="number" value={rm.extraMeal2BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.sellPaxNight')}</label><input type="number" value={rm.extraMeal2SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
                         </div>
                       )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
+
 
           {/* Section 3: Status-Specific Fields & References */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
@@ -1490,9 +1733,8 @@ export default function ReservationsPage({
                           const newStatus = e.target.value as any;
                           const applyStatusChange = () => {
                             if (newStatus === 'Cancelled') {
-                              const reason = prompt('Please enter the reason for cancellation:');
-                              if (reason === null) return;
-                              onSaveReservation({...res, status: newStatus, cancellationReason: reason || 'Not specified'});
+                              setCancelWizardRes(res);
+                              return;
                             } else {
                               onSaveReservation({...res, status: newStatus});
                             }
@@ -2210,6 +2452,17 @@ export default function ReservationsPage({
           hotel={hotels.find(h => h.id === printingInvoice.hotelId)}
           transactions={transactions}
           onClose={() => setPrintingInvoice(null)}
+        />
+      )}
+
+      {/* Cancellation Wizard */}
+      {cancelWizardRes && (
+        <CancellationWizard
+          reservation={cancelWizardRes}
+          agents={agents}
+          currentUser={currentUser}
+          onConfirm={handleCancellationConfirm}
+          onClose={() => setCancelWizardRes(null)}
         />
       )}
 

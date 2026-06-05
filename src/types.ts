@@ -37,7 +37,20 @@ export interface Agent {
   email: string;
   address: string;
   balance: number;
+  walletBalance?: number; // Available credit balance from cancellations
+  pendingRefunds?: RefundAlert[];
   auditLogs: AuditLogEntry[];
+}
+
+export interface RefundAlert {
+  id: string;
+  bookingId: number;
+  amount: number;
+  party: 'Client' | 'Supplier';
+  partyId: string;
+  status: 'Pending' | 'Confirmed' | 'Processed';
+  createdAt: string;
+  note?: string;
 }
 
 export interface AllotmentDay {
@@ -119,6 +132,7 @@ export interface Reservation {
   clientCreditNote?: string;
   supplierCreditNote?: string;
   roomingList?: string;
+  allotmentId?: string; // Linked allotment ID if booked through allotment
 }
 
 export interface Account {
@@ -136,7 +150,7 @@ export interface Transaction {
   id: string;
   docNo: string; // Counter-based
   date: string;
-  type: 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund' | 'Transfer';
+  type: 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund' | 'Transfer' | 'CreditApplied' | 'RefundProcessed';
   amount: number;
   fromAccountId?: string;
   toAccountId?: string;

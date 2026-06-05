@@ -564,6 +564,72 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 
       </div>
 
+      {/* Pending Credits & Wallet Widget */}
+      {(() => {
+        const agentsWithCredit = agents.filter(a => (a.walletBalance || 0) > 0);
+        const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
+        if (agentsWithCredit.length === 0 && pendingRefunds.length === 0) return null;
+        return (
+          <div className="bg-white border border-slate-150 rounded-2xl p-5 shadow-sm">
+            <div className="border-b border-slate-100 pb-3 mb-4 flex justify-between items-center">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">💰 Pending Credits & Wallet</h3>
+              <span className="font-mono text-[10px] text-slate-400">{agentsWithCredit.length} agent{agentsWithCredit.length !== 1 ? 's' : ''} with credit</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Agents with Credit Balance */}
+              <div>
+                <h4 className="text-[10px] uppercase font-bold text-emerald-600 mb-2">Credit Balances</h4>
+                {agentsWithCredit.length > 0 ? (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto no-scrollbar">
+                    {agentsWithCredit.map(a => (
+                      <div key={a.id} className="flex items-center justify-between bg-emerald-50 rounded-lg px-3 py-2 border border-emerald-100">
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{a.companyName || a.name}</p>
+                          <p className="text-[10px] text-slate-400">{a.type === 'Customer' ? 'Client' : a.type === 'Supplier' ? 'Supplier' : 'Both'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-emerald-700 font-mono">{(a.walletBalance || 0).toLocaleString()} SAR</p>
+                          <button
+                            onClick={() => onNavigate('Transactions', { agentId: a.id })}
+                            className="text-[9px] font-bold text-indigo-600 hover:text-indigo-800 transition"
+                          >
+                            Apply Credit →
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 italic text-[10px] py-2">No credit balances</p>
+                )}
+              </div>
+              {/* Pending Refund Alerts */}
+              <div>
+                <h4 className="text-[10px] uppercase font-bold text-rose-600 mb-2">Pending Refunds</h4>
+                {pendingRefunds.length > 0 ? (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto no-scrollbar">
+                    {pendingRefunds.map(rf => {
+                      const a = agents.find(ag => ag.id === rf.partyId);
+                      return (
+                        <div key={rf.id} className="flex items-center justify-between bg-rose-50 rounded-lg px-3 py-2 border border-rose-100">
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">{a?.companyName || a?.name || rf.partyId}</p>
+                            <p className="text-[10px] text-slate-400">{rf.party} • RSV-{rf.bookingId}</p>
+                          </div>
+                          <p className="text-sm font-black text-rose-700 font-mono">{rf.amount.toLocaleString()} SAR</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-slate-400 italic text-[10px] py-2">No pending refunds</p>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Top Clients and Suppliers Portfolios */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 

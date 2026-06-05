@@ -25,7 +25,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t, lang } = useLang();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund'>('');
+  const [filterType, setFilterType] = useState<'' | 'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund' | 'CreditApplied' | 'RefundProcessed'>('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterAgentId, setFilterAgentId] = useState('');
@@ -34,7 +34,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [showAgentSummary, setShowAgentSummary] = useState(false);
   
   // Form type
-  const [type, setType] = useState<'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund'>('ClientPayment');
+  const [type, setType] = useState<'ClientPayment' | 'SupplierPayment' | 'ClientRefund' | 'SupplierRefund' | 'CreditApplied' | 'RefundProcessed'>('ClientPayment');
   const [agentId, setAgentId] = useState('');
   const [reservationId, setReservationId] = useState('');
   const [amount, setAmount] = useState<number>(0);
@@ -64,7 +64,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
   const handleEditTransaction = (tr: Transaction) => {
     setEditingId(tr.id);
-    setType(tr.type);
+    setType(tr.type as typeof type);
     setAgentId(tr.agentId || '');
     setReservationId(tr.reservationId || '');
     setOriginalCurrency(tr.originalCurrency || 'SAR');
@@ -180,7 +180,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const runningBalances = useMemo(() => {
     let bal = 0;
     return filteredTransactions.map(tr => {
-      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund') bal += tr.amount;
+      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied') bal += tr.amount;
       else bal -= tr.amount;
       return bal;
     });
@@ -193,7 +193,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       const id = tr.agentId || 'unknown';
       if (!map[id]) map[id] = { name: getAgentLabel(id), inflow: 0, outflow: 0, count: 0 };
       map[id].count++;
-      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund') map[id].inflow += tr.amount;
+      if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied') map[id].inflow += tr.amount;
       else map[id].outflow += tr.amount;
     });
     return Object.values(map).sort((a, b) => (b.inflow - b.outflow) - (a.inflow - a.outflow));
@@ -224,7 +224,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const handleExportCSV = () => {
     const reportData = filteredTransactions.map(tr => ({
       Date: tr.date,
-      Type: tr.type === 'ClientPayment' ? 'Client Payment' : 'Supplier Payment',
+      Type: tr.type === 'ClientPayment' ? 'Client Payment' : tr.type === 'SupplierPayment' ? 'Supplier Payment' : tr.type === 'CreditApplied' ? 'Credit Applied' : tr.type === 'RefundProcessed' ? 'Refund Processed' : tr.type === 'ClientRefund' ? 'Client Refund' : 'Supplier Refund',
       Agent: getAgentLabel(tr.agentId),
       Method: tr.paymentMethod,
       Description: tr.description,
@@ -327,6 +327,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               <option value="SupplierPayment">{t('trans.supplierPayments')}</option>
               <option value="ClientRefund">{t('trans.clientRefundsFilter')}</option>
               <option value="SupplierRefund">{t('trans.supplierRefundsFilter')}</option>
+              <option value="CreditApplied">Credit Applied</option>
+              <option value="RefundProcessed">Refund Processed</option>
             </select>
             <select
               value={filterMethod}
@@ -420,6 +422,33 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl bg-slate-50 border border-slate-200/60 p-5 rounded-2xl text-xs">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-705">{t('trans.recordFormTitle')}</h3>
 
+          {/* Wallet Credit Banner */}
+          {agentId && (() => {
+            const selectedAgent = agents.find(a => a.id === agentId);
+            if (selectedAgent && (selectedAgent.walletBalance || 0) > 0) {
+              return (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-800">💰 This agent has {(selectedAgent.walletBalance || 0).toLocaleString()} SAR credit available</p>
+                    <p className="text-[10px] text-emerald-600">You can apply this credit towards a new payment.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAmount(selectedAgent.walletBalance || 0);
+                      setType(type.startsWith('Client') ? 'ClientPayment' : 'SupplierPayment');
+                      setDescription(`Applying wallet credit of ${(selectedAgent.walletBalance || 0).toLocaleString()} SAR`);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-3 py-2 rounded-lg transition whitespace-nowrap"
+                  >
+                    Apply Full Credit
+                  </button>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('trans.category')}</label>
@@ -436,6 +465,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <option value="SupplierPayment">Payment Paid to Supplier (Outflow)</option>
                 <option value="ClientRefund">Refund to Client (Outflow)</option>
                 <option value="SupplierRefund">Refund from Supplier (Inflow)</option>
+                <option value="CreditApplied">Apply Wallet Credit (Inflow)</option>
+                <option value="RefundProcessed">Refund Processed (Outflow)</option>
               </select>
             </div>
 
@@ -620,10 +651,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <span className={`font-mono font-bold text-sm ${
                   tr.type === 'ClientPayment' ? 'text-emerald-700' :
                   tr.type === 'SupplierRefund' ? 'text-emerald-700' :
+                  tr.type === 'CreditApplied' ? 'text-emerald-700' :
                   tr.type === 'ClientRefund' ? 'text-orange-600' :
+                  tr.type === 'RefundProcessed' ? 'text-rose-600' :
                   'text-red-600'
                 }`}>
-                  {tr.type === 'ClientPayment' ? '+' : tr.type === 'SupplierRefund' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : '-'}{tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : tr.type === 'RefundProcessed' ? '↩ ' : '-'}{tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="flex justify-between items-center text-[10px] text-slate-500 mb-2">
@@ -712,10 +745,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   <td className={`py-3 px-3 text-right font-mono font-bold ${
                     tr.type === 'ClientPayment' ? 'text-emerald-700' :
                     tr.type === 'SupplierRefund' ? 'text-emerald-700' :
+                    tr.type === 'CreditApplied' ? 'text-emerald-700' :
                     tr.type === 'ClientRefund' ? 'text-orange-600' :
+                    tr.type === 'RefundProcessed' ? 'text-rose-600' :
                     'text-red-650'
                   }`}>
-                    {tr.type === 'ClientPayment' ? '+' : tr.type === 'SupplierRefund' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : tr.type === 'RefundProcessed' ? '↩ ' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[idx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                     {runningBalances[idx].toLocaleString('en-US', { minimumFractionDigits: 2 })}

@@ -697,16 +697,35 @@ export function exportToCSV(filename: string, rows: object[]) {
       }).join(separator);
     }).join('\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  if (link.download !== undefined) {
+  // Add BOM for proper UTF-8/Excel encoding
+  const BOM = '\uFEFF';
+  const fullContent = BOM + csvContent;
+
+  // Try blob URL approach first, then fallback to data URI
+  try {
+    const blob = new Blob([fullContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    // Delay cleanup to ensure download starts
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    }, 250);
+  } catch {
+    // Fallback: use data URI (works on browsers that block blob URLs)
+    const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(fullContent);
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => document.body.removeChild(link), 250);
   }
 }
 
