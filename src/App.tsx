@@ -182,6 +182,7 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<any>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { t, lang } = useLang();
 
   // App Master States
@@ -797,20 +798,20 @@ export default function App() {
   const [isInboxOpen, setIsInboxOpen] = useState(false);
 
   const navItems = [
-    { name: 'Dashboard', icon: '📊', group: 'Overview' },
-    { name: 'Calendar', icon: '🗓️', group: 'Overview' },
-    { name: 'Analytics', icon: '📉', group: 'Overview' },
-    { name: 'Reservations', icon: '📅', group: 'Operations' },
-    { name: 'Sales', icon: '🚀', group: 'Operations' },
-    { name: 'Production', icon: '📈', group: 'Operations' },
-    { name: 'Hotels', icon: '🏢', group: 'Operations' },
-    { name: 'Agents', icon: '👥', group: 'Operations' },
-    { name: 'Allotments', icon: '📦', group: 'Operations' },
-    { name: 'Transactions', icon: '💰', group: 'Finance' },
-    { name: 'External Transfers', icon: '💸', group: 'Finance' },
-    { name: 'Banks & Safes', icon: '🏦', group: 'Finance' },
-    { name: 'Reports', icon: '📋', group: 'Finance' },
-    { name: 'Users', icon: '🔑', group: 'Settings' },
+    { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard' },
+    { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar' },
+    { name: 'Analytics', icon: '📉', group: 'Overview', key: 'analytics' },
+    { name: 'Reservations', icon: '📅', group: 'Operations', key: 'reservations' },
+    { name: 'Sales', icon: '🚀', group: 'Operations', key: 'sales' },
+    { name: 'Production', icon: '📈', group: 'Operations', key: 'production' },
+    { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels' },
+    { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents' },
+    { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments' },
+    { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions' },
+    { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers' },
+    { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes' },
+    { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports' },
+    { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
   ];
 
   if (!currentUser) {
@@ -886,7 +887,7 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 w-64 md:w-64 flex-shrink-0 ${currentTheme.sidebarBg} text-white flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} text-white flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className={`p-5 flex flex-row md:flex-col items-center justify-between md:justify-center border-b ${currentTheme.sidebarBorder} gap-3`}>
           <div className="flex items-center gap-3 md:flex-col">
             <div className={`flex items-center justify-center transition-transform hover:scale-105 bg-white p-2 rounded-xl`}>
@@ -899,7 +900,8 @@ export default function App() {
 
           {/* Current worker label display (shown in header row on mobile, bottom of sidebar on desktop) */}
           {currentUser && (
-            <div className={`hidden md:flex items-center gap-2 ${currentTheme.sidebarBgSecondary} p-2 rounded-xl border ${currentTheme.sidebarBorder} mt-1 w-full`}>
+            <div className={`hidden md:flex items-center gap-2 ${currentTheme.sidebarBgSecondary} p-2 rounded-xl border ${currentTheme.sidebarBorder} mt-1 w-full ${sidebarCollapsed ? 'md:hidden' : ''}`}>
+
               <span className="text-xs">👤</span>
               <div className="min-w-0">
                 <span className={`text-[9px] ${currentTheme.brandText} block leading-none`}>Operator ({currentUser.role}):</span>
@@ -913,7 +915,7 @@ export default function App() {
         <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-4 px-3 flex flex-col gap-0 overflow-x-auto">
           {Object.entries(navGroups).map(([group, items]) => (
             <div key={group}>
-              <div className="px-3 mb-1.5">
+              <div className={`px-3 mb-1.5 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
                 <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400/70">{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
               </div>
               <div className="space-y-0.5">
@@ -935,7 +937,7 @@ export default function App() {
                       }`}
                     >
                       <span className="text-sm md:text-base w-5 text-center flex-shrink-0">{item.icon}</span>
-                      <span className="truncate">{t(`nav.${item.name.toLowerCase().replace(/\s+/g, '')}` as TranslationKey)}</span>
+                      <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
                     </button>
                   );
                 })}
@@ -950,11 +952,25 @@ export default function App() {
             <span>🚪</span>
             <span>{t('nav.exitPortal')}</span>
           </button>
+          {/* Desktop collapse toggle */}
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 text-slate-400 hover:bg-white/10 hover:text-white mt-1"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <span className="text-base">{sidebarCollapsed ? '▶' : '◀'}</span>
+            <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>{sidebarCollapsed ? '' : 'Collapse'}</span>
+          </button>
         </nav>
 
         {/* Sidebar Footer Worker */}
         {currentUser && (
-          <div className={`p-4 ${currentTheme.sidebarBgSecondary} border-t ${currentTheme.sidebarBorder} hidden md:block`}>
+          <div className={`p-4 ${currentTheme.sidebarBgSecondary} border-t ${currentTheme.sidebarBorder} ${sidebarCollapsed ? 'hidden md:flex md:justify-center md:items-center' : 'hidden md:block'}`}>
+            {sidebarCollapsed ? (
+              <button onClick={() => handleSetCurrentUser(null as any)} title="Sign Out" className="bg-black/20 hover:bg-rose-900 p-2 rounded-lg transition-all text-xs border border-white/10">
+                🚪
+              </button>
+            ) : (
             <div className="flex items-center justify-between gap-1.5">
               <div className="flex items-center gap-2 overflow-hidden">
                 <div className={`w-8 h-8 rounded-lg bg-black/30 flex items-center justify-center font-bold text-xs ${currentTheme.brandText} border ${currentTheme.sidebarBorder} flex-shrink-0`}>
@@ -973,6 +989,7 @@ export default function App() {
                 🚪
               </button>
             </div>
+            )}
           </div>
         )}
       </aside>
@@ -998,7 +1015,7 @@ export default function App() {
 
           <div className="flex items-center gap-2">
             <h2 className="text-sm md:text-base font-extrabold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
-              {t(`nav.${activeTab.toLowerCase().replace(/\s+/g, '')}` as TranslationKey, { tab: activeTab })}
+              {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
             </h2>
             <span className={`hidden sm:inline-block text-[9px] ${currentTheme.badgeBg} font-extrabold px-3 py-0.5 rounded-full uppercase tracking-tight`}>
               {t('dash.egyptTime')}

@@ -82,10 +82,10 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
         </div>
 
         {/* Printable Paper Area (Landscape) */}
-        <div id="print-area" className="bg-white p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-1">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1 gap-2">
             <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
               <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
@@ -109,7 +109,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Period Details Bar */}
-          <div className="grid grid-cols-4 gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 text-[10px] bg-slate-50 border border-slate-150 p-2 rounded-lg mb-3 text-slate-700 text-left font-sans print:bg-slate-50">
             <div><span className="font-bold text-slate-900">{t('arpdf.arrivalFrom')}</span> {new Date(fromDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">{t('arpdf.arrivalTo')}</span> {new Date(toDate).toLocaleDateString('en-GB')}</div>
             <div><span className="font-bold text-slate-900">{t('arpdf.inHouse')}</span> False</div>
@@ -117,8 +117,8 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Arrivals Matrix Table */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
-            <table className="w-full text-left border-collapse text-[9px]">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto mb-6">
+            <table className="w-full text-left border-collapse text-[9px] min-w-[900px]">
               <thead>
                 <tr className="bg-slate-100/85 text-slate-700 border-b border-slate-200 font-extrabold">
                   <th className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{t('arpdf.snCol')}</th>

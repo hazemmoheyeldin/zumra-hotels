@@ -230,10 +230,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
         </div>
 
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="bg-white p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center pb-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-2 gap-2">
             <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
               <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
@@ -257,7 +257,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Statement metadata matrix */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 text-[10px] border border-slate-200 rounded-lg p-3 mb-3 text-slate-700 bg-slate-50/50 text-left print:bg-slate-50">
             <div className="space-y-1">
               <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{isSupplier ? `${t('srpdf.supplierLabel')} :` : `${t('srpdf.clientLabel')} :`}</span> <span className="text-slate-950 font-semibold">{client.companyName || client.name}</span></p>
               <p><span className="font-bold text-slate-900 min-w-[100px] inline-block">{t('srpdf.viewInternals')}</span> {t('srpdf.excludeInternals')}</p>

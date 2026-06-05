@@ -10,6 +10,7 @@ interface PDFOptions {
 
 // Guard flag to prevent double-triggering and "blocked from printing" errors
 let isPrinting = false;
+let printCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const downloadPDF = (elementId: string, filename: string, options?: PDFOptions) => {
   // Prevent re-entrant calls (causes "blocked from automatically printing")
@@ -71,6 +72,12 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     z-index: 999999;
     page-break-inside: avoid;
     break-inside: avoid;
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    transform: none;
+    font-family: inherit;
+    color: #1e293b;
   `;
 
   // Inject dynamic @page style for landscape/portrait + mobile print fixes
@@ -135,6 +142,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
   document.title = cleanName || originalTitle;
 
   const cleanup = () => {
+    if (printCleanupTimer) { clearTimeout(printCleanupTimer); printCleanupTimer = null; }
     document.body.classList.remove('printing-report');
     const cloneEl = document.getElementById('print-area-clone');
     if (cloneEl) cloneEl.remove();
@@ -143,8 +151,8 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     // Remove dynamic page style
     const ps = document.getElementById(pageStyleId);
     if (ps) ps.remove();
-    // Release print guard after a short cooldown
-    setTimeout(() => { isPrinting = false; }, 1500);
+    // Release print guard after a short cooldown (allow sequential printing)
+    setTimeout(() => { isPrinting = false; }, 500);
   };
 
   // Listen for afterprint event for reliable cleanup
@@ -167,6 +175,9 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
 
   // Wait for images then print - increased delay for mobile rendering
   Promise.all(imagePromises).then(() => {
+    // Mobile needs more time to render the cloned DOM
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const printDelay = isMobile ? 1000 : 500;
     setTimeout(() => {
       try {
         window.print();
@@ -174,12 +185,13 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
         console.warn('Print failed:', e);
         cleanup();
       }
-      // Fallback cleanup in case afterprint doesn't fire
-      setTimeout(() => {
+      // Safety fallback cleanup in case afterprint doesn't fire
+      printCleanupTimer = setTimeout(() => {
         if (document.getElementById('print-area-clone')) {
           cleanup();
+          isPrinting = false;
         }
-      }, 2000);
-    }, 500);
+      }, 5000);
+    }, printDelay);
   });
 };

@@ -477,7 +477,7 @@ export default function ReservationsPage({
 
     onSaveReservation(reservationToSave);
     resetForm();
-    alert(`ًں“… Booking Reservation RSV-${nextId} saved successfully! Account indexes synchronized.`);
+    alert(`✨   Booking Reservation RSV-${nextId} saved successfully! Account indexes synchronized.`);
   };
 
   const resetForm = () => {
@@ -517,7 +517,7 @@ export default function ReservationsPage({
         agreementStatus: localAgreementStatus,
         roomingList: JSON.stringify(localRoomDetails)
       });
-      alert('âœ¨ Agreement specifications and confirmation reference updated in ledger!');
+      alert('✨   Agreement specifications and confirmation reference updated in ledger!');
     }
   };
 
@@ -546,9 +546,24 @@ export default function ReservationsPage({
     const trType = isClientPayment ? 'ClientPayment' : 'SupplierPayment';
     const targetAgentId = isClientPayment ? resObj.clientId : resObj.supplierId;
     const agentObj = agents.find(a => a.id === targetAgentId);
-    if (!agentObj) {
+    if (!agentObj && !targetAgentId?.startsWith('DIRECT_')) {
       alert('Associated agent account not located!');
       return;
+    }
+
+    // Overpayment detection
+    const { totalSell, totalBuy } = getReservationTotals(resObj);
+    const currentPaid = isClientPayment ? (resObj.amountPaidByClient || 0) : (resObj.amountPaidToSupplier || 0);
+    const totalOwed = isClientPayment ? totalSell : totalBuy;
+    const willBePaid = currentPaid + computedAmount;
+    let isOverpayment = false;
+    let overpaymentAmount = 0;
+    if (willBePaid > totalOwed && totalOwed > 0) {
+      overpaymentAmount = willBePaid - totalOwed;
+      isOverpayment = true;
+      if (!confirm(`⚠️ OVERPAYMENT WARNING: This payment of ${computedAmount.toLocaleString()} SAR exceeds what ${isClientPayment ? 'the client owes' : 'the supplier is owed'} by ${overpaymentAmount.toLocaleString()} SAR.\n\nTotal owed: ${totalOwed.toLocaleString()} SAR\nAlready paid: ${currentPaid.toLocaleString()} SAR\nThis payment: ${computedAmount.toLocaleString()} SAR\nOverpayment: ${overpaymentAmount.toLocaleString()} SAR\n\nThe overpayment will be tracked as credit in statements.\nContinue anyway?`)) {
+        return;
+      }
     }
 
     const trDate = new Date().toISOString().split('T')[0];
@@ -561,8 +576,8 @@ export default function ReservationsPage({
       fromAccountId: payAccountId,
       agentId: targetAgentId,
       description: isClientPayment 
-        ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})`
-        : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})`,
+        ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
+        : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,
       paymentMethod: payMethod,
       voucherNo: payVoucher || `VOP-${Date.now().toString().slice(-6)}`,
       originalCurrency: payCurrency,
@@ -586,7 +601,7 @@ export default function ReservationsPage({
     }
     onSaveReservation(updatedRes);
 
-    alert(`âœ¨ ${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} ledgered successfully!`);
+    alert(`✨   ${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} ledgered successfully!`);
     
     // Refresh payment states
     setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
@@ -696,7 +711,7 @@ export default function ReservationsPage({
                   ZUMRA HOTELS
                 </span>
                 <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
-                  ط²ظ…ط±ط© ظ„ظ„ظپظ†ط§ط¯ظ‚
+                  زمرة للفنادق
                 </span>
               </div>
               <div className="flex-shrink-0 flex justify-end">
@@ -706,7 +721,7 @@ export default function ReservationsPage({
             
             <div className="flex justify-between items-end mb-4 border-b border-slate-900 pb-1">
               <h2 className="text-[20px] font-extrabold tracking-tight">{t('res.roomingListTitle')}</h2>
-              <h2 className="text-[22px] font-extrabold" dir="rtl">طھط³ظƒظٹظ† ط§ظ„ط؛ط±ظپ</h2>
+              <h2 className="text-[22px] font-extrabold" dir="rtl">تسكين الغرفة</h2>
             </div>
 
             <div className="grid grid-cols-2 gap-y-2 text-[13px] font-medium mb-6">
@@ -798,7 +813,7 @@ export default function ReservationsPage({
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
               >
-                â¬‡ï¸ڈ {t('res.exportCSV')}
+                 ⬇️ {t('res.exportCSV')}
               </button>
               <button
                 onClick={() => {
@@ -813,7 +828,7 @@ export default function ReservationsPage({
               }}
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow flex items-center gap-1.5"
             >
-              â‍• {t('res.newReservation')}
+               ➕ {t('res.newReservation')}
             </button>
           </div>
         </div>
@@ -889,7 +904,7 @@ export default function ReservationsPage({
           {/* Form Header */}
           <div className="flex justify-between items-center border-b border-slate-200 pb-4">
             <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-              <span className="p-2 bg-amber-100 text-amber-700 rounded-xl">ًںڈ¨</span>
+              <span className="p-2 bg-amber-100 text-amber-700 rounded-xl">🏨</span>
               {editingId ? `${t('res.editBooking')} RSV-${editingId}` : t('res.newReservation')}
             </h3>
             <div className="flex items-center gap-3">
@@ -909,7 +924,7 @@ export default function ReservationsPage({
           {/* Section 1: Booking Details */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <span className="text-amber-600">â—ڈ</span> {t('res.bookingAssignment')}
+              <span className="text-amber-600">●</span> {t('res.bookingAssignment')}
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -925,28 +940,32 @@ export default function ReservationsPage({
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplier')}</label>
                 <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
                   <option value="">{t('res.chooseSupplier')}</option>
+                  <option value="DIRECT" className="font-bold">🏨 Direct from Hotel (no supplier)</option>
                   {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
                     <option key={a.id} value={a.id}>{a.name}</option>
                   ))}
                 </select>
+                {supplierId === 'DIRECT' && hotelId && (
+                  <p className="text-[9px] text-amber-700 font-bold mt-1 bg-amber-50 px-2 py-1 rounded">🏨 Booking directly from: {hotels.find(h => h.id === hotelId)?.name}</p>
+                )}
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.destinationHotel')}</label>
                 <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); const matchedH = hotels.find(h => h.id === e.target.value); if (matchedH) { setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]); } }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-amber-500 transition-colors" required>
                   <option value="">{t('res.selectPartnerHotel')}</option>
                   {hotels.map(h => (
-                    <option key={h.id} value={h.id}>{h.city === 'Makkah' ? 'ًں•‹' : 'ًں•Œ'} {h.name}</option>
+                    <option key={h.id} value={h.id}>{h.city === 'Makkah' ? '🕋' : '🕌'} {h.name}</option>
                   ))}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں“… Check-In</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📅 Check-In</label>
                 <input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} className="w-full bg-slate-50 font-mono px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white" required />
               </div>
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">ًں“… Check-Out {checkIn && checkOut && <span className="text-emerald-600 font-extrabold ml-1">({calculateNightsCount()} nights)</span>}</label>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📅 Check-Out {checkIn && checkOut && <span className="text-emerald-600 font-extrabold ml-1">({calculateNightsCount()} nights)</span>}</label>
                 <input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} className="w-full bg-slate-50 font-mono px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white" required />
               </div>
               <div>
@@ -975,10 +994,10 @@ export default function ReservationsPage({
                       }
                       setStatus(s);
                       if (s !== 'Cancelled') { setCancellationFee(0); setCancellationReason(''); }
-                      else { setCancellationReason('Customer requested cancellation (\u0637\u0644\u0628 \u0627\u0644\u0639\u0645\u064a\u0644)'); }
+                      else { setCancellationReason('Customer requested cancellation'); }
                       if (s === 'Confirmed') { setClientOptionDate(''); setSupplierOptionDate(''); }
                     }} className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
-                      <span className="text-[9px] leading-none">{s === 'Tentative' ? 'âڈ³' : s === 'Confirmed' ? 'âœ…' : 'â‌Œ'}</span>{abbr}
+                      <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{abbr}
                     </button>
                   );
                   })}
@@ -992,7 +1011,7 @@ export default function ReservationsPage({
             <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
               <div className="flex justify-between items-center mb-3 border-b border-slate-100 pb-3">
                 <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] flex items-center gap-2">
-                  <span className="text-amber-600">â—ڈ</span> {t('res.roomConfig')}
+                  <span className="text-amber-600">●</span> {t('res.roomConfig')}
                 </h4>
                 <button type="button" onClick={handleAddRoomRow} className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase px-3 py-1.5 rounded-xl transition shadow flex items-center gap-1">{t('res.addRoomLine')}</button>
               </div>
@@ -1038,7 +1057,7 @@ export default function ReservationsPage({
                           )}
                         </div>
                         <div className="flex items-end justify-end">
-                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="{t('res.deleteRoomLine')}">ًں—‘ï¸ڈ</button>
+                          <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-red-500 hover:bg-rose-50 p-2 rounded-lg transition" title="{t('res.deleteRoomLine')}">🗑️</button>
                         </div>
                       </div>
 
@@ -1137,7 +1156,7 @@ export default function ReservationsPage({
           {/* Section 3: Status-Specific Fields & References */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-              <span className="text-amber-600">â—ڈ</span> {t('res.referencesStatus')}
+              <span className="text-amber-600">●</span> {t('res.referencesStatus')}
             </h4>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1175,12 +1194,12 @@ export default function ReservationsPage({
                   <div className="md:col-span-2">
                     <label className="text-[10px] uppercase font-bold text-rose-700 block mb-1">{t('res.reason')}</label>
                     <select value={cancellationReason.startsWith('Other') ? 'Other' : cancellationReason} onChange={(e) => { const sel = e.target.value; if (sel === 'Other') { setCancellationReason('Other: '); } else { setCancellationReason(sel); } }} className="w-full px-3 py-2.5 border border-rose-200 bg-rose-50/30 rounded-xl text-xs font-medium focus:bg-white">
-                      <option value="Customer requested cancellation (ط·ظ„ط¨ ط§ظ„ط¹ظ…ظٹظ„)">{t('res.cancellationReasons')}</option>
-                      <option value="Supplier unable to confirm allotment (ط§ظ„ظ…ظˆط±ط¯ ط؛ظٹط± ظ‚ط§ط¯ط± ط¹ظ„ظ‰ ط§ظ„طھط£ظƒظٹط¯)">{t('res.supplierUnableConfirm')}</option>
-                      <option value="Expiry of Option Date without deposit (ط§ظ†طھظ‡ط§ط، ظ…ظ‡ظ„ط© ط§ظ„ط­ط¬ط²)">{t('res.expiryOptionDate')}</option>
-                      <option value="Duplicate booking reservation (ط­ط¬ط² ظ…ظƒط±ط±)">{t('res.duplicateBooking')}</option>
-                      <option value="Pricing discrepancy / agreement dispute (ط®ظ„ط§ظپ ظپظٹ ط§ظ„ط³ط¹ط±)">{t('res.pricingDiscrepancy')}</option>
-                      <option value="Other">{t('res.otherReason')} (ط³ط¨ط¨ ط¢ط®ط±)</option>
+                      <option value="Customer requested cancellation">{t('res.cancellationReasons')}</option>
+                      <option value="Supplier unable to confirm allotment">{t('res.supplierUnableConfirm')}</option>
+                      <option value="Expiry of Option Date without deposit">{t('res.expiryOptionDate')}</option>
+                      <option value="Duplicate booking reservation">{t('res.duplicateBooking')}</option>
+                      <option value="Pricing discrepancy / agreement dispute">{t('res.pricingDiscrepancy')}</option>
+                      <option value="Other">{t('res.otherReason')}</option>
                     </select>
                     {cancellationReason.startsWith('Other') && (
                       <input type="text" value={cancellationReason.replace('Other: ', '')} onChange={(e) => setCancellationReason('Other: ' + e.target.value)} placeholder={t('res.describeReason')} className="w-full mt-2 px-3 py-2 border border-rose-200 bg-white rounded-xl text-xs font-semibold focus:border-rose-400" required />
@@ -1241,14 +1260,7 @@ export default function ReservationsPage({
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>
                 <input type="text" value={supplierVoucher} onChange={(e) => setSupplierVoucher(e.target.value)} placeholder="Supplier Ref" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.clientDownpay')}</label>
-                <input type="number" value={amountPaidByClient || ''} onChange={(e) => setAmountPaidByClient(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierDownpay')}</label>
-                <input type="number" value={amountPaidToSupplier || ''} onChange={(e) => setAmountPaidToSupplier(Number(e.target.value))} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
-              </div>
+              {/* Down payment fields removed - shown in Financial Summary below */}
             </div>
           </div>
 
@@ -1256,7 +1268,7 @@ export default function ReservationsPage({
           {selectedHotelObj && checkIn && checkOut && (
             <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <span className="text-amber-600">â—ڈ</span> {t('res.financialSummary')}
+                <span className="text-amber-600">●</span> {t('res.financialSummary')}
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
                 {(() => {
@@ -1341,7 +1353,7 @@ export default function ReservationsPage({
                   <span className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
                 </div>
                 <div className="font-semibold uppercase text-slate-900 text-sm mb-1">{res.guestName}</div>
-                <div className="text-[10px] text-slate-600 mb-2">{hotel?.name} &bull; {client?.companyName || client?.name}</div>
+                <div className="text-[10px] text-slate-600 mb-2">{hotel?.name}  {client?.companyName || client?.name}</div>
                 <div className="flex justify-between text-[10px] font-mono text-slate-600 mb-2">
                   <span>{res.checkIn} → {res.checkOut} ({res.nights}N)</span>
                 </div>
@@ -1421,7 +1433,7 @@ export default function ReservationsPage({
                         onChange={(e) => {
                           const newStatus = e.target.value as any;
                           if (newStatus === 'Confirmed' && !(res.amountPaidByClient && res.amountPaidByClient > 0)) {
-                            if (!confirm(`âڑ ï¸ڈ WARNING: No client payment recorded for RSV-${res.id} (${res.guestName}).
+                            if (!confirm(`⚠️ WARNING: No client payment recorded for RSV-${res.id} (${res.guestName}).
 
 Are you sure you want to confirm this booking without receiving any payment from the client?
 
@@ -1429,7 +1441,13 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                               return;
                             }
                           }
-                          onSaveReservation({...res, status: newStatus});
+                          if (newStatus === 'Cancelled') {
+                            const reason = prompt('Please enter the reason for cancellation:');
+                            if (reason === null) return; // User clicked Cancel
+                            onSaveReservation({...res, status: newStatus, cancellationReason: reason || 'Not specified'});
+                          } else {
+                            onSaveReservation({...res, status: newStatus});
+                          }
                         }}
                         className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold outline-none cursor-pointer border ${
                           res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
@@ -1534,7 +1552,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           className="p-1 hover:bg-amber-55/35 text-amber-800 rounded"
                           title="Edit booking"
                         >
-                          âœڈï¸ڈ
+                           ✍️
                         </button>
                         <button
                           onClick={() => {
@@ -1543,7 +1561,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           className="p-1 hover:bg-rose-50 text-red-650 rounded"
                           title="Remove booking"
                         >
-                          ًں—‘ï¸ڈ
+                          ✕
                         </button>
                       </div>
                     </td>
@@ -1593,7 +1611,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {resObj.guestName}
                   </h3>
                   <p className="text-[10px] text-slate-300 font-mono mt-0.5">
-                    {hotelObj?.name} &bull; {resObj.checkIn} â†’ {resObj.checkOut} ({nightsLocal}N) &bull; By <span className="text-amber-400 font-bold">{resObj.createdBy || 'Hazem'}</span>
+                    {hotelObj?.name}  {resObj.checkIn}    •   {resObj.checkOut} ({nightsLocal}N)  By <span className="text-amber-400 font-bold">{resObj.createdBy || 'Hazem'}</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1603,7 +1621,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}>{resObj.status}</span>
                   <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-white/10 hover:bg-white/20 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition">{t('common.edit')}</button>
-                  <button onClick={() => setViewingId(null)} className="text-slate-400 hover:text-white text-lg transition">âœ•</button>
+                  <button onClick={() => setViewingId(null)} className="text-slate-400 hover:text-white text-lg transition"> ✕</button>
                 </div>
               </div>
 
@@ -1645,7 +1663,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.nationality')}</span>
                           <span className="font-semibold text-slate-700">{resObj.guestNationality}</span>
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.stayPeriod')}</span>
-                          <span className="font-mono text-slate-700 text-[10px]">{resObj.checkIn} â†’ {resObj.checkOut}</span>
+                          <span className="font-mono text-slate-700 text-[10px]">{resObj.checkIn}    →   {resObj.checkOut}</span>
                         </div>
                         {resObj.status === 'Tentative' && (
                           <div className="mt-2 bg-rose-50 rounded-lg p-2.5 border border-rose-200 space-y-1">
@@ -1686,7 +1704,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.client')}</span>
                           <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.clientId)?.companyName || t('res.na')}</span>
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.supplier')}</span>
-                          <span className="font-semibold text-slate-800">{agents.find(a => a.id === resObj.supplierId)?.name || t('res.direct')}</span>
+                          <span className="font-semibold text-slate-800">{resObj.supplierId === 'DIRECT' ? `🏨 ${hotelObj?.name || 'Direct from Hotel'}` : (agents.find(a => a.id === resObj.supplierId)?.name || t('res.direct'))}</span>
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.hotel')}</span>
                           <span className="font-semibold text-slate-800">{hotelObj?.name}</span>
                           <span className="text-[9px] uppercase font-bold text-slate-400">{t('res.agreements')}</span>
@@ -1814,7 +1832,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                             <div className="font-mono font-extrabold text-emerald-800 text-lg">{clientRemaining.toLocaleString()} SAR</div>
                             <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.from')} {agents.find(a => a.id === resObj.clientId)?.companyName || 'client'}</div>
                           </div>
-                          <div className="text-3xl">ًں“¥</div>
+                          <div className="text-3xl">📥</div>
                         </div>
                         <div className="mt-2 w-full bg-emerald-100 h-1.5 rounded-full overflow-hidden">
                           <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${clientPct}%` }}></div>
@@ -1837,7 +1855,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                             <div className="font-mono font-extrabold text-blue-800 text-lg">{supplierRemaining.toLocaleString()} SAR</div>
                             <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.to')} {agents.find(a => a.id === resObj.supplierId)?.name || 'supplier'}</div>
                           </div>
-                          <div className="text-3xl">ًں“¤</div>
+                          <div className="text-3xl">📤</div>
                         </div>
                         <div className="mt-2 w-full bg-blue-100 h-1.5 rounded-full overflow-hidden">
                           <div className="h-full bg-blue-500 rounded-full" style={{ width: `${supplierPct}%` }}></div>
@@ -1848,7 +1866,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Payment Form */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> {t('res.paymentDetails')}
+                        <span className="text-amber-500">●</span> {t('res.paymentDetails')}
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Amount Section */}
@@ -1890,8 +1908,8 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                           <div>
                             <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.paymentMethod')}</label>
                             <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
-                              <button type="button" onClick={() => setPayMethod('Bank Transfer')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Bank Transfer' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>ًںڈ¦ Bank Transfer</button>
-                              <button type="button" onClick={() => setPayMethod('Cash')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Cash' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>ًں’µ Cash</button>
+                              <button type="button" onClick={() => setPayMethod('Bank Transfer')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Bank Transfer' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>🏦 Bank Transfer</button>
+                              <button type="button" onClick={() => setPayMethod('Cash')} className={`flex-1 py-1.5 rounded-md text-[10px] font-bold transition ${payMethod === 'Cash' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>💵 Cash</button>
                             </div>
                           </div>
                           <div>
@@ -1938,7 +1956,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                             <div key={tr.id} className="flex justify-between items-center text-[10px] bg-slate-50 px-3 py-2 rounded-lg">
                               <span className="font-mono text-slate-500 w-20">{tr.date}</span>
                               <span className={`font-bold px-2 py-0.5 rounded-full text-[9px] ${tr.type === 'ClientPayment' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
-                                {tr.type === 'ClientPayment' ? 'ًں“¥ Client' : 'ًں“¤ Supplier'}
+                                {tr.type === 'ClientPayment' ? '📥 Client' : '📤 Supplier'}
                               </span>
                               <span className={`font-bold font-mono ${tr.type === 'ClientPayment' ? 'text-emerald-700' : 'text-indigo-700'}`}>
                                 +{tr.amount.toLocaleString()} SAR
@@ -1958,7 +1976,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Confirmation Details */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> {t('res.confAgreementDetails')}
+                        <span className="text-amber-500">●</span> {t('res.confAgreementDetails')}
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -1985,7 +2003,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                                     : 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
                                 }`}
                               >
-                                {statusVal === 'Approved' ? 'âœ…' : statusVal === 'Declined' ? 'â‌Œ' : 'âڈ³'} {statusVal}
+                                {statusVal === 'Approved' ? ' ✅' : statusVal === 'Declined' ? ' ❌' : ' ⏳'} {statusVal}
                               </button>
                             ))}
                           </div>
@@ -1996,7 +2014,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                     {/* Rooming List */}
                     <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
                       <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">â—ڈ</span> {t('res.roomingListGuests')}
+                        <span className="text-amber-500">●</span> {t('res.roomingListGuests')}
                       </h5>
                       <div className="space-y-2 max-h-60 overflow-y-auto thin-scrollbar">
                         {localRoomDetails.map((rm, idx) => (
@@ -2044,7 +2062,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200 text-center hover:shadow-lg transition-shadow">
-                        <div className="text-4xl mb-3">ًں“„</div>
+                        <div className="text-4xl mb-3">📄</div>
                         <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.agentConfirmation')}</h5>
                         <p className="text-[10px] text-slate-500 mb-4">{t('res.agentConfDesc')}</p>
                         <button
@@ -2055,7 +2073,7 @@ Click OK to confirm anyway, or Cancel to go back.`)) {
                         </button>
                       </div>
                       <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200 text-center hover:shadow-lg transition-shadow">
-                        <div className="text-4xl mb-3">ًںژ«</div>
+                        <div className="text-4xl mb-3">🎫</div>
                         <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.guestCardVoucher')}</h5>
                         <p className="text-[10px] text-slate-500 mb-4">{t('res.guestCardDesc')}</p>
                         <button
