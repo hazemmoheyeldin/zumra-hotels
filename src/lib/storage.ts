@@ -1376,8 +1376,9 @@ export function checkAllotmentCapacity(
 }
 
 /**
- * Seed test data (clients, suppliers, sales persons, reservations) for testing reports.
- * Only runs if no agents exist yet.
+ * Seed test data (clients, suppliers, sales persons, reservations, transactions,
+ * accounts, follow-ups, expenses, cancellation reasons, other services) for testing.
+ * Only runs if no agents exist yet. No beginning balances.
  */
 export function seedTestDataIfEmpty(): void {
   const existingAgents = ZumraDB.getAgents();
@@ -1390,46 +1391,159 @@ export function seedTestDataIfEmpty(): void {
   const hotel2 = hotels.length > 1 ? hotels[1] : hotels[0];
   const now = getEgyptTime().toISOString().replace('T', ' ').substring(0, 19);
   
-  // Test Clients
+  // ===== Bank/Cash Accounts =====
+  const testAccounts: Account[] = [
+    { id: 'acc_cash_1', name: 'Main Cash', accountHolderName: 'Zumra Hotels', type: 'Cash', balance: 0, code: 'CASH-001', currency: 'SAR' },
+    { id: 'acc_bank_1', name: 'Al Rajhi Bank', accountHolderName: 'Zumra Hotels', accountNumber: 'SA0380000000608010163001', type: 'Bank', balance: 0, code: 'BANK-001', currency: 'SAR' },
+    { id: 'acc_bank_2', name: 'SNB Account', accountHolderName: 'Zumra Hotels', accountNumber: 'SA4410000005208010123456', type: 'Bank', balance: 0, code: 'BANK-002', currency: 'SAR' },
+  ];
+  
+  // ===== Test Clients =====
   const testClients: Agent[] = [
     { id: 'test_client_1', agentNumber: 1, name: 'Ahmed Hassan', companyName: 'Al-Noor Travel', country: 'Saudi Arabia', type: 'Customer', phone: '+966501234567', email: 'ahmed@alnoortravel.com', address: 'Riyadh', balance: 0, auditLogs: [] },
     { id: 'test_client_2', agentNumber: 2, name: 'Mohammed Ali', companyName: 'Golden Gate Tours', country: 'UAE', type: 'Customer', phone: '+971501234567', email: 'mohammed@goldengate.ae', address: 'Dubai', balance: 0, auditLogs: [] },
     { id: 'test_client_3', agentNumber: 3, name: 'Fatima Zahra', companyName: 'Atlas Voyages', country: 'Morocco', type: 'Customer', phone: '+212601234567', email: 'fatima@atlasvoyages.ma', address: 'Casablanca', balance: 0, auditLogs: [] },
     { id: 'test_client_4', agentNumber: 4, name: 'Omar Khalid', companyName: 'Desert Star Tourism', country: 'Egypt', type: 'Customer', phone: '+201012345678', email: 'omar@desertstar.eg', address: 'Cairo', balance: 0, auditLogs: [] },
+    { id: 'test_client_5', agentNumber: 5, name: 'Layla Mansour', companyName: 'Nile Express Travel', country: 'Egypt', type: 'Customer', phone: '+201098765432', email: 'layla@nilexpress.eg', address: 'Alexandria', balance: 0, auditLogs: [] },
   ];
   
-  // Test Suppliers
+  // ===== Test Suppliers =====
   const testSuppliers: Agent[] = [
-    { id: 'test_supplier_1', agentNumber: 5, name: 'Hassan Ibrahim', companyName: 'Makkah Hotels Group', country: 'Saudi Arabia', type: 'Supplier', phone: '+966509876543', email: 'hassan@makkahhotels.sa', address: 'Makkah', balance: 0, auditLogs: [] },
-    { id: 'test_supplier_2', agentNumber: 6, name: 'Yusuf Ahmed', companyName: 'Madinah Hospitality', country: 'Saudi Arabia', type: 'Supplier', phone: '+966508765432', email: 'yusuf@madinahhospitality.sa', address: 'Madinah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_1', agentNumber: 6, name: 'Hassan Ibrahim', companyName: 'Makkah Hotels Group', country: 'Saudi Arabia', type: 'Supplier', phone: '+966509876543', email: 'hassan@makkahhotels.sa', address: 'Makkah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_2', agentNumber: 7, name: 'Yusuf Ahmed', companyName: 'Madinah Hospitality', country: 'Saudi Arabia', type: 'Supplier', phone: '+966508765432', email: 'yusuf@madinahhospitality.sa', address: 'Madinah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_3', agentNumber: 8, name: 'Ali Al-Qahtani', companyName: 'Jeddah Resorts LLC', country: 'Saudi Arabia', type: 'Supplier', phone: '+966507654321', email: 'ali@jeddahresorts.sa', address: 'Jeddah', balance: 0, auditLogs: [] },
   ];
   
-  // Test Sales Persons
+  // ===== Test Sales Persons =====
   const testSalesPersons: SalesPerson[] = [
     { id: 'test_sp_1', name: 'Khaled Mostafa', phone: '+966551112222', email: 'khaled@zumra.com', commission: 5, active: true },
     { id: 'test_sp_2', name: 'Nour Eldin', phone: '+966553334444', email: 'nour@zumra.com', commission: 8, active: true },
+    { id: 'test_sp_3', name: 'Rana Farouk', phone: '+201055512345', email: 'rana@zumra.com', commission: 6, active: true },
   ];
   
-  // Test Reservations
+  // ===== Test Reservations =====
   const roomTypes = hotel1.roomTypes.length > 0 ? hotel1.roomTypes : ['Standard', 'Deluxe'];
   const testReservations: Reservation[] = [
-    // Confirmed bookings
+    // 1: Confirmed, fully paid, commission paid
     { id: 1, checkIn: '2025-02-10', checkOut: '2025-02-14', nights: 4, clientId: 'test_client_1', hotelId: hotel1.id, guestName: 'Abdullah Al-Rashid', guestNationality: 'Saudi', supplierId: 'test_supplier_1', rooms: [{ id: 'r1', roomType: roomTypes[0], qty: 2, nightlyRates: { '2025-02-10': 800, '2025-02-11': 800, '2025-02-12': 800, '2025-02-13': 800 }, buyRate: { '2025-02-10': 550, '2025-02-11': 550, '2025-02-12': 550, '2025-02-13': 550 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'City' }], status: 'Confirmed', amountPaidByClient: 6400, amountPaidToSupplier: 4400, createdBy: 'Hazem', createdAt: '2025-01-15 10:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 320, commissionPaidToSalesPerson: true, commissionPaidDate: '2025-02-15', tags: ['VIP'] },
+    // 2: Confirmed, partially paid
     { id: 2, checkIn: '2025-03-01', checkOut: '2025-03-05', nights: 4, clientId: 'test_client_2', hotelId: hotel1.id, guestName: 'Sara Williams', guestNationality: 'British', supplierId: 'test_supplier_1', rooms: [{ id: 'r2', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-03-01': 900, '2025-03-02': 900, '2025-03-03': 900, '2025-03-04': 900 }, buyRate: { '2025-03-01': 600, '2025-03-02': 600, '2025-03-03': 600, '2025-03-04': 600 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Sea' }], status: 'Confirmed', amountPaidByClient: 3600, amountPaidToSupplier: 2400, createdBy: 'Hazem', createdAt: '2025-02-10 14:30:00', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 288, commissionPaidToSalesPerson: false },
+    // 3: Confirmed, fully paid
     { id: 3, checkIn: '2025-03-15', checkOut: '2025-03-20', nights: 5, clientId: 'test_client_1', hotelId: hotel2.id, guestName: 'Ibrahim Noor', guestNationality: 'Saudi', supplierId: 'test_supplier_2', rooms: [{ id: 'r3', roomType: roomTypes.length > 1 ? roomTypes[1] : roomTypes[0], qty: 3, nightlyRates: { '2025-03-15': 1200, '2025-03-16': 1200, '2025-03-17': 1200, '2025-03-18': 1200, '2025-03-19': 1200 }, buyRate: { '2025-03-15': 800, '2025-03-16': 800, '2025-03-17': 800, '2025-03-18': 800, '2025-03-19': 800 }, mealPlan: 'FB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Haram' }], status: 'Confirmed', amountPaidByClient: 18000, amountPaidToSupplier: 12000, createdBy: 'Hazem', createdAt: '2025-02-20 09:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 900, commissionPaidToSalesPerson: false },
+    // 4: Tentative
     { id: 4, checkIn: '2025-04-01', checkOut: '2025-04-03', nights: 2, clientId: 'test_client_3', hotelId: hotel1.id, guestName: 'Youssef Bennani', guestNationality: 'Moroccan', supplierId: 'test_supplier_1', rooms: [{ id: 'r4', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-04-01': 750, '2025-04-02': 750 }, buyRate: { '2025-04-01': 500, '2025-04-02': 500 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 1, view: 'City' }], status: 'Tentative', amountPaidByClient: 0, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-03-10 11:00:00', clientOptionDate: '2025-03-20', supplierOptionDate: '2025-03-18', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 120, commissionPaidToSalesPerson: false },
-    { id: 5, checkIn: '2025-04-10', checkOut: '2025-04-17', nights: 7, clientId: 'test_client_4', hotelId: hotel2.id, guestName: 'Hana Mahmoud', guestNationality: 'Egyptian', supplierId: 'test_supplier_2', rooms: [{ id: 'r5', roomType: roomTypes[0], qty: 2, nightlyRates: { '2025-04-10': 650, '2025-04-11': 650, '2025-04-12': 650, '2025-04-13': 650, '2025-04-14': 650, '2025-04-15': 650, '2025-04-16': 650 }, buyRate: { '2025-04-10': 420, '2025-04-11': 420, '2025-04-12': 420, '2025-04-13': 420, '2025-04-14': 420, '2025-04-15': 420, '2025-04-16': 420 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Garden' }], status: 'Confirmed', amountPaidByClient: 9100, amountPaidToSupplier: 5880, createdBy: 'Hazem', createdAt: '2025-03-15 16:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 455, commissionPaidToSalesPerson: true, commissionPaidDate: '2025-04-20', tags: ['Honeymoon'] },
-    // Cancelled booking
+    // 5: Confirmed, fully paid, KSA collection
+    { id: 5, checkIn: '2025-04-10', checkOut: '2025-04-17', nights: 7, clientId: 'test_client_4', hotelId: hotel2.id, guestName: 'Hana Mahmoud', guestNationality: 'Egyptian', supplierId: 'test_supplier_2', rooms: [{ id: 'r5', roomType: roomTypes[0], qty: 2, nightlyRates: { '2025-04-10': 650, '2025-04-11': 650, '2025-04-12': 650, '2025-04-13': 650, '2025-04-14': 650, '2025-04-15': 650, '2025-04-16': 650 }, buyRate: { '2025-04-10': 420, '2025-04-11': 420, '2025-04-12': 420, '2025-04-13': 420, '2025-04-14': 420, '2025-04-15': 420, '2025-04-16': 420 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Garden' }], status: 'Confirmed', amountPaidByClient: 9100, amountPaidToSupplier: 5880, createdBy: 'Hazem', createdAt: '2025-03-15 16:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 455, commissionPaidToSalesPerson: true, commissionPaidDate: '2025-04-20', collectedBySalesPerson: true, collectedDate: '2025-04-10', remittedToCompany: true, remittedDate: '2025-04-25', tags: ['Honeymoon'] },
+    // 6: Cancelled
     { id: 6, checkIn: '2025-03-20', checkOut: '2025-03-23', nights: 3, clientId: 'test_client_2', hotelId: hotel1.id, guestName: 'James Wilson', guestNationality: 'British', supplierId: 'test_supplier_1', rooms: [{ id: 'r6', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-03-20': 850, '2025-03-21': 850, '2025-03-22': 850 }, buyRate: { '2025-03-20': 580, '2025-03-21': 580, '2025-03-22': 580 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'City' }], status: 'Cancelled', amountPaidByClient: 500, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-02-28 10:00:00', cancellationFee: 500, cancellationReason: 'Guest changed travel plans', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 0, commissionPaidToSalesPerson: false },
-    // More confirmed for variety
+    // 7: Tentative
     { id: 7, checkIn: '2025-05-01', checkOut: '2025-05-04', nights: 3, clientId: 'test_client_3', hotelId: hotel2.id, guestName: 'Amina El Fassi', guestNationality: 'Moroccan', supplierId: 'test_supplier_2', rooms: [{ id: 'r7', roomType: roomTypes.length > 1 ? roomTypes[1] : roomTypes[0], qty: 2, nightlyRates: { '2025-05-01': 1100, '2025-05-02': 1100, '2025-05-03': 1100 }, buyRate: { '2025-05-01': 750, '2025-05-02': 750, '2025-05-03': 750 }, mealPlan: 'FB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Haram' }], status: 'Tentative', amountPaidByClient: 0, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-04-01 08:00:00', clientOptionDate: '2025-04-15', supplierOptionDate: '2025-04-12', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 330, commissionPaidToSalesPerson: false },
+    // 8: Confirmed, partially paid
     { id: 8, checkIn: '2025-05-10', checkOut: '2025-05-13', nights: 3, clientId: 'test_client_4', hotelId: hotel1.id, guestName: 'Tarek Soliman', guestNationality: 'Egyptian', supplierId: 'test_supplier_1', rooms: [{ id: 'r8', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-05-10': 700, '2025-05-11': 700, '2025-05-12': 700 }, buyRate: { '2025-05-10': 450, '2025-05-11': 450, '2025-05-12': 450 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 1, view: 'City' }], status: 'Confirmed', amountPaidByClient: 2100, amountPaidToSupplier: 1350, createdBy: 'Hazem', createdAt: '2025-04-15 13:00:00', tags: ['Corporate'] },
+    // 9: Confirmed, KSA collection not remitted
+    { id: 9, checkIn: '2025-06-01', checkOut: '2025-06-05', nights: 4, clientId: 'test_client_5', hotelId: hotel1.id, guestName: 'Nadia Farouk', guestNationality: 'Egyptian', supplierId: 'test_supplier_3', rooms: [{ id: 'r9', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-06-01': 850, '2025-06-02': 850, '2025-06-03': 850, '2025-06-04': 850 }, buyRate: { '2025-06-01': 550, '2025-06-02': 550, '2025-06-03': 550, '2025-06-04': 550 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'City' }], status: 'Confirmed', amountPaidByClient: 3400, amountPaidToSupplier: 2200, createdBy: 'Hazem', createdAt: '2025-05-10 09:00:00', salesPersonId: 'test_sp_3', salesPersonCommissionAmount: 204, commissionPaidToSalesPerson: false, collectedBySalesPerson: true, collectedDate: '2025-06-01' },
+    // 10: Confirmed, different supplier
+    { id: 10, checkIn: '2025-06-15', checkOut: '2025-06-20', nights: 5, clientId: 'test_client_1', hotelId: hotel2.id, guestName: 'Khalid Al-Otaibi', guestNationality: 'Saudi', supplierId: 'test_supplier_3', rooms: [{ id: 'r10', roomType: roomTypes.length > 1 ? roomTypes[1] : roomTypes[0], qty: 2, nightlyRates: { '2025-06-15': 1000, '2025-06-16': 1000, '2025-06-17': 1000, '2025-06-18': 1000, '2025-06-19': 1000 }, buyRate: { '2025-06-15': 680, '2025-06-16': 680, '2025-06-17': 680, '2025-06-18': 680, '2025-06-19': 680 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Haram' }], status: 'Confirmed', amountPaidByClient: 10000, amountPaidToSupplier: 6800, createdBy: 'Hazem', createdAt: '2025-05-20 14:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 500, commissionPaidToSalesPerson: false },
   ];
-  
+
+  // ===== Transactions (linked to reservations) =====
+  const testTransactions: Transaction[] = [
+    // RSV-1: Client paid 6400 (2 payments)
+    { id: 'tr_1', docNo: 'DOC-001', date: '2025-01-20', type: 'ClientPayment', amount: 3200, fromAccountId: 'acc_bank_1', reservationId: '1', agentId: 'test_client_1', description: 'Down payment for RSV-1', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-001', createdBy: 'Hazem' },
+    { id: 'tr_2', docNo: 'DOC-002', date: '2025-02-05', type: 'ClientPayment', amount: 3200, fromAccountId: 'acc_bank_1', reservationId: '1', agentId: 'test_client_1', description: 'Final payment for RSV-1', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-002', createdBy: 'Hazem' },
+    // RSV-1: Supplier paid 4400
+    { id: 'tr_3', docNo: 'DOC-003', date: '2025-02-08', type: 'SupplierPayment', amount: 4400, fromAccountId: 'acc_bank_1', reservationId: '1', agentId: 'test_supplier_1', description: 'Supplier payment for RSV-1', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-003', createdBy: 'Hazem' },
+    // RSV-2: Client paid 3600 (1 payment)
+    { id: 'tr_4', docNo: 'DOC-004', date: '2025-02-25', type: 'ClientPayment', amount: 3600, fromAccountId: 'acc_bank_2', reservationId: '2', agentId: 'test_client_2', description: 'Full payment for RSV-2', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-004', createdBy: 'Hazem' },
+    // RSV-2: Supplier paid 2400
+    { id: 'tr_5', docNo: 'DOC-005', date: '2025-02-28', type: 'SupplierPayment', amount: 2400, fromAccountId: 'acc_bank_2', reservationId: '2', agentId: 'test_supplier_1', description: 'Supplier payment for RSV-2', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-005', createdBy: 'Hazem' },
+    // RSV-3: Client paid 18000 (2 payments)
+    { id: 'tr_6', docNo: 'DOC-006', date: '2025-03-01', type: 'ClientPayment', amount: 9000, fromAccountId: 'acc_bank_1', reservationId: '3', agentId: 'test_client_1', description: 'First installment RSV-3', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-006', createdBy: 'Hazem' },
+    { id: 'tr_7', docNo: 'DOC-007', date: '2025-03-10', type: 'ClientPayment', amount: 9000, fromAccountId: 'acc_bank_1', reservationId: '3', agentId: 'test_client_1', description: 'Second installment RSV-3', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-007', createdBy: 'Hazem' },
+    // RSV-3: Supplier paid 12000
+    { id: 'tr_8', docNo: 'DOC-008', date: '2025-03-12', type: 'SupplierPayment', amount: 12000, fromAccountId: 'acc_bank_1', reservationId: '3', agentId: 'test_supplier_2', description: 'Supplier payment for RSV-3', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-008', createdBy: 'Hazem' },
+    // RSV-5: Client paid 9100 (cash)
+    { id: 'tr_9', docNo: 'DOC-009', date: '2025-04-08', type: 'ClientPayment', amount: 9100, fromAccountId: 'acc_cash_1', reservationId: '5', agentId: 'test_client_4', description: 'Full cash payment RSV-5 (KSA collection)', paymentMethod: 'Cash', voucherNo: 'CASH-REC-001', createdBy: 'Hazem' },
+    // RSV-5: Supplier paid 5880
+    { id: 'tr_10', docNo: 'DOC-010', date: '2025-04-09', type: 'SupplierPayment', amount: 5880, fromAccountId: 'acc_bank_1', reservationId: '5', agentId: 'test_supplier_2', description: 'Supplier payment for RSV-5', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-009', createdBy: 'Hazem' },
+    // RSV-6: Client refund 500 (cancelled)
+    { id: 'tr_11', docNo: 'DOC-011', date: '2025-03-25', type: 'ClientRefund', amount: 500, fromAccountId: 'acc_cash_1', reservationId: '6', agentId: 'test_client_2', description: 'Partial refund for cancelled RSV-6 (kept 500 cancellation fee)', paymentMethod: 'Cash', voucherNo: 'CASH-REC-002', createdBy: 'Hazem' },
+    // RSV-8: Client paid 2100
+    { id: 'tr_12', docNo: 'DOC-012', date: '2025-04-20', type: 'ClientPayment', amount: 2100, fromAccountId: 'acc_bank_2', reservationId: '8', agentId: 'test_client_4', description: 'Full payment for RSV-8', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-010', createdBy: 'Hazem' },
+    // RSV-8: Supplier paid 1350
+    { id: 'tr_13', docNo: 'DOC-013', date: '2025-04-22', type: 'SupplierPayment', amount: 1350, fromAccountId: 'acc_bank_2', reservationId: '8', agentId: 'test_supplier_1', description: 'Supplier payment for RSV-8', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-011', createdBy: 'Hazem' },
+    // RSV-9: Client paid 3400 (KSA cash)
+    { id: 'tr_14', docNo: 'DOC-014', date: '2025-05-28', type: 'ClientPayment', amount: 3400, fromAccountId: 'acc_cash_1', reservationId: '9', agentId: 'test_client_5', description: 'Full cash payment RSV-9 (KSA collection)', paymentMethod: 'Cash', voucherNo: 'CASH-REC-003', createdBy: 'Hazem' },
+    // RSV-9: Supplier paid 2200
+    { id: 'tr_15', docNo: 'DOC-015', date: '2025-05-30', type: 'SupplierPayment', amount: 2200, fromAccountId: 'acc_bank_1', reservationId: '9', agentId: 'test_supplier_3', description: 'Supplier payment for RSV-9', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-012', createdBy: 'Hazem' },
+    // RSV-10: Client paid 10000 (2 payments)
+    { id: 'tr_16', docNo: 'DOC-016', date: '2025-05-25', type: 'ClientPayment', amount: 5000, fromAccountId: 'acc_bank_1', reservationId: '10', agentId: 'test_client_1', description: 'Down payment RSV-10', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-013', createdBy: 'Hazem' },
+    { id: 'tr_17', docNo: 'DOC-017', date: '2025-06-10', type: 'ClientPayment', amount: 5000, fromAccountId: 'acc_bank_1', reservationId: '10', agentId: 'test_client_1', description: 'Final payment RSV-10', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-014', createdBy: 'Hazem' },
+    // RSV-10: Supplier paid 6800
+    { id: 'tr_18', docNo: 'DOC-018', date: '2025-06-12', type: 'SupplierPayment', amount: 6800, fromAccountId: 'acc_bank_1', reservationId: '10', agentId: 'test_supplier_3', description: 'Supplier payment for RSV-10', paymentMethod: 'Bank Transfer', voucherNo: 'BANK-REC-015', createdBy: 'Hazem' },
+  ];
+
+  // ===== Follow-Ups (Sales CRM) =====
+  const testFollowUps: FollowUp[] = [
+    { id: 'fu_1', clientId: 'test_client_1', date: '2025-06-10', topic: 'Ramadan package inquiry', notes: 'Client interested in 5-star Makkah packages for Ramadan group of 30 pax', status: 'Pending', createdBy: 'Hazem', activityLog: [{ id: 'al_1', timestamp: '2025-05-20 10:00:00', user: 'Hazem', action: 'Created follow-up', detail: 'Initial inquiry from client' }] },
+    { id: 'fu_2', clientId: 'test_client_2', date: '2025-05-15', topic: 'Summer rates negotiation', notes: 'Discussing special rates for June-August bookings. Sent rate sheet.', status: 'Completed', createdBy: 'Hazem', activityLog: [{ id: 'al_2', timestamp: '2025-05-10 14:00:00', user: 'Hazem', action: 'Created follow-up', detail: 'Rate negotiation initiated' }, { id: 'al_3', timestamp: '2025-05-15 16:30:00', user: 'Hazem', action: 'Sent summer rate sheet via email', detail: 'Rate sheet PDF attached' }] },
+    { id: 'fu_3', clientId: 'test_client_3', date: '2025-06-20', topic: 'Tentative booking confirmation', notes: 'Waiting for client decision on RSV-4 and RSV-7. Option date approaching.', status: 'Pending', createdBy: 'Hazem', activityLog: [{ id: 'al_4', timestamp: '2025-06-01 09:00:00', user: 'Hazem', action: 'Created follow-up', detail: 'Option dates approaching' }] },
+    { id: 'fu_4', clientId: 'test_client_5', date: '2025-05-01', topic: 'New client onboarding', notes: 'Met at travel expo. Interested in regular Umrah group bookings.', status: 'Closed', createdBy: 'Hazem', activityLog: [{ id: 'al_5', timestamp: '2025-04-28 11:00:00', user: 'Hazem', action: 'Created follow-up', detail: 'Met at Jeddah travel expo' }, { id: 'al_6', timestamp: '2025-05-01 15:00:00', user: 'Hazem', action: 'Onboarded as client', detail: 'First booking RSV-9 created' }] },
+  ];
+
+  // ===== Cancellation Reasons =====
+  const testCancellationReasons: CancellationReason[] = [
+    { id: 'cr_1', reason: 'Guest changed travel plans', active: true },
+    { id: 'cr_2', reason: 'Visa denied', active: true },
+    { id: 'cr_3', reason: 'Medical emergency', active: true },
+    { id: 'cr_4', reason: 'Flight cancelled by airline', active: true },
+    { id: 'cr_5', reason: 'Client found cheaper rate', active: true },
+    { id: 'cr_6', reason: 'Double booking error', active: true },
+  ];
+
+  // ===== Expense Categories =====
+  const testExpenseCategories: ExpenseCategory[] = [
+    { id: 'ec_1', name: 'Office Rent', active: true },
+    { id: 'ec_2', name: 'Utilities', active: true },
+    { id: 'ec_3', name: 'Marketing & Advertising', active: true },
+    { id: 'ec_4', name: 'Transportation', active: true },
+    { id: 'ec_5', name: 'Office Supplies', active: true },
+    { id: 'ec_6', name: 'Staff Salaries', active: true },
+  ];
+
+  // ===== Expenses =====
+  const testExpenses: Expense[] = [
+    { id: 'exp_1', expenseNumber: 1, name: 'January Office Rent', category: 'Office Rent', amount: 5000, date: '2025-01-01', fromAccountId: 'acc_bank_1', description: 'Monthly office rent - January', createdBy: 'Hazem', createdAt: '2025-01-01 09:00:00' },
+    { id: 'exp_2', expenseNumber: 2, name: 'Google Ads Campaign', category: 'Marketing & Advertising', amount: 1200, date: '2025-01-15', fromAccountId: 'acc_bank_1', description: 'Google Ads - Umrah packages campaign', createdBy: 'Hazem', createdAt: '2025-01-15 10:00:00' },
+    { id: 'exp_3', expenseNumber: 3, name: 'Electricity Bill', category: 'Utilities', amount: 450, date: '2025-02-01', fromAccountId: 'acc_bank_1', description: 'SEC electricity bill - January', createdBy: 'Hazem', createdAt: '2025-02-01 11:00:00' },
+    { id: 'exp_4', expenseNumber: 4, name: 'Airport Transfer Van', category: 'Transportation', amount: 800, date: '2025-02-10', fromAccountId: 'acc_cash_1', description: 'Van rental for guest airport transfers', createdBy: 'Hazem', createdAt: '2025-02-10 08:00:00' },
+    { id: 'exp_5', expenseNumber: 5, name: 'Printer Cartridges', category: 'Office Supplies', amount: 350, date: '2025-03-01', fromAccountId: 'acc_cash_1', description: 'HP printer ink cartridges x4', createdBy: 'Hazem', createdAt: '2025-03-01 14:00:00' },
+    { id: 'exp_6', expenseNumber: 6, name: 'February Office Rent', category: 'Office Rent', amount: 5000, date: '2025-02-01', fromAccountId: 'acc_bank_1', description: 'Monthly office rent - February', createdBy: 'Hazem', createdAt: '2025-02-01 09:00:00' },
+    { id: 'exp_7', expenseNumber: 7, name: 'Social Media Manager', category: 'Marketing & Advertising', amount: 2000, date: '2025-03-05', fromAccountId: 'acc_bank_1', description: 'Freelance social media management - March', createdBy: 'Hazem', createdAt: '2025-03-05 10:00:00' },
+    { id: 'exp_8', expenseNumber: 8, name: 'Internet Bill', category: 'Utilities', amount: 300, date: '2025-03-10', fromAccountId: 'acc_bank_1', description: 'STC fiber internet - March', createdBy: 'Hazem', createdAt: '2025-03-10 11:00:00' },
+  ];
+
+  // ===== Other Services =====
+  const testOtherServices: OtherService[] = [
+    { id: 'os_1', serviceType: 'Flight', clientId: 'test_client_1', description: 'SV Airlines - CAI to JED round trip', quantity: 2, sellPrice: 2400, buyPrice: 2000, taxRate: 15, date: '2025-01-20', status: 'Completed', invoiceNo: 'INV-SVC-001', notes: 'Economy class, 2 passengers', createdBy: 'Hazem', createdAt: '2025-01-20 10:00:00', details: { airline: 'Saudi Airlines', route: 'CAI-JED-CAI', departDate: '2025-02-10', returnDate: '2025-02-14' } },
+    { id: 'os_2', serviceType: 'Visa', clientId: 'test_client_2', description: 'Umrah Visa Processing', quantity: 4, sellPrice: 800, buyPrice: 500, taxRate: 15, date: '2025-02-15', status: 'Completed', invoiceNo: 'INV-SVC-002', notes: 'Group visa processing - 4 passports', createdBy: 'Hazem', createdAt: '2025-02-15 14:00:00', details: { visaType: 'Umrah', processingDays: '5' } },
+    { id: 'os_3', serviceType: 'Transportation', clientId: 'test_client_3', description: 'Airport to Hotel transfer - Makkah', quantity: 1, sellPrice: 500, buyPrice: 300, taxRate: 15, date: '2025-03-14', status: 'Confirmed', invoiceNo: 'INV-SVC-003', notes: 'Private SUV transfer for 3 pax', createdBy: 'Hazem', createdAt: '2025-03-14 09:00:00', details: { pickup: 'JED Airport', dropoff: 'Hotel Makkah', vehicleType: 'SUV' } },
+    { id: 'os_4', serviceType: 'Flight', clientId: 'test_client_4', description: 'EgyptAir - CAI to JED', quantity: 3, sellPrice: 1800, buyPrice: 1500, taxRate: 15, date: '2025-04-05', status: 'Completed', invoiceNo: 'INV-SVC-004', createdBy: 'Hazem', createdAt: '2025-04-05 11:00:00', details: { airline: 'EgyptAir', route: 'CAI-JED', departDate: '2025-04-10' } },
+    { id: 'os_5', serviceType: 'OutboundHotel', clientId: 'test_client_5', description: 'Cairo hotel booking - pre-departure', quantity: 1, sellPrice: 600, buyPrice: 400, taxRate: 15, date: '2025-05-25', status: 'Pending', invoiceNo: 'INV-SVC-005', notes: '1 night Cairo hotel before flight', createdBy: 'Hazem', createdAt: '2025-05-25 10:00:00', details: { hotelName: 'Steigenberger', city: 'Cairo', checkIn: '2025-05-31', checkOut: '2025-06-01' } },
+  ];
+
+  // ===== Save everything =====
   const allAgents = [...testClients, ...testSuppliers];
   ZumraDB.saveAgents(allAgents);
   ZumraDB.saveReservations(testReservations);
   ZumraDB.saveSalesPersons(testSalesPersons);
-  console.log(`[TestSeed] Seeded ${allAgents.length} agents, ${testReservations.length} reservations, ${testSalesPersons.length} sales persons`);
+  ZumraDB.saveAccounts(testAccounts);
+  ZumraDB.saveTransactions(testTransactions);
+  ZumraDB.saveFollowUps(testFollowUps);
+  ZumraDB.saveCancellationReasons(testCancellationReasons);
+  ZumraDB.saveExpenseCategories(testExpenseCategories);
+  ZumraDB.saveExpenses(testExpenses);
+  ZumraDB.saveOtherServices(testOtherServices);
+  console.log(`[TestSeed] Seeded: ${allAgents.length} agents, ${testReservations.length} reservations, ${testTransactions.length} transactions, ${testSalesPersons.length} sales persons, ${testFollowUps.length} follow-ups, ${testExpenses.length} expenses, ${testOtherServices.length} services`);
 }
 

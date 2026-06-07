@@ -1528,7 +1528,7 @@ export default function ReservationsPage({
                       setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]);
                     }
                   }}
-                  placeholder="Search hotel by name, number, or Arabic name..."
+                  placeholder="Select hotel"
                   required
                   clearable
                   maxResults={30}
@@ -2067,15 +2067,6 @@ export default function ReservationsPage({
               <div className="col-span-2">
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Group Reference</label>
                 <input type="text" value={groupRef} onChange={(e) => setGroupRef(e.target.value)} placeholder="e.g. GRP-2026-001 (links multiple rooms)" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
-              </div>
-              {/* Document Expiry Dates */}
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Passport Expiry</label>
-                <input type="date" value={passportExpiry} onChange={(e) => setPassportExpiry(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Visa Expiry</label>
-                <input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
               </div>
               {/* Down payment fields removed - shown in Financial Summary below */}
             </div>
