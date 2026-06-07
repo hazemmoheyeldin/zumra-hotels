@@ -22,13 +22,14 @@ interface ConsolidatedInvoiceBuilderProps {
   agents: Agent[];
   otherServices: OtherService[];
   reservations: Reservation[];
+  consolidatedInvoices: ConsolidatedInvoice[];
   currentUser: User;
   onSave: (invoice: ConsolidatedInvoice) => void;
   onClose: () => void;
 }
 
 export default function ConsolidatedInvoiceBuilder({
-  agents, otherServices, reservations, currentUser, onSave, onClose,
+  agents, otherServices, reservations, consolidatedInvoices, currentUser, onSave, onClose,
 }: ConsolidatedInvoiceBuilderProps) {
   const [clientId, setClientId] = useState('');
   const [currency, setCurrency] = useState<'SAR' | 'EGP'>('SAR');
@@ -128,7 +129,7 @@ export default function ConsolidatedInvoiceBuilder({
 
     const invoice: ConsolidatedInvoice = {
       id: `cinv_${Date.now()}`,
-      invoiceNo: `CINV-${Date.now().toString(36).toUpperCase()}`,
+      invoiceNo: `CINV-${String(consolidatedInvoices.length + 1).padStart(3, '0')}`,
       clientId,
       items,
       currency,

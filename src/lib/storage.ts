@@ -340,7 +340,7 @@ export function saveGlobalData<T>(key: string, data: T): void {
 export class ZumraDB {
   static getHotels(): Hotel[] {
     // One-time migration: replace old hotel data with xlsx import
-    const HOTEL_DATA_VERSION = 2;
+    const HOTEL_DATA_VERSION = 3;
     const savedVersion = parseInt(localStorage.getItem('zumra_hotels_version') || '0');
     if (savedVersion < HOTEL_DATA_VERSION) {
       console.log(`[Hotels] Migrating hotel data from v${savedVersion} to v${HOTEL_DATA_VERSION} (${CSV_HOTELS.length} hotels from xlsx)`);

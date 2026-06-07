@@ -518,6 +518,7 @@ export default function OtherServicesPage({
           agents={agents}
           otherServices={otherServices}
           reservations={reservations}
+          consolidatedInvoices={consolidatedInvoices}
           currentUser={currentUser}
           onSave={(ci) => {
             onSaveConsolidatedInvoice?.(ci);
