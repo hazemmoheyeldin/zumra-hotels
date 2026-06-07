@@ -159,7 +159,7 @@ export default function App() {
   // Restore session from localStorage if user was previously logged in
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('current_user');
+      const saved = localStorage.getItem('zumra_current_user');
       if (saved) {
         const user = JSON.parse(saved);
         if (user && user.username && user.role) return user as User;
@@ -1185,7 +1185,7 @@ export default function App() {
     if (user) {
       ZumraDB.setCurrentUser(user);
     } else {
-      localStorage.removeItem('current_user');
+      localStorage.removeItem('zumra_current_user');
     }
   };
 
@@ -1616,14 +1616,14 @@ export default function App() {
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
         <div className={`flex items-center gap-3 px-5 py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
-          <div className={`flex items-center justify-center bg-white p-1.5 rounded-lg shadow-sm flex-shrink-0`}>
+          <button className={`flex items-center justify-center bg-white p-1.5 rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
             <ZumraLogo size="sm" variant="dark" />
-          </div>
+          </button>
           {!sidebarCollapsed && (
-            <div className="flex flex-col min-w-0">
+            <button className="flex flex-col min-w-0 cursor-pointer text-left" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
               <p className={`text-[13px] font-bold tracking-wide leading-none ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>Zumra Hotels</p>
               <p className={`text-[9px] font-semibold tracking-[0.2em] uppercase mt-0.5 ${currentTheme.brandText}`}>RMS Portal</p>
-            </div>
+            </button>
           )}
           {/* Mobile close */}
           <button onClick={() => setSidebarOpen(false)} className={`ml-auto md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
@@ -1799,7 +1799,7 @@ export default function App() {
               </button>
               
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up">
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3">
                   <div className="px-4 py-3 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</h3>
                   </div>
@@ -1877,7 +1877,7 @@ export default function App() {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up">
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3">
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
                       {currentUser.profileImage ? (
                         <img src={currentUser.profileImage} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer" onClick={() => profileImageRef.current?.click()} title="Change profile image" />
