@@ -11,9 +11,10 @@ import { useLang } from '../lib/LanguageContext';
 interface LoginPageProps {
   users: User[];
   onLoginSuccess: (user: User) => void;
+  onUpdateUser?: (user: User) => void;
 }
 
-export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
+export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: LoginPageProps) {
   const { t, lang } = useLang();
   const [username, setUsername] = useState(() => {
     const saved = localStorage.getItem('zumra_remembered_user');
@@ -24,6 +25,12 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('zumra_remembered_user'));
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forced password change state
+  const [forcePwdUser, setForcePwdUser] = useState<User | null>(null);
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [pwdError, setPwdError] = useState('');
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,12 +73,150 @@ export default function LoginPage({ users, onLoginSuccess }: LoginPageProps) {
           localStorage.removeItem('zumra_remembered_user');
           localStorage.removeItem('zumra_trusted_device');
         }
+
+        // Check if user must change password
+        if (matchedUser.mustChangePassword) {
+          setForcePwdUser(matchedUser);
+          return;
+        }
+
         onLoginSuccess(matchedUser);
       } else {
         setErrorMsg('Invalid password. Access denied.');
       }
     }, 800);
   };
+
+  const handleForcePwdSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+
+    if (!newPwd || newPwd.length < 6) {
+      setPwdError('Password must be at least 6 characters.');
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setPwdError('Passwords do not match.');
+      return;
+    }
+    if (!forcePwdUser) return;
+
+    const updatedUser = { ...forcePwdUser, password: newPwd, mustChangePassword: false };
+    onUpdateUser?.(updatedUser);
+    onLoginSuccess(updatedUser);
+  };
+
+  const getPasswordStrength = (pwd: string): { label: string; color: string; pct: number } => {
+    if (!pwd) return { label: '', color: '', pct: 0 };
+    let score = 0;
+    if (pwd.length >= 6) score++;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    if (score <= 2) return { label: 'Weak', color: 'bg-rose-500', pct: 33 };
+    if (score <= 3) return { label: 'Fair', color: 'bg-amber-500', pct: 60 };
+    return { label: 'Strong', color: 'bg-emerald-500', pct: 100 };
+  };
+
+  // Forced password change screen
+  if (forcePwdUser) {
+    const strength = getPasswordStrength(newPwd);
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
+        <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
+        <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+
+        <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+
+          <div className="text-center flex flex-col items-center space-y-3">
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+            <div className="mt-1">
+              <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+              <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Change Required</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
+
+          <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-3 text-xs text-amber-200 flex items-start gap-2">
+            <span className="text-sm">🔑</span>
+            <p className="font-mono text-[10px] leading-snug">
+              Welcome, {forcePwdUser.name}. Your administrator has set a temporary password. Please create a new secure password to continue.
+            </p>
+          </div>
+
+          <form onSubmit={handleForcePwdSubmit} className="space-y-4">
+            <div className="group relative">
+              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${newPwd ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+                New Password
+              </label>
+              <input
+                type="password"
+                value={newPwd}
+                onChange={(e) => { setNewPwd(e.target.value); setPwdError(''); }}
+                className="w-full bg-white/5 px-4 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all"
+                placeholder=" "
+                required
+              />
+              {newPwd && (
+                <div className="mt-1.5 flex items-center gap-2 px-1">
+                  <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${strength.color}`} style={{ width: `${strength.pct}%` }} />
+                  </div>
+                  <span className={`text-[9px] font-bold ${strength.color.replace('bg-', 'text-')}`}>{strength.label}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="group relative">
+              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${confirmPwd ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPwd}
+                onChange={(e) => { setConfirmPwd(e.target.value); setPwdError(''); }}
+                className="w-full bg-white/5 px-4 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all"
+                placeholder=" "
+                required
+              />
+            </div>
+
+            {pwdError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2">
+                <span className="text-sm">⚠️</span>
+                <p className="font-mono text-[10px] uppercase leading-snug">{pwdError}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] transition-all text-slate-900 font-extrabold uppercase text-xs py-3 rounded-xl flex items-center justify-center gap-2 mt-2 shadow-lg shadow-amber-500/20"
+            >
+              Set New Password & Sign In
+            </button>
+          </form>
+
+          <button
+            onClick={() => { setForcePwdUser(null); setNewPwd(''); setConfirmPwd(''); setPwdError(''); }}
+            className="w-full text-center text-[10px] text-slate-500 hover:text-amber-400 font-mono transition cursor-pointer"
+          >
+            ← Back to login
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"

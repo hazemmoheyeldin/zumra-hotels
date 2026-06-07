@@ -187,6 +187,7 @@ export interface User {
   role: 'Admin' | 'Sales' | 'Finance' | 'Reservationist';
   email: string;
   password?: string;
+  mustChangePassword?: boolean; // Force password change on next login
 }
 
 export interface FollowUp {

@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Account } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface AccountsPageProps {
   accounts: Account[];
@@ -59,7 +60,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
   const handleAddAccount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !code) {
-      alert('Please fill out Name and Account Number.');
+      showToast('Please fill out Name and Account Number.', 'warning');
       return;
     }
 
@@ -81,15 +82,15 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
     if (transferAmount <= 0) {
-      alert('Amount must be positive.');
+      showToast('Amount must be positive.', 'warning');
       return;
     }
     if (!fromAccountId || !toAccountId) {
-      alert('Please select both origin and target accounts.');
+      showToast('Please select both origin and target accounts.', 'warning');
       return;
     }
     if (fromAccountId === toAccountId) {
-      alert('Origin and target accounts cannot be identical.');
+      showToast('Origin and target accounts cannot be identical.', 'error');
       return;
     }
 
@@ -105,7 +106,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     setFromAccountId('');
     setToAccountId('');
     setShowTransferForm(false);
-    alert('💸 Account transfer settled successfully!');
+    showToast('Account transfer settled successfully!', 'success');
   };
 
   // Compute KPIs

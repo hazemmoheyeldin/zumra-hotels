@@ -743,19 +743,28 @@ export function exportToExcel(filename: string, rows: object[], sheetName: strin
 // FIRESTORE CLOUD SYNC LAYER
 // =====================================================
 
-function syncItemToFirestore(collectionName: string, item: any): void {
-  if (!isFirebaseConfigured || !item?.id) return;
-  firestoreSave(collectionName, item.id, item);
+export function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
+  if (!isFirebaseConfigured || !item?.id) return Promise.resolve();
+  return firestoreSave(collectionName, item.id, item);
 }
 
-function syncDeleteToFirestore(collectionName: string, id: string): void {
-  if (!isFirebaseConfigured) return;
-  firestoreDelete(collectionName, id);
+export function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
+  if (!isFirebaseConfigured) return Promise.resolve();
+  return firestoreDelete(collectionName, id);
 }
 
-function syncCollectionToFirestore(collectionName: string, items: any[]): void {
-  if (!isFirebaseConfigured) return;
-  firestoreBulkSave(collectionName, items);
+export function syncCollectionToFirestore(collectionName: string, items: any[]): Promise<void> {
+  if (!isFirebaseConfigured) return Promise.resolve();
+  return firestoreBulkSave(collectionName, items);
+}
+
+// Timestamp tracking to suppress real-time listener echo after local writes
+let lastWriteTimestamp = 0;
+export function markLocalWrite(): void {
+  lastWriteTimestamp = Date.now();
+}
+export function isRecentLocalWrite(windowMs: number = 3000): boolean {
+  return Date.now() - lastWriteTimestamp < windowMs;
 }
 
 export async function loadFromFirestore<T>(collectionName: string, localStorageKey: string): Promise<T[]> {
@@ -777,24 +786,24 @@ export async function loadFromFirestore<T>(collectionName: string, localStorageK
 }
 
 export const ZumraSync = {
-  saveHotel: (h: Hotel) => syncItemToFirestore(COLLECTIONS.HOTELS, h),
-  saveAgent: (a: Agent) => syncItemToFirestore(COLLECTIONS.AGENTS, a),
-  saveAllotment: (a: Allotment) => syncItemToFirestore(COLLECTIONS.ALLOTMENTS, a),
-  saveReservation: (r: Reservation) => syncItemToFirestore(COLLECTIONS.RESERVATIONS, r),
-  saveAccount: (a: Account) => syncItemToFirestore(COLLECTIONS.ACCOUNTS, a),
-  saveTransaction: (t: Transaction) => syncItemToFirestore(COLLECTIONS.TRANSACTIONS, t),
-  saveUser: (u: User) => syncItemToFirestore(COLLECTIONS.USERS, u),
-  saveFollowUp: (f: FollowUp) => syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f),
-  saveExternalTransfer: (t: ExternalTransfer) => syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t),
-  deleteHotel: (id: string) => syncDeleteToFirestore(COLLECTIONS.HOTELS, id),
-  deleteAgent: (id: string) => syncDeleteToFirestore(COLLECTIONS.AGENTS, id),
-  deleteAllotment: (id: string) => syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id),
-  deleteReservation: (id: string) => syncDeleteToFirestore(COLLECTIONS.RESERVATIONS, id),
-  deleteAccount: (id: string) => syncDeleteToFirestore(COLLECTIONS.ACCOUNTS, id),
-  deleteTransaction: (id: string) => syncDeleteToFirestore(COLLECTIONS.TRANSACTIONS, id),
-  deleteUser: (id: string) => syncDeleteToFirestore(COLLECTIONS.USERS, id),
-  deleteFollowUp: (id: string) => syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id),
-  deleteExternalTransfer: (id: string) => syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id),
+  saveHotel: (h: Hotel) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.HOTELS, h); },
+  saveAgent: (a: Agent) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.AGENTS, a); },
+  saveAllotment: (a: Allotment) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.ALLOTMENTS, a); },
+  saveReservation: (r: Reservation) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.RESERVATIONS, r); },
+  saveAccount: (a: Account) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.ACCOUNTS, a); },
+  saveTransaction: (t: Transaction) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TRANSACTIONS, t); },
+  saveUser: (u: User) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.USERS, u); },
+  saveFollowUp: (f: FollowUp) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f); },
+  saveExternalTransfer: (t: ExternalTransfer) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t); },
+  deleteHotel: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
+  deleteAgent: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
+  deleteAllotment: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
+  deleteReservation: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.RESERVATIONS, id); },
+  deleteAccount: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ACCOUNTS, id); },
+  deleteTransaction: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.TRANSACTIONS, id); },
+  deleteUser: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.USERS, id); },
+  deleteFollowUp: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id); },
+  deleteExternalTransfer: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id); },
   bulkSyncAll: () => {
     if (!isFirebaseConfigured) return;
     syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));

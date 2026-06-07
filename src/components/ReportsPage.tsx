@@ -10,6 +10,7 @@ import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
 import { getReservationTotals, getAgentActualBalance, exportToCSV } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface ReportsPageProps {
   reservations: Reservation[];
@@ -611,7 +612,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   onClick={() => {
                     const sentStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     setSimulatedRemindersSent(prev => ({ ...prev, [resObj.id]: sentStr }));
-                    alert(`Simulated email notice dispatched to: ${suppObj?.email || 'supplier'}`);
+                    showToast(`Email notice dispatched to: ${suppObj?.email || 'supplier'}`, 'success');
                     setSelectedReminderRes(null);
                   }}
                   className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-xl transition shadow text-xs cursor-pointer"

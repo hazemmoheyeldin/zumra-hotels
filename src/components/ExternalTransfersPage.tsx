@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ExternalTransfer, ExternalTransferPart } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface ExternalTransfersPageProps {
   externalTransfers: ExternalTransfer[];
@@ -68,7 +69,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (amountSAR <= 0 || !bookingRef || !clientName || !supplierName) {
-      alert('Please fill out all required fields properly.');
+      showToast('Please fill out all required fields properly.', 'warning');
       return;
     }
 

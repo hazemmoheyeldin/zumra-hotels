@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { ZumraDB, ZumraSync } from './lib/storage';
+import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
@@ -34,150 +34,74 @@ import { ToastContainer, useToast } from './components/Toast';
 
 const THEMES = [
   {
-    id: 'corporate',
-    name: 'Corporate Executive',
-    emoji: '🏢',
-    sidebarBg: 'bg-slate-800',
-    sidebarBorder: 'border-slate-700',
-    sidebarHover: 'hover:bg-slate-700/50',
-    sidebarActive: 'bg-blue-700 text-white border-l-4 border-blue-300 shadow-md shadow-slate-900/40',
-    sidebarBgSecondary: 'bg-slate-900',
-    sidebarText: 'text-slate-100',
-    brandBg: 'bg-blue-600',
-    brandText: 'text-blue-400',
-    brandLetterColor: 'text-white',
-    btnPrimary: 'bg-blue-600 hover:bg-blue-700 text-white',
-    badgeBg: 'bg-blue-100 text-blue-800',
-    footerText: 'text-slate-700',
-    topBarGradient: 'from-blue-600 via-slate-600 to-slate-800',
-  },
-  {
-    id: 'emerald',
-    name: 'Classic Emerald',
-    emoji: '🌴',
-    sidebarBg: 'bg-emerald-900',
-    sidebarBorder: 'border-emerald-800',
-    sidebarHover: 'hover:bg-emerald-800/60',
-    sidebarActive: 'bg-emerald-800 text-white border-l-4 border-amber-400 shadow-md shadow-emerald-950/30',
-    sidebarBgSecondary: 'bg-emerald-950/60',
-    sidebarText: 'text-emerald-100',
-    brandBg: 'bg-amber-400',
+    id: 'zumra-signature',
+    name: 'Zumra Signature',
+    emoji: '✨',
+    sidebarBg: 'bg-[#0f172a]',
+    sidebarBorder: 'border-white/[0.06]',
+    sidebarHover: 'hover:bg-white/[0.06]',
+    sidebarActive: 'bg-white/[0.10] text-white',
+    sidebarText: 'text-slate-300',
+    brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
-    brandLetterColor: 'text-emerald-900',
-    btnPrimary: 'bg-amber-400 hover:bg-amber-500 text-emerald-950',
-    badgeBg: 'bg-emerald-100 text-emerald-800',
-    footerText: 'text-emerald-800',
-    topBarGradient: 'from-amber-400 via-emerald-600 to-emerald-950',
-  },
-  {
-    id: 'midnight',
-    name: 'Cosmic Midnight',
-    emoji: '🌌',
-    sidebarBg: 'bg-slate-900',
-    sidebarBorder: 'border-slate-800',
-    sidebarHover: 'hover:bg-slate-800/60',
-    sidebarActive: 'bg-indigo-950 text-white border-l-4 border-indigo-400 shadow-md shadow-slate-950/30',
-    sidebarBgSecondary: 'bg-slate-950/60',
-    sidebarText: 'text-slate-100',
-    brandBg: 'bg-indigo-500',
-    brandText: 'text-indigo-400',
     brandLetterColor: 'text-white',
-    btnPrimary: 'bg-indigo-600 hover:bg-indigo-700 text-white',
-    badgeBg: 'bg-indigo-100 text-indigo-800',
-    footerText: 'text-indigo-950',
-    topBarGradient: 'from-indigo-400 via-purple-600 to-slate-900',
+    btnPrimary: 'bg-[#0f172a] hover:bg-[#1e293b] text-white shadow-sm',
+    badgeBg: 'bg-slate-100 text-slate-700',
+    footerText: 'text-slate-500',
+    topBarGradient: 'from-[#0f172a] via-slate-700 to-slate-900',
   },
   {
-    id: 'velvet',
-    name: 'Royal Purple',
-    emoji: '🔮',
-    sidebarBg: 'bg-indigo-950',
-    sidebarBorder: 'border-indigo-900',
-    sidebarHover: 'hover:bg-indigo-900/60',
-    sidebarActive: 'bg-purple-900 text-white border-l-4 border-pink-400 shadow-md shadow-indigo-950/30',
-    sidebarBgSecondary: 'bg-slate-950/65',
-    sidebarText: 'text-indigo-100',
-    brandBg: 'bg-pink-500',
-    brandText: 'text-pink-400',
+    id: 'executive',
+    name: 'Executive White',
+    emoji: '🏛️',
+    mainBg: 'bg-slate-100 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-slate-800',
+    sidebarBg: 'bg-white',
+    sidebarBorder: 'border-slate-200',
+    sidebarHover: 'hover:bg-slate-50',
+    sidebarActive: 'bg-slate-100 text-slate-900',
+    sidebarText: 'text-slate-500',
+    brandBg: 'bg-slate-800',
+    brandText: 'text-slate-800',
     brandLetterColor: 'text-white',
-    btnPrimary: 'bg-pink-500 hover:bg-pink-600 text-white',
-    badgeBg: 'bg-pink-100 text-pink-800',
-    footerText: 'text-purple-800',
-    topBarGradient: 'from-pink-400 via-indigo-650 to-purple-950',
+    btnPrimary: 'bg-slate-800 hover:bg-slate-900 text-white shadow-sm',
+    badgeBg: 'bg-slate-100 text-slate-700',
+    footerText: 'text-slate-500',
+    topBarGradient: 'from-slate-700 via-slate-500 to-slate-300',
   },
   {
-    id: 'desert',
-    name: 'Desert Dunes',
-    emoji: '🐪',
-    sidebarBg: 'bg-amber-955',
-    sidebarBorder: 'border-amber-900/80',
-    sidebarHover: 'hover:bg-amber-900/60',
-    sidebarActive: 'bg-amber-900 text-white border-l-4 border-yellow-400 shadow-md shadow-amber-950/30',
-    sidebarBgSecondary: 'bg-yellow-950/65',
-    sidebarText: 'text-amber-100',
-    brandBg: 'bg-yellow-500',
-    brandText: 'text-yellow-400',
-    brandLetterColor: 'text-amber-950',
-    btnPrimary: 'bg-yellow-500 hover:bg-yellow-600 text-amber-950',
-    badgeBg: 'bg-amber-100 text-amber-900',
-    footerText: 'text-amber-900',
-    topBarGradient: 'from-yellow-400 via-amber-600 to-yellow-950',
-  },
-  {
-    id: 'forest',
-    name: 'Forest Glass',
-    emoji: '🌲',
-    sidebarBg: 'bg-emerald-950/80 backdrop-blur-md',
-    sidebarBorder: 'border-emerald-800/50',
-    sidebarHover: 'hover:bg-emerald-900/60',
-    sidebarActive: 'bg-emerald-800/60 text-emerald-50 border-l-4 border-emerald-400 shadow-md shadow-emerald-950/30',
-    sidebarBgSecondary: 'bg-emerald-950/40',
-    sidebarText: 'text-emerald-100',
-    brandBg: 'bg-emerald-500/80',
-    brandText: 'text-emerald-300',
+    id: 'harbor',
+    name: 'Harbor Teal',
+    emoji: '⚓',
+    sidebarBg: 'bg-[#0c1929]',
+    sidebarBorder: 'border-white/[0.06]',
+    sidebarHover: 'hover:bg-teal-500/[0.08]',
+    sidebarActive: 'bg-teal-500/[0.12] text-teal-300',
+    sidebarText: 'text-slate-400',
+    brandBg: 'bg-teal-500',
+    brandText: 'text-teal-400',
     brandLetterColor: 'text-white',
-    btnPrimary: 'bg-emerald-600/90 hover:bg-emerald-500 text-white backdrop-blur-sm',
-    badgeBg: 'bg-emerald-950/50 text-emerald-300 border border-emerald-800/50',
-    footerText: 'text-emerald-900',
-    topBarGradient: 'from-emerald-400/80 via-emerald-600/80 to-emerald-950/80',
+    btnPrimary: 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm',
+    badgeBg: 'bg-teal-50 text-teal-700',
+    footerText: 'text-slate-500',
+    topBarGradient: 'from-teal-500 via-slate-600 to-[#0c1929]',
   },
   {
-    id: 'liquid-navy',
-    name: 'Liquid Navy Glass',
-    emoji: '🌊',
-    mainBg: 'bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 min-h-screen text-indigo-50 font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none',
-    sidebarBg: 'bg-slate-900/40 backdrop-blur-xl border-r border-white/10',
-    sidebarBorder: 'border-white/10',
-    sidebarHover: 'hover:bg-indigo-900/50',
-    sidebarActive: 'bg-indigo-900/40 text-cyan-50 border-l-4 border-cyan-400 shadow-[0_4px_15px_rgba(34,211,238,0.2)]',
-    sidebarBgSecondary: 'bg-transparent',
-    sidebarText: 'text-slate-100',
-    brandBg: 'bg-cyan-500/80 backdrop-blur-md',
-    brandText: 'text-cyan-300',
+    id: 'graphite',
+    name: 'Graphite Warm',
+    emoji: '🪨',
+    sidebarBg: 'bg-[#1a1a1a]',
+    sidebarBorder: 'border-white/[0.06]',
+    sidebarHover: 'hover:bg-white/[0.05]',
+    sidebarActive: 'bg-amber-500/[0.12] text-amber-300',
+    sidebarText: 'text-neutral-400',
+    brandBg: 'bg-amber-600',
+    brandText: 'text-amber-500',
     brandLetterColor: 'text-white',
-    btnPrimary: 'bg-blue-600/90 hover:bg-cyan-600 text-white backdrop-blur-md shadow-lg shadow-cyan-500/20 border border-cyan-400/30',
-    badgeBg: 'bg-blue-900/50 text-cyan-300 border border-blue-700/50',
-    footerText: 'text-slate-300',
-    topBarGradient: 'from-cyan-400/80 via-blue-600/80 to-slate-900/80',
+    btnPrimary: 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm',
+    badgeBg: 'bg-amber-50 text-amber-800',
+    footerText: 'text-slate-500',
+    topBarGradient: 'from-amber-500 via-neutral-600 to-[#1a1a1a]',
   },
-  {
-    id: 'charcoal',
-    name: 'Obsidian Onyx',
-    emoji: '🖤',
-    sidebarBg: 'bg-neutral-900',
-    sidebarBorder: 'border-neutral-800',
-    sidebarHover: 'hover:bg-neutral-800/60',
-    sidebarActive: 'bg-neutral-800 text-white border-l-4 border-emerald-400 shadow-md shadow-neutral-950/30',
-    sidebarBgSecondary: 'bg-zinc-950/60',
-    sidebarText: 'text-neutral-100',
-    brandBg: 'bg-emerald-500',
-    brandText: 'text-emerald-400',
-    brandLetterColor: 'text-neutral-905',
-    btnPrimary: 'bg-emerald-500 hover:bg-emerald-600 text-white',
-    badgeBg: 'bg-neutral-200 text-neutral-800',
-    footerText: 'text-neutral-800',
-    topBarGradient: 'from-emerald-400 via-zinc-600 to-neutral-950',
-  }
 ];
 
 export default function App() {
@@ -215,7 +139,7 @@ export default function App() {
 
   // Theme states
   const [activeThemeId, setActiveThemeId] = useState<string>(() => {
-    return localStorage.getItem('zumra_theme') || 'liquid-navy';
+    return localStorage.getItem('zumra_theme') || 'zumra-signature';
   });
 
   const handleSetTheme = (themeId: string) => {
@@ -321,57 +245,58 @@ export default function App() {
       migrateData();
 
       // 3. Attach real-time Firestore listeners for cross-device sync
+      // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
       const unsubs = [
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
             setHotels(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_agents', JSON.stringify(data));
             setAgents(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_allotments', JSON.stringify(data));
             setAllotments(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_reservations', JSON.stringify(data));
             setReservations(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_accounts', JSON.stringify(data));
             setAccounts(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_transactions', JSON.stringify(data));
             setTransactions(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
             setExternalTransfers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_users', JSON.stringify(data));
             setUsers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
         firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
-          if (data.length > 0) {
+          if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
             setFollowUps(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
@@ -381,7 +306,7 @@ export default function App() {
       // Also listen for cross-tab localStorage changes (for theme etc.)
       const handleStorage = (e: StorageEvent) => {
         if (e.key === 'zumra_theme') {
-          setActiveThemeId(e.newValue || 'liquid-navy');
+          setActiveThemeId(e.newValue || 'zumra-signature');
         }
       };
       window.addEventListener('storage', handleStorage);
@@ -914,16 +839,16 @@ export default function App() {
   };
 
   const doAddUser = (user: User) => {
-    const existing = users.find(u => u.id === user.id);
-    let updated;
-    if (existing) {
-      updated = users.map(u => u.id === user.id ? user : u);
-    } else {
-      updated = [...users, user];
-    }
-    setUsers(updated);
-    ZumraDB.saveUsers(updated);
-    ZumraSync.saveUser(user);
+    // Use functional update to prevent stale closure race conditions
+    setUsers(prev => {
+      const existing = prev.find(u => u.id === user.id);
+      const updated = existing
+        ? prev.map(u => u.id === user.id ? user : u)
+        : [...prev, user];
+      ZumraDB.saveUsers(updated);
+      ZumraSync.saveUser(user);
+      return updated;
+    });
     toast.success(`User "${user.name}" saved`);
   };
   const handleAddUser = (user: User) => {
@@ -931,12 +856,23 @@ export default function App() {
   };
 
   const doDeleteUser = (userId: string) => {
-    const u = users.find(i => i.id === userId);
+    const targetUser = users.find(i => i.id === userId);
+    // Guard: prevent deleting self
+    if (currentUser && userId === currentUser.id) {
+      toast.error('You cannot delete your own account.');
+      return;
+    }
+    // Guard: prevent deleting last admin
+    const adminCount = users.filter(u => u.role === 'Admin').length;
+    if (targetUser?.role === 'Admin' && adminCount <= 1) {
+      toast.error('Cannot delete the last admin. Promote another user to Admin first.');
+      return;
+    }
     const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
     ZumraDB.saveUsers(updated);
     ZumraSync.deleteUser(userId);
-    toast.success(`User "${u?.name || userId}" deleted`);
+    toast.success(`User "${targetUser?.name || userId}" deleted`);
   };
   const handleDeleteUser = (userId: string) => {
     const u = users.find(i => i.id === userId);
@@ -1149,6 +1085,7 @@ export default function App() {
             onSetCurrentUser={handleSetCurrentUser}
             onAddUser={handleAddUser}
             onDeleteUser={handleDeleteUser}
+            onToast={(type, msg) => { if (type === 'error') toast.error(msg); else if (type === 'warning') toast.warning(msg); else toast.success(msg); }}
           />
           </ErrorBoundary>
         );
@@ -1178,7 +1115,7 @@ export default function App() {
   ];
 
   if (!currentUser) {
-    return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} />;
+    return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={doAddUser} />;
   }
 
   // Get permitted nav items based on user's specific role
@@ -1199,11 +1136,14 @@ export default function App() {
     navGroups[item.group].push(item);
   });
 
+  // Determine if sidebar is dark (for text color adjustments)
+  const isDarkSidebar = currentTheme.id !== 'executive';
+
   return (
     <div className={currentTheme.mainBg || 'bg-slate-50 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-slate-800'}>
       
-      {/* Decorative top vibrant bar for print space */}
-      <div className={`h-1 bg-gradient-to-r ${currentTheme.topBarGradient} w-full no-print absolute top-0 left-0 right-0 md:hidden`}></div>
+      {/* Decorative top accent bar (mobile only) */}
+      <div className={`h-0.5 bg-gradient-to-r ${currentTheme.topBarGradient} w-full no-print absolute top-0 left-0 right-0 md:hidden z-[60]`}></div>
 
       {/* Global Datalists for Auto-Complete */}
       <datalist id="nationalities">
@@ -1250,49 +1190,47 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} text-white flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className={`p-5 flex flex-row md:flex-col items-center justify-between md:justify-center border-b ${currentTheme.sidebarBorder} gap-3`}>
-          <div className="flex items-center gap-3 md:flex-col">
-            <div className={`flex items-center justify-center transition-transform hover:scale-105 bg-white p-2 rounded-xl`}>
-              <ZumraLogo size="md" variant="dark" />
-            </div>
-            <div className="text-left md:text-center mt-1">
-              <p className={`text-[11px] md:text-[12px] text-cyan-400 font-extrabold tracking-widest leading-none`}>RMS</p>
-            </div>
+      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        {/* Brand Header */}
+        <div className={`flex items-center gap-3 px-5 py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
+          <div className={`flex items-center justify-center bg-white p-1.5 rounded-lg shadow-sm flex-shrink-0`}>
+            <ZumraLogo size="sm" variant="dark" />
           </div>
-
-          {/* Current worker label display (shown in header row on mobile, bottom of sidebar on desktop) */}
-          {currentUser && (
-            <div className={`hidden md:flex items-center gap-2 ${currentTheme.sidebarBgSecondary} p-2 rounded-xl border ${currentTheme.sidebarBorder} mt-1 w-full ${sidebarCollapsed ? 'md:hidden' : ''}`}>
-
-              <span className="text-xs">👤</span>
-              <div className="min-w-0">
-                <span className={`text-[9px] ${currentTheme.brandText} block leading-none`}>Operator ({currentUser.role}):</span>
-                <span className="text-xs font-bold font-mono tracking-wider text-amber-250 uppercase truncate block">{currentUser.name}</span>
-              </div>
+          {!sidebarCollapsed && (
+            <div className="flex flex-col min-w-0">
+              <p className={`text-[13px] font-bold tracking-wide leading-none ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>Zumra Hotels</p>
+              <p className={`text-[9px] font-semibold tracking-[0.2em] uppercase mt-0.5 ${currentTheme.brandText}`}>RMS Portal</p>
             </div>
           )}
-        </div>
-
-        {/* Desktop collapse toggle - top position */}
-        <div className="hidden md:flex px-3 py-1.5">
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-150 text-slate-400 hover:bg-white/10 hover:text-white w-full"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            <span className="text-base">{sidebarCollapsed ? '▶' : '◀'}</span>
-            <span className={`${sidebarCollapsed ? 'md:hidden' : ''}`}>{sidebarCollapsed ? '' : 'Collapse'}</span>
+          {/* Mobile close */}
+          <button onClick={() => setSidebarOpen(false)} className={`ml-auto md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        {/* Navigation list */}
-        <nav className="flex-1 py-4 overflow-y-auto no-scrollbar space-y-4 px-3 flex flex-col gap-0 overflow-x-auto">
+        {/* Desktop collapse toggle */}
+        <div className="hidden md:flex px-3 pt-2">
+          <button
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className={`flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-[10px] font-semibold transition-all duration-150 ${isDarkSidebar ? 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+          >
+            <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+            {!sidebarCollapsed && <span>Collapse</span>}
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col gap-4 overflow-x-auto">
           {Object.entries(navGroups).map(([group, items]) => (
             <div key={group}>
-              <div className={`px-3 mb-1.5 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
-                <span className="text-[8px] font-bold uppercase tracking-[0.15em] text-slate-400/70">{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
-              </div>
+              {!sidebarCollapsed && (
+                <div className="px-3 mb-1.5">
+                  <span className={`text-[9px] font-bold uppercase tracking-[0.18em] ${isDarkSidebar ? 'text-slate-500' : 'text-slate-400'}`}>{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
+                </div>
+              )}
               <div className="space-y-0.5">
                 {items.map((item) => {
                   const isActive = activeTab === item.name;
@@ -1305,13 +1243,14 @@ export default function App() {
                         setActiveTab(item.name);
                         setSidebarOpen(false);
                       }}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
                         isActive
-                          ? `${currentTheme.sidebarActive}`
-                          : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} hover:text-white`
+                          ? `${currentTheme.sidebarActive} font-bold`
+                          : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
                       }`}
                     >
-                      <span className="text-sm md:text-base w-5 text-center flex-shrink-0">{item.icon}</span>
+                      {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${currentTheme.brandBg}`}></span>}
+                      <span className="text-sm w-5 text-center flex-shrink-0">{item.icon}</span>
                       <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
                     </button>
                   );
@@ -1322,37 +1261,37 @@ export default function App() {
           {/* Mobile logout trigger */}
           <button
             onClick={() => { setSidebarOpen(false); handleSetCurrentUser(null as any); }}
-            className="flex md:hidden items-center gap-2 px-3 py-2 rounded-xl text-xs font-extrabold transition-all duration-150 text-rose-300 hover:bg-rose-950/30"
+            className={`flex md:hidden items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 ${isDarkSidebar ? 'text-rose-400 hover:bg-rose-500/10' : 'text-rose-500 hover:bg-rose-50'}`}
           >
-            <span>🚪</span>
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
             <span>{t('nav.exitPortal')}</span>
           </button>
         </nav>
 
-        {/* Sidebar Footer Worker */}
+        {/* Sidebar Footer - User Info */}
         {currentUser && (
-          <div className={`p-4 ${currentTheme.sidebarBgSecondary} border-t ${currentTheme.sidebarBorder} ${sidebarCollapsed ? 'hidden md:flex md:justify-center md:items-center' : 'hidden md:block'}`}>
+          <div className={`p-3 border-t ${currentTheme.sidebarBorder} flex-shrink-0 ${sidebarCollapsed ? 'hidden md:flex md:justify-center' : 'hidden md:block'}`}>
             {sidebarCollapsed ? (
-              <button onClick={() => handleSetCurrentUser(null as any)} title="Sign Out" className="bg-black/20 hover:bg-rose-900 p-2 rounded-lg transition-all text-xs border border-white/10">
-                🚪
+              <button onClick={() => handleSetCurrentUser(null as any)} title="Sign Out" className={`p-2 rounded-lg transition-all text-xs ${isDarkSidebar ? 'bg-white/[0.06] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400' : 'bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-500'}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
             ) : (
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className={`w-8 h-8 rounded-lg bg-black/30 flex items-center justify-center font-bold text-xs ${currentTheme.brandText} border ${currentTheme.sidebarBorder} flex-shrink-0`}>
-                  {currentUser.name ? currentUser.name.slice(0, 2).toUpperCase() : 'OP'}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 overflow-hidden">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDarkSidebar ? 'bg-white/[0.10] text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-xs font-extrabold text-white truncate leading-tight">{currentUser.name}</p>
-                  <p className={`text-[8px] ${currentTheme.brandText} tracking-wider truncate uppercase font-mono`}>{currentUser.role} Node</p>
+                  <p className={`text-[11px] font-semibold truncate leading-tight ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>{currentUser.name}</p>
+                  <p className={`text-[9px] truncate leading-tight ${isDarkSidebar ? 'text-slate-500' : 'text-slate-400'}`}>{currentUser.role}</p>
                 </div>
               </div>
               <button
                 onClick={() => handleSetCurrentUser(null as any)}
-                title="Secure Exit / Access Switch"
-                className={`bg-black/20 hover:bg-rose-900 ${currentTheme.brandText} hover:text-rose-200 p-1.5 rounded-lg transition-all text-xs border ${currentTheme.sidebarBorder} flex-shrink-0`}
+                title="Sign Out"
+                className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${isDarkSidebar ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-500/10' : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50'}`}
               >
-                🚪
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
             </div>
             )}
@@ -1363,91 +1302,83 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 bg-slate-50">
         
-        {/* Top Header Row */}
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-8 flex-shrink-0 shadow-sm no-print">
-          {/* Mobile hamburger toggle */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition text-slate-600"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              {sidebarOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              ) : (
+        {/* Top Header Bar */}
+        <header className="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print">
+          {/* Left: hamburger + page title */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="md:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              )}
-            </svg>
-          </button>
-
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm md:text-base font-extrabold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
+              </svg>
+            </button>
+            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
               {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
             </h2>
-            <span className={`hidden sm:inline-block text-[9px] ${currentTheme.badgeBg} font-extrabold px-3 py-0.5 rounded-full uppercase tracking-tight`}>
-              {t('dash.egyptTime')}
-            </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* Inbox Icon for Mail/Messages */}
-            <div 
-              className="relative p-2 cursor-pointer group hover:bg-slate-100 rounded-full transition"
+          {/* Right: actions */}
+          <div className="flex items-center gap-1">
+            {/* Inbox */}
+            <button
+              className="relative p-2 hover:bg-slate-100 rounded-lg transition"
               onClick={() => setIsInboxOpen(true)}
+              title="Messages"
             >
-              <span className="text-lg text-slate-600">✉️</span>
+              <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
               {(() => {
-                const unreadMessages = ZumraDB.getMessages().filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
-                if (unreadMessages > 0) {
-                  return (
-                    <span className="absolute top-1 right-1 bg-indigo-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white">
-                      {unreadMessages > 9 ? '9+' : unreadMessages}
-                    </span>
-                  );
-                }
-                return null;
+                const unread = ZumraDB.getMessages().filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
+                return unread > 0 ? (
+                  <span className="absolute top-1 right-1 bg-blue-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                ) : null;
               })()}
-            </div>
+            </button>
 
-            {/* Bell Icon for Alerts */}
+            {/* Alerts */}
             <div className="relative" onMouseLeave={() => setIsAlertsOpen(false)}>
-              <div 
-                className="relative p-2 cursor-pointer group hover:bg-slate-100 rounded-full transition"
+              <button
+                className="relative p-2 hover:bg-slate-100 rounded-lg transition"
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)}
+                title="Notifications"
               >
-                <span className="text-lg text-slate-600">🔔</span>
+                <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
                 {alertCount > 0 && (
-                  <span className="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-white animate-pulse">
+                  <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
                     {alertCount > 9 ? '9+' : alertCount}
                   </span>
                 )}
-              </div>
+              </button>
               
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden">
-                  <div className="bg-slate-50 px-4 py-2 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-widest">Notifications</h3>
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up">
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</h3>
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto thin-scrollbar">
                     {alertCount > 0 ? (
                       <div className="flex flex-col">
                         {currentAlerts.map(alert => (
                           <div 
                             key={alert.id}
-                            className="p-3 text-xs font-medium text-slate-700 hover:bg-slate-100 border-b border-slate-100 cursor-pointer transition flex flex-col gap-0.5"
+                            className="p-3 text-xs hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition flex flex-col gap-0.5"
                             onClick={() => {
                               setActiveFilters({ viewReservationId: alert.resId });
                               setActiveTab('Reservations');
                               setIsAlertsOpen(false);
                             }}
                           >
-                            <span className="font-bold text-amber-600">{alert.type}</span>
-                            <span>{alert.message}</span>
+                            <span className="font-semibold text-amber-600">{alert.type}</span>
+                            <span className="text-slate-600">{alert.message}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="p-4 text-xs text-slate-400 text-center italic">
-                        No new notifications right now.
+                      <div className="p-6 text-xs text-slate-400 text-center">
+                        No new notifications
                       </div>
                     )}
                   </div>
@@ -1455,102 +1386,91 @@ export default function App() {
               )}
             </div>
 
-            {/* User Icon & Dropdown Menu */}
+            {/* Separator */}
+            <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block"></div>
+
+            {/* Language toggle */}
+            <LangToggle />
+
+            {/* Theme switcher */}
+            <div className="flex items-center bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-lg transition cursor-pointer">
+              <select
+                value={activeThemeId}
+                onChange={(e) => handleSetTheme(e.target.value)}
+                className="bg-transparent text-slate-700 font-semibold py-0 border-none text-[10px] focus:outline-none focus:ring-0 cursor-pointer appearance-none max-w-[80px]"
+                title="Change Theme"
+              >
+                {THEMES.map(th => (
+                  <option key={th.id} value={th.id} className="font-sans text-xs">
+                    {th.emoji} {th.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* User Dropdown */}
             {currentUser && (
               <div className="relative" onMouseLeave={() => setIsUserMenuOpen(false)}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center gap-2 hover:bg-slate-100 rounded-full transition p-1.5 cursor-pointer"
+                  className="flex items-center gap-2 hover:bg-slate-100 rounded-lg transition p-1.5 cursor-pointer"
                 >
-                  <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-xs text-white shadow-sm`}>
+                  <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-[10px]`}>
                     {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                   </div>
                   <div className="hidden md:block text-left">
-                    <p className="text-[10px] font-bold text-slate-800 leading-none">{currentUser.name}</p>
-                    <p className="text-[9px] text-slate-500 leading-tight">{currentUser.role}</p>
+                    <p className="text-[11px] font-semibold text-slate-800 leading-none">{currentUser.name}</p>
+                    <p className="text-[9px] text-slate-400 leading-tight mt-0.5">{currentUser.role}</p>
                   </div>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-3 w-3 text-slate-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden">
-                    <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 border-b border-slate-200">
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up">
+                    <div className="px-4 py-3 border-b border-slate-100">
                       <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
-                      <p className="text-[10px] text-slate-500">{currentUser.email}</p>
-                      <span className={`inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{currentUser.email}</p>
+                      <span className={`inline-block mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
                         {currentUser.role}
                       </span>
                     </div>
                     <div className="py-1">
                       <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          setActiveTab('Users');
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>👤</span> {t('users.myProfile')}
+                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
+                        {t('users.myProfile')}
                       </button>
                       <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          const newPassword = prompt('Enter new password (min 6 chars):');
-                          if (newPassword && newPassword.length >= 6) {
-                            handleAddUser({ ...currentUser, password: newPassword });
-                            toast.success('Password updated successfully.');
-                          } else if (newPassword) {
-                            toast.error('Password too short.');
-                          }
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>🔑</span> {t('users.changePassword')}
+                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+                        {t('users.changePassword')}
                       </button>
                       <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          setActiveTab('Users');
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>⚙️</span> {t('users.userSettings')}
+                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        {t('users.userSettings')}
                       </button>
                       <div className="border-t border-slate-100 my-1"></div>
                       <button
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          handleSetCurrentUser(null as any);
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
+                        onClick={() => { setIsUserMenuOpen(false); handleSetCurrentUser(null as any); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
-                        <span>🚪</span> {t('nav.signOut')}
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
+                        {t('nav.signOut')}
                       </button>
                     </div>
                   </div>
                 )}
               </div>
             )}
-            
-            {/* Language toggle */}
-            <LangToggle />
-
-            {/* Theme switcher (compact) */}
-            <div className="flex items-center gap-0.5 bg-slate-100 hover:bg-slate-200/80 px-1.5 py-0.5 rounded-lg transition">
-              <select
-                value={activeThemeId}
-                onChange={(e) => handleSetTheme(e.target.value)}
-                className="bg-transparent text-slate-800 font-extrabold py-0.5 border-none text-[10px] focus:outline-none focus:ring-0 cursor-pointer max-w-[90px]"
-                title="Change Theme"
-              >
-                {THEMES.map(t => (
-                  <option key={t.id} value={t.id} className="font-sans text-xs">
-                    {t.emoji} {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </header>
 
@@ -1627,18 +1547,17 @@ export default function App() {
           {renderActivePage()}
         </div>
 
-        {/* Dynamic bottom status bar */}
-        <footer className={`${currentTheme.mainBg ? 'bg-transparent border-t border-white/10' : 'bg-white border-t border-slate-200'} h-8 px-6 flex items-center justify-between text-[10px] text-zinc-400 font-medium flex-shrink-0 no-print select-none`}>
+        {/* Status Bar */}
+        <footer className={`${currentTheme.mainBg ? 'bg-transparent border-t border-white/10' : 'bg-white border-t border-slate-200'} h-8 px-6 flex items-center justify-between text-[10px] text-slate-400 font-medium flex-shrink-0 no-print select-none`}>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
               <FooterLabel field="systemLive" />
             </span>
+            <span className="hidden sm:inline text-slate-300">·</span>
             <span className="hidden sm:inline"><FooterLabel field="activeNodes" /></span>
           </div>
-          <div className={`flex items-center gap-2 ${currentTheme.footerText} font-extrabold`}>
-            <span><FooterLabel field="copyright" /></span>
-          </div>
+          <span className="text-slate-400"><FooterLabel field="copyright" /></span>
         </footer>
       </main>
 
@@ -1672,10 +1591,10 @@ function LangToggle() {
   return (
     <button
       onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-      className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-lg transition text-[10px] font-extrabold text-slate-700"
+      className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2 py-1.5 rounded-lg transition text-[10px] font-semibold text-slate-600"
       title={lang === 'en' ? 'Switch to Arabic' : 'التبديل للإنجليزية'}
     >
-      <span>🌐</span>
+      <span className="text-xs">🌐</span>
       <span>{lang === 'en' ? 'عربي' : 'EN'}</span>
     </button>
   );

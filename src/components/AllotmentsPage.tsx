@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Allotment, AllotmentDay, AllotmentRatePeriod, Hotel, Agent } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface AllotmentsPageProps {
   allotments: Allotment[];
@@ -131,7 +132,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!hotelId || !roomType || !supplierId || !startDate || !endDate) {
-      alert('Please fill out all allocation specifications.');
+      showToast('Please fill out all allocation specifications.', 'warning');
       return;
     }
 

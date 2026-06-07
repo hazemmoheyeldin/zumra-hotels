@@ -69,5 +69,22 @@ export function useToast() {
   const warning = useCallback((text: string) => addToast(text, 'warning'), [addToast]);
   const info = useCallback((text: string) => addToast(text, 'info'), [addToast]);
 
+  // Register global dispatcher so any component can call showToast()
+  useEffect(() => {
+    (window as any).__zumraToast = { success, error, warning, info };
+    return () => { delete (window as any).__zumraToast; };
+  }, [success, error, warning, info]);
+
   return { toasts, dismiss, success, error, warning, info, addToast };
+}
+
+// Global toast function — callable from any component without props/context
+export function showToast(text: string, type: ToastMessage['type'] = 'info') {
+  const t = (window as any).__zumraToast;
+  if (t && typeof t[type === 'info' ? 'info' : type] === 'function') {
+    t[type === 'info' ? 'info' : type](text);
+  } else {
+    // Fallback to alert if toast system not yet mounted
+    alert(text);
+  }
 }

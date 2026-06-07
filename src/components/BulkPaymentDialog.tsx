@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Agent, Reservation, Account, Transaction } from '../types';
 import { getReservationTotals } from '../lib/storage';
+import { showToast } from './Toast';
 
 interface BulkPaymentDialogProps {
   client: Agent;
@@ -78,11 +79,11 @@ export default function BulkPaymentDialog({ client, reservations, accounts, curr
 
   const handleSaveDistribution = () => {
     if (amount <= 0) {
-      alert('Please enter a valid payment amount.');
+      showToast('Please enter a valid payment amount.', 'warning');
       return;
     }
     if (!selectedAccountId) {
-      alert('Please select an account.');
+      showToast('Please select an account.', 'warning');
       return;
     }
 

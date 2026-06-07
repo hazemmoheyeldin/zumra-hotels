@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Hotel } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface HotelsPageProps {
   hotels: Hotel[];
@@ -368,7 +369,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
-      alert('Please fill out the hotel name.');
+      showToast('Please fill out the hotel name.', 'warning');
       return;
     }
 

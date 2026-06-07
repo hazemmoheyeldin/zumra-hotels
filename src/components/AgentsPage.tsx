@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Agent, Reservation, Account, Transaction } from '../types';
 import BulkPaymentDialog from './BulkPaymentDialog';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 import { getAgentActualBalance, exportToExcel } from '../lib/storage';
 
@@ -87,7 +88,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
-      alert('Please fill out the agent name field.');
+      showToast('Please fill out the agent name field.', 'warning');
       return;
     }
 
@@ -516,7 +517,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
           onSave={(updatedR, updatedT, updatedA) => {
             onBulkPaymentSave(updatedR, updatedT, updatedA);
             setBulkPaymentAgent(null);
-            alert('💰 Distributed payment across bookings successfully! Accounts balances synchronized.');
+            showToast('Distributed payment across bookings successfully! Account balances synchronized.', 'success');
           }}
         />
       )}

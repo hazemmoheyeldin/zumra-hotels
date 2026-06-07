@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Transaction, Agent, Account, Reservation } from '../types';
 import ReceiptVoucherPDF from './ReceiptVoucherPDF';
 import { useLang } from '../lib/LanguageContext';
+import { showToast } from './Toast';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
@@ -101,7 +102,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!agentId || (originalCurrency === 'SAR' && amount <= 0)) {
-      alert('Please fill out agent identity and financial sum.');
+      showToast('Please fill out agent identity and financial sum.', 'warning');
       return;
     }
 
@@ -120,7 +121,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     if (originalCurrency === 'EGP') {
       computedAmount = originalAmount / exchangeRate;
       if (!computedAmount || computedAmount <= 0) {
-        alert('Exchange rate and EGP amount must be valid.');
+        showToast('Exchange rate and EGP amount must be valid.', 'warning');
         return;
       }
     }
@@ -151,7 +152,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     if (!editingId) {
       setPrintingVoucher(newTransaction);
     } else {
-      alert('Transaction updated successfully.');
+      showToast('Transaction updated successfully.', 'success');
     }
   };
 
