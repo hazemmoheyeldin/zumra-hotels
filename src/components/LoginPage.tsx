@@ -99,23 +99,29 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     if (isFirebaseConfigured) {
       try {
         const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
+        console.log(`[Login] Firestore returned ${firestoreUsers.length} users`);
         if (firestoreUsers.length > 0) {
-          // Update local state with Firestore users
+          // Update localStorage with Firestore data
           localStorage.setItem('zumra_users', JSON.stringify(firestoreUsers));
           matchedUser = firestoreUsers.find(u =>
             u.username.toLowerCase() === userLower ||
             (u.email && u.email.toLowerCase() === userLower)
           );
           if (matchedUser) {
-            // Pass Firestore users so parent can update state
+            console.log(`[Login] User found in Firestore: ${matchedUser.username}`);
             onUpdateUser?.(matchedUser);
             setTimeout(() => validateLogin(matchedUser!, firestoreUsers), 400);
             return;
           }
+          console.log(`[Login] User "${username}" not found in Firestore users:`, firestoreUsers.map(u => u.username));
+        } else {
+          console.warn('[Login] Firestore returned 0 users');
         }
       } catch (err) {
         console.warn('[Login] Firestore user lookup failed:', err);
       }
+    } else {
+      console.warn('[Login] Firebase not configured — cannot fetch remote users');
     }
 
     setLoading(false);

@@ -978,14 +978,20 @@ if (typeof window !== 'undefined') {
 
 // --- Sync functions (queue-aware) ---
 export async function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
-  if (!isFirebaseConfigured || !item?.id) return;
+  if (!isFirebaseConfigured || !item?.id) {
+    console.warn(`[Sync] Skipped ${collectionName}/${item?.id}: firebase=${isFirebaseConfigured}, id=${item?.id}`);
+    return;
+  }
   if (!isOnline) {
+    console.log(`[Sync] Offline — queued ${collectionName}/${item.id}`);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
     await firestoreSave(collectionName, item.id, item);
-  } catch {
+    console.log(`[Sync] Saved ${collectionName}/${item.id} to Firestore`);
+  } catch (err) {
+    console.error(`[Sync] Failed to save ${collectionName}/${item.id}:`, err);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
   }
 }

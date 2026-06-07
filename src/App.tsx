@@ -421,17 +421,35 @@ export default function App() {
               }
             }
             if (firestoreData.length > 0) {
-              // Firestore has data -> use it, update localStorage cache
-              localStorage.setItem(col.key, JSON.stringify(firestoreData));
-              col.setter(firestoreData);
+              // Firestore has data -> merge for users, use directly for others
+              if (col.name === COLLECTIONS.USERS) {
+                // Merge: keep all users from both Firestore and local
+                const localData = col.loader();
+                const mergedMap = new Map<string, any>();
+                localData.forEach((u: any) => mergedMap.set(u.id, u));
+                firestoreData.forEach((u: any) => mergedMap.set(u.id, u));
+                const merged = Array.from(mergedMap.values());
+                localStorage.setItem(col.key, JSON.stringify(merged));
+                col.setter(merged);
+                console.log(`[Firebase] Merged USERS: ${localData.length} local + ${firestoreData.length} firestore = ${merged.length} total`);
+              } else {
+                localStorage.setItem(col.key, JSON.stringify(firestoreData));
+                col.setter(firestoreData);
+              }
             } else {
               // Firestore empty -> upload localStorage data to seed it
               const localData = col.loader();
               if (localData.length > 0) {
                 await firestoreBulkSave(col.name, localData);
-                // Hotel migration complete
+                console.log(`[Firebase] Seeded ${col.name} with ${localData.length} items`);
               }
             }
+          }
+          // Ensure users are always in Firestore (critical for multi-device login)
+          const currentUsers = ZumraDB.getUsers();
+          if (currentUsers.length > 0) {
+            await firestoreBulkSave(COLLECTIONS.USERS, currentUsers);
+            console.log(`[Firebase] Ensured ${currentUsers.length} users in Firestore`);
           }
           // Initial data sync complete
         } catch (err) {
