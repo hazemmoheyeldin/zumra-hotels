@@ -1538,6 +1538,7 @@ export default function ReservationsPage({
                 <div className="inline-flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
                   {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => {
                     const abbr = s === 'Tentative' ? 'TNT' : s === 'Confirmed' ? 'CNF' : 'CNL';
+                    const fullText = s === 'Tentative' ? 'Tentative' : s === 'Confirmed' ? 'Confirmed' : 'Cancelled';
                     return (
                     <button key={s} type="button" onClick={() => {
                       const applyStatus = () => {
@@ -1564,8 +1565,10 @@ export default function ReservationsPage({
                         }
                       }
                       applyStatus();
-                    }} className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
-                      <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>{abbr}
+                    }} className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
+                      <span className="text-[10px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>
+                      <span className="hidden md:inline">{fullText}</span>
+                      <span className="md:hidden">{abbr}</span>
                     </button>
                   );
                   })}
@@ -1994,7 +1997,7 @@ export default function ReservationsPage({
               type="submit"
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm"
             >
-              {t('common.save')} {t('res.saveBooking')}
+              {t('res.saveBooking')}
             </button>
             <button
               type="button"

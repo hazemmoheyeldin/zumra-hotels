@@ -1105,3 +1105,182 @@ export const ZumraSync = {
   }
 };
 
+// Seed Data Generator for testing
+export function generateSeedData(): {
+  reservations: Reservation[];
+  transactions: Transaction[];
+  followUps: FollowUp[];
+} {
+  const today = new Date();
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+  
+  const sampleReservations: Reservation[] = [
+    {
+      id: 1001,
+      clientId: 'a1',
+      supplierId: 'a2',
+      hotelId: '1',
+      guestName: 'Ahmed Hassan',
+      guestNationality: 'Egyptian',
+      checkIn: formatDate(new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)),
+      checkOut: formatDate(new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)),
+      nights: 5,
+      status: 'Confirmed',
+      rooms: [
+        { id: 'rm_1001_1', roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyRate: 800, nightlyRates: 1200, hasSeparateMealRate: false, mealRate: 0 }
+      ],
+      clientOptionDate: '',
+      supplierOptionDate: '',
+      hotelConfirmationNo: 'HC-2026-1001',
+      amountPaidByClient: 3000,
+      amountPaidToSupplier: 2000,
+      createdBy: 'System',
+      createdAt: formatDate(today) + ' 10:00:00',
+      cancellationReason: '',
+      passportExpiry: '',
+      visaExpiry: '',
+      supplierVoucher: '',
+      bookingSource: 'Direct',
+      salesPersonId: '',
+      tags: ['VIP', 'Repeat-Guest'],
+      supplierDueDate: formatDate(new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)),
+      specialRequests: 'Early check-in requested, extra pillows'
+    },
+    {
+      id: 1002,
+      clientId: 'a1',
+      supplierId: 'a3',
+      hotelId: '5',
+      guestName: 'Sarah Johnson',
+      guestNationality: 'American',
+      checkIn: formatDate(new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)),
+      checkOut: formatDate(new Date(today.getTime() + 12 * 24 * 60 * 60 * 1000)),
+      nights: 7,
+      status: 'Tentative',
+      rooms: [
+        { id: 'rm_1002_1', roomType: 'Suite', view: 'Sea View', mealPlan: 'H.B', qty: 1, pax: 2, buyRate: 1500, nightlyRates: 2200, hasSeparateMealRate: false, mealRate: 0 }
+      ],
+      clientOptionDate: formatDate(new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)),
+      supplierOptionDate: formatDate(new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000)),
+      hotelConfirmationNo: '',
+      amountPaidByClient: 0,
+      amountPaidToSupplier: 0,
+      createdBy: 'System',
+      createdAt: formatDate(new Date(today.getTime() - 1 * 24 * 60 * 60 * 1000)) + ' 14:30:00',
+      cancellationReason: '',
+      bookingSource: 'Booking.com',
+      salesPersonId: '',
+      tags: ['Honeymoon', 'Long-Stay'],
+      supplierDueDate: formatDate(new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000)),
+      specialRequests: 'Room decoration for honeymoon, champagne on arrival'
+    },
+    {
+      id: 1003,
+      clientId: 'a2',
+      supplierId: 'a3',
+      hotelId: '10',
+      guestName: 'Mohammed Al-Rashid',
+      guestNationality: 'Saudi',
+      checkIn: formatDate(new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000)),
+      checkOut: formatDate(new Date(today.getTime() + 13 * 24 * 60 * 60 * 1000)),
+      nights: 3,
+      status: 'Confirmed',
+      rooms: [
+        { id: 'rm_1003_1', roomType: 'Triple', view: 'Garden View', mealPlan: 'F.B', qty: 2, pax: 6, buyRate: 2000, nightlyRates: 2800, hasSeparateMealRate: false, mealRate: 0 }
+      ],
+      clientOptionDate: '',
+      supplierOptionDate: '',
+      hotelConfirmationNo: 'HC-2026-1003',
+      amountPaidByClient: 8000,
+      amountPaidToSupplier: 6000,
+      createdBy: 'System',
+      createdAt: formatDate(new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)) + ' 09:15:00',
+      cancellationReason: '',
+      groupRef: 'GRP-2026-001',
+      passportExpiry: '2028-05-15',
+      visaExpiry: '2026-12-31',
+      supplierVoucher: 'V-2026-1003',
+      bookingSource: 'Agent',
+      salesPersonId: '',
+      tags: ['Family', 'Group-Tour'],
+      supplierDueDate: formatDate(new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)),
+      specialRequests: 'Connecting rooms, kids menu'
+    }
+  ];
+
+  const sampleTransactions: Transaction[] = [
+    {
+      id: 't_seed_1',
+      docNo: 'TRX-0001',
+      date: formatDate(today),
+      type: 'ClientPayment',
+      amount: 3000,
+      fromAccountId: 'acc_1',
+      toAccountId: undefined,
+      agentId: 'a1',
+      reservationId: '1001',
+      description: 'Client payment for RSV-1001',
+      paymentMethod: 'Bank Transfer',
+      voucherNo: 'RV-0001',
+      createdBy: 'System'
+    },
+    {
+      id: 't_seed_2',
+      docNo: 'TRX-0002',
+      date: formatDate(today),
+      type: 'SupplierPayment',
+      amount: 2000,
+      fromAccountId: 'acc_1',
+      toAccountId: undefined,
+      agentId: 'a3',
+      reservationId: '1001',
+      description: 'Supplier payment for RSV-1001',
+      paymentMethod: 'Bank Transfer',
+      voucherNo: 'SV-0001',
+      createdBy: 'System'
+    },
+    {
+      id: 't_seed_3',
+      docNo: 'TRX-0003',
+      date: formatDate(new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000)),
+      type: 'ClientPayment',
+      amount: 8000,
+      fromAccountId: 'acc_1',
+      toAccountId: undefined,
+      agentId: 'a2',
+      reservationId: '1003',
+      description: 'Client payment for RSV-1003',
+      paymentMethod: 'Bank Transfer',
+      voucherNo: 'RV-0002',
+      createdBy: 'System'
+    }
+  ];
+
+  const sampleFollowUps: FollowUp[] = [
+    {
+      id: 'fu_seed_1',
+      clientId: 'a1',
+      date: formatDate(new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000)),
+      topic: 'Option Expiry - RSV-1002',
+      notes: 'Follow up on tentative booking for Sarah Johnson - honeymoon couple',
+      status: 'Pending',
+      createdBy: 'System'
+    },
+    {
+      id: 'fu_seed_2',
+      clientId: 'a2',
+      date: formatDate(new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000)),
+      topic: 'Supplier Payment Due - RSV-1003',
+      notes: 'Payment due for Mohammed Al-Rashid booking',
+      status: 'Pending',
+      createdBy: 'System'
+    }
+  ];
+
+  return {
+    reservations: sampleReservations,
+    transactions: sampleTransactions,
+    followUps: sampleFollowUps
+  };
+}
+

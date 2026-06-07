@@ -15,6 +15,7 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.production': { en: 'Production', ar: 'الإنتاج' },
   'nav.hotels': { en: 'Hotels', ar: 'الفنادق' },
   'nav.agents': { en: 'Agents', ar: 'الوكلاء' },
+  'nav.guests': { en: 'Guests', ar: 'النزلاء' },
   'nav.allotments': { en: 'Allotments', ar: 'التخصيصات' },
   'nav.transactions': { en: 'Transactions', ar: 'المعاملات' },
   'nav.externalTransfers': { en: 'External Transfers', ar: 'التحويلات الخارجية' },
@@ -33,6 +34,7 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.otherServices': { en: 'Other Services', ar: 'خدمات أخرى' },
   'nav.auditLog': { en: 'Audit Log', ar: 'سجل التدقيق' },
   'nav.generalData': { en: 'General Data', ar: 'البيانات العامة' },
+    'nav.clientPortal': { en: 'Client Portal', ar: 'بوابة العميل' },
 
   // ===== COMMON =====
   'common.save': { en: 'Save', ar: 'حفظ' },
@@ -106,9 +108,9 @@ export const translations: Record<string, TranslationEntry> = {
   'dash.profit': { en: 'Profit', ar: 'الربح' },
   'dash.revenueMulti': { en: 'Revenue in Multiple Currencies', ar: 'الإيرادات بعملات متعددة' },
   'dash.occupancy': { en: 'Occupancy Indicator', ar: 'مؤشر الإشغال' },
-  'dash.groupsInHouse': { en: '{count} groups in-house', ar: '{count} مجموعات في الفندق' },
-  'dash.roomsOccupied': { en: '{count} rooms occupied', ar: '{count} غرف مشغولة' },
-  'dash.basedOnHotels': { en: 'Based on {count} hotels (~100 rooms each)', ar: 'بناءً على {count} فنادق (~100 غرفة لكل فندق)' },
+  'dash.groupsInHouse': { en: '{count} groups in-house', ar: '{count} مجموعة في الفندق' },
+  'dash.roomsOccupied': { en: '{count} rooms occupied', ar: '{count} غرفة مشغولة' },
+  'dash.basedOnHotels': { en: 'Based on {count} hotels', ar: 'بناءً على {count} فندق' },
   'dash.quickActions': { en: 'Quick Actions', ar: 'إجراءات سريعة' },
   'dash.newBooking': { en: 'New Booking', ar: 'حجز جديد' },
   'dash.recordPayment': { en: 'Record Payment', ar: 'تسجيل دفعة' },

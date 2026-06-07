@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
+import { loadPortalSettings, PortalVisibilitySettings } from './ClientPortalSettings';
 
 interface ClientPortalProps {
   reservations: Reservation[];
@@ -18,15 +19,16 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const visibility: PortalVisibilitySettings = loadPortalSettings();
 
   const client = agents.find(a => a.id === clientId);
   const clientName = client?.companyName || client?.name || 'Client';
 
   const clientBookings = useMemo(() => {
     return reservations
-      .filter(r => r.clientId === clientId && r.status !== 'Cancelled')
+      .filter(r => r.clientId === clientId && (visibility.allowCancelledBookings ? true : r.status !== 'Cancelled'))
       .sort((a, b) => b.checkIn.localeCompare(a.checkIn));
-  }, [reservations, clientId]);
+  }, [reservations, clientId, visibility.allowCancelledBookings]);
 
   const filteredBookings = useMemo(() => {
     let list = clientBookings;
@@ -72,6 +74,7 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
 
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         {/* Stats */}
+        {visibility.showStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4 text-center shadow-sm">
             <div className="text-2xl font-bold text-slate-800">{stats.total}</div>
@@ -85,15 +88,19 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
             <div className="text-2xl font-bold text-amber-700">{stats.tentative}</div>
             <div className="text-xs text-slate-500 mt-1">Tentative</div>
           </div>
+          {visibility.showFinancialInfo && (
           <div className={`bg-white rounded-xl border p-4 text-center shadow-sm ${stats.outstanding > 0 ? 'border-rose-200' : 'border-emerald-200'}`}>
             <div className={`text-2xl font-bold ${stats.outstanding > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
               {stats.outstanding.toLocaleString()}
             </div>
             <div className="text-xs text-slate-500 mt-1">Outstanding (SAR)</div>
           </div>
+          )}
         </div>
+        )}
 
         {/* Filters */}
+        {visibility.showSearchAndFilter && (
         <div className="flex gap-3 items-center">
           <input
             type="text"
@@ -110,8 +117,10 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
             <option value="All">All Status</option>
             <option value="Confirmed">Confirmed</option>
             <option value="Tentative">Tentative</option>
+            {visibility.allowCancelledBookings && <option value="Cancelled">Cancelled</option>}
           </select>
         </div>
+        )}
 
         {/* Bookings List */}
         <div className="space-y-3">
@@ -141,30 +150,37 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
                         <div className="text-lg font-bold text-slate-800">{res.id}</div>
                       </div>
                       <div>
-                        <div className="font-semibold text-slate-800">{res.guestName}</div>
-                        <div className="text-xs text-slate-500">{hotel?.name || 'Unknown Hotel'} &bull; {res.nights}N</div>
+                        {visibility.showGuestInfo && <div className="font-semibold text-slate-800">{res.guestName}</div>}
+                        {visibility.showBookingDetails && <div className="text-xs text-slate-500">{hotel?.name || 'Unknown Hotel'} &bull; {res.nights}N</div>}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
+                      {visibility.showBookingDetails && (
                       <div className="text-right">
                         <div className="text-xs text-slate-500">{res.checkIn} → {res.checkOut}</div>
-                        <div className="font-bold text-sm text-slate-800">{totals.totalSell.toLocaleString()} SAR</div>
+                        {visibility.showFinancialInfo && <div className="font-bold text-sm text-slate-800">{totals.totalSell.toLocaleString()} SAR</div>}
                       </div>
+                      )}
+                      {visibility.showStatus && (
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                         res.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                       }`}>
                         {res.status}
                       </span>
+                      )}
                     </div>
                   </div>
 
                   {isExpanded && (
                     <div className="border-t border-slate-100 px-5 py-4 bg-slate-50/50 space-y-3" onClick={e => e.stopPropagation()}>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        {visibility.showGuestInfo && (
                         <div>
                           <div className="text-[10px] uppercase text-slate-400 font-bold">Nationality</div>
                           <div className="font-medium text-slate-700">{res.guestNationality || '-'}</div>
                         </div>
+                        )}
+                        {visibility.showBookingDetails && (
                         <div>
                           <div className="text-[10px] uppercase text-slate-400 font-bold">Rooms</div>
                           <div className="font-medium text-slate-700">
@@ -173,6 +189,9 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
                             ))}
                           </div>
                         </div>
+                        )}
+                        {visibility.showPaymentBreakdown && (
+                        <>
                         <div>
                           <div className="text-[10px] uppercase text-slate-400 font-bold">Payment</div>
                           <div className="font-medium text-slate-700">
@@ -186,20 +205,22 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
                             {Math.max(outstanding, 0).toLocaleString()} SAR
                           </div>
                         </div>
+                        </>
+                        )}
                       </div>
-                      {res.specialRequests && (
+                      {visibility.showSpecialRequests && res.specialRequests && (
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
                           <span className="font-bold">Special Requests:</span> {res.specialRequests}
                         </div>
                       )}
-                      {(res.tags || []).length > 0 && (
+                      {visibility.showTags && (res.tags || []).length > 0 && (
                         <div className="flex gap-1.5 flex-wrap">
                           {res.tags!.map(tag => (
                             <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">{tag}</span>
                           ))}
                         </div>
                       )}
-                      {res.hotelConfirmationNo && (
+                      {visibility.showHotelConfirmation && res.hotelConfirmationNo && (
                         <div className="text-xs text-slate-600">
                           <span className="font-bold">Hotel Confirmation:</span> <span className="font-mono">{res.hotelConfirmationNo}</span>
                         </div>

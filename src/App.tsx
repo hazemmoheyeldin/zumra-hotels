@@ -26,6 +26,7 @@ import ProductionPage from './components/ProductionPage';
 import ZumraLogo from './components/ZumraLogo';
 import LoginPage from './components/LoginPage';
 import ClientPortal from './components/ClientPortal';
+import ClientPortalSettings from './components/ClientPortalSettings';
 import InboxModal from './components/InboxModal';
 import CalendarView from './components/CalendarView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -1586,6 +1587,14 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Client Portal':
+        return (
+          <ErrorBoundary fallbackLabel="Client Portal settings failed to load.">
+          <ClientPortalSettings
+            onLogAudit={handleLogAuditSimple}
+          />
+          </ErrorBoundary>
+        );
       default:
         return <div>Pane Not Found.</div>;
     }
@@ -1649,6 +1658,7 @@ export default function App() {
     { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog' },
     { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
     { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData' },
+    { name: 'Client Portal', icon: '🚪', group: 'Settings', key: 'clientPortal' },
   ];
 
   if (!currentUser) {
