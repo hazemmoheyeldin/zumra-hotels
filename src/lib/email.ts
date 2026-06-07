@@ -39,6 +39,7 @@ export async function sendInvitationEmail(
         username,
         temp_password: tempPassword,
         login_url: window.location.origin,
+        logo_url: `${window.location.origin}/zumra-logo.png`,
       },
       { publicKey: PUBLIC_KEY }
     );
