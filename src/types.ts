@@ -15,6 +15,7 @@ export interface Hotel {
   views: string[];
   mealPlans: string[];
   suppliers?: string[]; // Supplier agent IDs who have/provide this hotel
+  mapUrl?: string; // Google Maps location URL for navigation
 }
 
 export type AgentType = 'Customer' | 'Supplier' | 'Both';
