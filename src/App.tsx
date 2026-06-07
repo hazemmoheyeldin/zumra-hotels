@@ -306,6 +306,17 @@ export default function App() {
 
           for (const col of collections) {
             const firestoreData = await firestoreLoadAll(col.name);
+            // Special handling for hotels: if xlsx migration just happened, push new hotels to Firestore
+            if (col.name === COLLECTIONS.HOTELS && localStorage.getItem('zumra_hotels_migrated') === 'true') {
+              const freshHotels = ZumraDB.getHotels();
+              if (freshHotels.length >= 1800) {
+                console.log(`[Firebase] Pushing ${freshHotels.length} new xlsx hotels to Firestore`);
+                await firestoreBulkSave(col.name, freshHotels);
+                col.setter(freshHotels);
+                localStorage.removeItem('zumra_hotels_migrated');
+                continue;
+              }
+            }
             if (firestoreData.length > 0) {
               // Firestore has data -> use it, update localStorage cache
               localStorage.setItem(col.key, JSON.stringify(firestoreData));
@@ -330,7 +341,7 @@ export default function App() {
       // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
       const unsubs = [
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (data.length > 0 && !isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
             setHotels(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }

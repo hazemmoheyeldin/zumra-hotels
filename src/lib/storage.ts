@@ -339,6 +339,16 @@ export function saveGlobalData<T>(key: string, data: T): void {
 // Global Core DB wrapper
 export class ZumraDB {
   static getHotels(): Hotel[] {
+    // One-time migration: replace old hotel data with xlsx import
+    const HOTEL_DATA_VERSION = 2;
+    const savedVersion = parseInt(localStorage.getItem('zumra_hotels_version') || '0');
+    if (savedVersion < HOTEL_DATA_VERSION) {
+      console.log(`[Hotels] Migrating hotel data from v${savedVersion} to v${HOTEL_DATA_VERSION} (${CSV_HOTELS.length} hotels from xlsx)`);
+      saveGlobalData('hotels', CSV_HOTELS);
+      localStorage.setItem('zumra_hotels_migrated', 'true');
+      localStorage.setItem('zumra_hotels_version', String(HOTEL_DATA_VERSION));
+      return CSV_HOTELS;
+    }
     const list = getSavedData('hotels', DEFAULT_HOTELS);
     saveGlobalData('hotels', list);
     return list;
