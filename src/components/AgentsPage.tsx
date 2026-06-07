@@ -373,8 +373,11 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       {bal < 0 ? `(${Math.abs(bal).toLocaleString()})` : bal.toLocaleString()} SAR
                     </span>
                     <div className="flex gap-1">
-                      <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm">👁️</button>
-                      <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm">✏️</button>
+                      <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm" title="View Details">👁️</button>
+                      {agent.type !== 'Supplier' && (
+                        <button onClick={() => window.open(`${window.location.origin}${window.location.pathname}?portal=${agent.id}`, '_blank')} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100" title="Open Client Portal">🚪 Portal</button>
+                      )}
+                      <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm" title="Edit">✏️</button>
                       <button onClick={() => { setAuditingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-sm">📋</button>
                       {agent.type !== 'Supplier' && (
                         <button onClick={() => setBulkPaymentAgent(agent)} className="min-h-[36px] bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold px-2 rounded-lg text-[10px] border border-emerald-100">Bulk Pay</button>
@@ -470,6 +473,15 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       >
                         👁️
                       </button>
+                      {agent.type !== 'Supplier' && (
+                        <button
+                          onClick={() => window.open(`${window.location.origin}${window.location.pathname}?portal=${agent.id}`, '_blank')}
+                          className="bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 py-1 rounded text-[10px] border border-amber-100 min-h-[28px]"
+                          title="Open Client Portal"
+                        >
+                          🚪 Portal
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEdit(agent)}
                         className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-55/40 rounded"
