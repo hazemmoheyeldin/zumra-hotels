@@ -19,6 +19,17 @@ interface UserManagementPageProps {
 
 type FormErrors = { [key: string]: string };
 
+// FormField must be OUTSIDE the component to prevent re-creation on every render
+function FormField({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{label}</label>
+      {children}
+      {error && <p className="text-[10px] text-rose-500 mt-1 flex items-center gap-1"><span>⚠</span>{error}</p>}
+    </div>
+  );
+}
+
 export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser, onToast }: UserManagementPageProps) {
   const { t, lang } = useLang();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -194,14 +205,6 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     if (score <= 3) return { label: 'Fair', color: 'bg-amber-500', pct: 60 };
     return { label: 'Strong', color: 'bg-emerald-500', pct: 100 };
   };
-
-  const FormField = ({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) => (
-    <div>
-      <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{label}</label>
-      {children}
-      {error && <p className="text-[10px] text-rose-500 mt-1 flex items-center gap-1"><span>⚠</span>{error}</p>}
-    </div>
-  );
 
   return (
     <div className="space-y-5">
