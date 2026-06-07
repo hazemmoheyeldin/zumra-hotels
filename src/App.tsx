@@ -206,7 +206,7 @@ export default function App() {
   const [blackoutPeriods, setBlackoutPeriods] = useState<BlackoutPeriod[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   // Restore session from localStorage if user was previously logged in
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false); // App shell pattern: render UI immediately
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -369,8 +369,13 @@ export default function App() {
     if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
       setHotels(seededHotels);
     }
-    // Seed test data (clients, suppliers, reservations) if no agents exist
-    seedTestDataIfEmpty();
+    // Seed test data (clients, suppliers, reservations) ONLY for first admin
+    // New staff members should see data from Firestore, not get their own seeded copies
+    const isFirstAdmin = loadedUsers.length <= 1 && loadedUsers.some(u => u.username === 'hazem' || u.role === 'Admin');
+    if (isFirstAdmin && !localStorage.getItem('zumra_test_data_seeded')) {
+      seedTestDataIfEmpty();
+      localStorage.setItem('zumra_test_data_seeded', 'true');
+    }
     // Reload agents/reservations in case test data was seeded
     setAgents(ZumraDB.getAgents());
     setReservations(ZumraDB.getReservations());
@@ -693,12 +698,13 @@ export default function App() {
         firestoreListenerUnsubs.current = unsubs;
       };
 
-      // Call attachFirestoreListeners after auth is confirmed
-      const originalWaitForAuth = waitForAuthAndMigrate;
+      // Call attachFirestoreListeners after auth is confirmed, then run migration in background
       const wrappedWaitForAuth = async () => {
-        await originalWaitForAuth();
-        // Attach listeners after auth + migration complete
+        // Wait for auth first
+        await waitForAuthAndMigrate();
+        // Attach listeners immediately after auth (source of truth for real-time sync)
         attachFirestoreListeners();
+        console.log('[Firebase] Listeners attached — real-time sync active');
       };
       wrappedWaitForAuth();
 
