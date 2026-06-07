@@ -694,9 +694,18 @@ const showPDFPreview = (blob: Blob, filename: string): Promise<boolean> => {
     document.body.appendChild(overlay);
 
     const cleanup = () => {
+      document.removeEventListener('keydown', onKey);
       document.body.removeChild(overlay);
       URL.revokeObjectURL(url);
     };
+
+    // Click outside (on backdrop) to close
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        cleanup();
+        resolve(true);
+      }
+    });
 
     // Save button
     header.querySelector('#pdf-preview-save')!.addEventListener('click', () => {
@@ -720,7 +729,6 @@ const showPDFPreview = (blob: Blob, filename: string): Promise<boolean> => {
     // Escape key to close
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        document.removeEventListener('keydown', onKey);
         cleanup();
         resolve(true);
       }
