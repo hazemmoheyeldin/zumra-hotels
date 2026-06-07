@@ -325,6 +325,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     );
   }
 
+  // Show loading while users are being fetched from Firestore
+  if (users.length === 0) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
+        <ZumraLogo size="xxl" variant="gold" />
+        <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mt-6"></div>
+        <p className="text-sm text-slate-400 mt-4 font-medium">Loading user directory...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>

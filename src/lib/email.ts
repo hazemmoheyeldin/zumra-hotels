@@ -10,6 +10,7 @@ import { EmailTemplate } from '../types';
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || '';
 const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '';
 const PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || '';
+const LOGO_URL = 'https://rms.zumrahotels.com/zumra-logo.png';
 
 export const isEmailConfigured = !!(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY);
 
@@ -39,7 +40,7 @@ export async function sendDailySummaryEmail(
         username: '',
         temp_password: '',
         login_url: window.location.origin,
-        logo_url: `${window.location.origin}/zumra-logo.png`,
+        logo_url: LOGO_URL,
         message: summaryHtml,
         subject: summarySubject,
       },
@@ -69,7 +70,7 @@ export async function sendPasswordResetEmail(
         username: '',
         temp_password: tempPassword,
         login_url: window.location.origin,
-        logo_url: `${window.location.origin}/zumra-logo.png`,
+        logo_url: LOGO_URL,
         message: `Your password has been reset. Your temporary password is: <strong>${tempPassword}</strong><br/><br/>You will be required to change it on next login.`,
         subject: 'Zumra Hotels - Password Reset',
       },
@@ -98,7 +99,7 @@ export async function sendBookingConfirmation(
       username: '',
       temp_password: '',
       login_url: window.location.origin,
-      logo_url: `${window.location.origin}/zumra-logo.png`,
+      logo_url: LOGO_URL,
       message: `<h3>Booking Confirmation - RSV-${reservationId}</h3><p>Dear ${guestName},</p><p>Your booking has been confirmed:</p><ul><li><strong>Hotel:</strong> ${hotelName}</li><li><strong>Check-in:</strong> ${checkIn}</li><li><strong>Check-out:</strong> ${checkOut}</li><li><strong>Total:</strong> ${totalAmount.toLocaleString()} SAR</li></ul><p>Thank you for choosing Zumra Hotels.</p>`,
       subject: `Zumra Hotels - Booking Confirmation RSV-${reservationId}`,
     }, { publicKey: PUBLIC_KEY });
@@ -123,7 +124,7 @@ export async function sendPaymentReceipt(
       username: '',
       temp_password: '',
       login_url: window.location.origin,
-      logo_url: `${window.location.origin}/zumra-logo.png`,
+      logo_url: LOGO_URL,
       message: `<h3>Payment Receipt - ${voucherNo}</h3><p>Dear ${clientName},</p><p>We confirm receipt of your payment:</p><ul><li><strong>Voucher:</strong> ${voucherNo}</li><li><strong>Amount:</strong> ${amount.toLocaleString()} SAR</li><li><strong>Date:</strong> ${date}</li></ul><p>Thank you.</p>`,
       subject: `Zumra Hotels - Payment Receipt ${voucherNo}`,
     }, { publicKey: PUBLIC_KEY });
@@ -149,7 +150,7 @@ export async function sendPaymentReminder(
       username: '',
       temp_password: '',
       login_url: window.location.origin,
-      logo_url: `${window.location.origin}/zumra-logo.png`,
+      logo_url: LOGO_URL,
       message: `<h3>Payment Reminder - RSV-${reservationId}</h3><p>Dear ${clientName},</p><p>This is a friendly reminder that payment is due for:</p><ul><li><strong>Guest:</strong> ${guestName}</li><li><strong>Reservation:</strong> RSV-${reservationId}</li><li><strong>Amount Due:</strong> ${amountDue.toLocaleString()} SAR</li><li><strong>Check-in:</strong> ${checkIn}</li></ul><p>Please arrange payment at your earliest convenience.</p>`,
       subject: `Zumra Hotels - Payment Reminder RSV-${reservationId}`,
     }, { publicKey: PUBLIC_KEY });
@@ -182,7 +183,7 @@ export async function sendInvitationEmail(
         username,
         temp_password: tempPassword,
         login_url: window.location.origin,
-        logo_url: `${window.location.origin}/zumra-logo.png`,
+        logo_url: LOGO_URL,
       },
       { publicKey: PUBLIC_KEY }
     );
@@ -229,7 +230,7 @@ export async function sendSupplierRateConfirmation(
           `Net Rate: ${totalBuy.toLocaleString()} SAR\n` +
           (supplierVoucher ? `Your Ref: ${supplierVoucher}\n` : '') +
           `\nPlease confirm at your earliest convenience.\n\nZumra Hotels`,
-        logo_url: `${window.location.origin}/zumra-logo.png`,
+        logo_url: LOGO_URL,
       },
       { publicKey: PUBLIC_KEY }
     );
@@ -278,7 +279,7 @@ export async function sendPreArrivalReminder(
       username: '',
       temp_password: '',
       login_url: window.location.origin,
-      logo_url: `${window.location.origin}/zumra-logo.png`,
+      logo_url: LOGO_URL,
       message: body,
       subject: subject,
     }, { publicKey: PUBLIC_KEY });
@@ -327,7 +328,7 @@ export async function sendTemplatedEmail(
       username: '',
       temp_password: '',
       login_url: window.location.origin,
-      logo_url: `${window.location.origin}/zumra-logo.png`,
+      logo_url: LOGO_URL,
       message: body,
       subject: subject,
     }, { publicKey: PUBLIC_KEY });

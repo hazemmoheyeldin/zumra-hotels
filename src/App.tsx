@@ -1849,8 +1849,7 @@ export default function App() {
           </button>
           {!sidebarCollapsed && (
             <button className="flex flex-col min-w-0 cursor-pointer text-left" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-              <p className={`text-[13px] font-bold tracking-wide leading-none ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>Zumra Hotels</p>
-              <p className={`text-[9px] font-semibold tracking-[0.2em] uppercase mt-0.5 ${currentTheme.brandText}`}>RMS Portal</p>
+              <p className={`text-[15px] font-bold tracking-wider leading-none ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>RMS</p>
             </button>
           )}
           {/* Mobile close */}
