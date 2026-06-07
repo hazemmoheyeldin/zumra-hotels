@@ -2032,6 +2032,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           client={selectedAgent}
           reservations={reservations}
           transactions={transactions}
+          hotels={hotels}
           fromDate={fromDate}
           toDate={toDate}
           onClose={() => setPrintingStatementReport(false)}
@@ -2043,6 +2044,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           client={selectedSupplier}
           reservations={reservations}
           transactions={transactions}
+          hotels={hotels}
           fromDate={fromDate}
           toDate={toDate}
           isSupplier={true}

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Transaction, StampPosition } from '../types';
+import { Reservation, Agent, Transaction, Hotel, StampPosition } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import StampOverlay, { getStampSettings } from './StampOverlay';
@@ -28,13 +28,14 @@ interface StatementReportPDFProps {
   client: Agent;
   reservations: Reservation[];
   transactions: Transaction[];
+  hotels?: Hotel[];
   fromDate: string;
   toDate: string;
   isSupplier?: boolean;
   onClose: () => void;
 }
 
-export default function StatementReportPDF({ client, reservations, transactions, fromDate, toDate, isSupplier, onClose }: StatementReportPDFProps) {
+export default function StatementReportPDF({ client, reservations, transactions, hotels = [], fromDate, toDate, isSupplier, onClose }: StatementReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
   const stampDefaults = getStampSettings();
@@ -197,6 +198,29 @@ export default function StatementReportPDF({ client, reservations, transactions,
   // Final balance: negative = they owe us, positive = they have credit/overpaid
   const rawFinalBalance = lines.length > 0 ? lines[lines.length - 1].balance : 0;
   const finalBalance = -rawFinalBalance; // Invert: negative=owes, positive=credit
+
+  // Pending Requests: reservations that are not fully paid (unpaid or partially paid)
+  const pendingRequests = React.useMemo(() => {
+    return reservations
+      .filter(res => {
+        if (res.status === 'Cancelled') return false;
+        if (isSupplier && res.supplierId !== client.id) return false;
+        if (!isSupplier && res.clientId !== client.id) return false;
+        const { totalSell, totalBuy } = getReservationTotals(res);
+        const total = isSupplier ? totalBuy : totalSell;
+        const paid = isSupplier ? (res.amountPaidToSupplier || 0) : (res.amountPaidByClient || 0);
+        return total > 0 && paid < total; // not fully paid
+      })
+      .map(res => {
+        const { totalSell, totalBuy } = getReservationTotals(res);
+        const total = isSupplier ? totalBuy : totalSell;
+        const paid = isSupplier ? (res.amountPaidToSupplier || 0) : (res.amountPaidByClient || 0);
+        const outstanding = total - paid;
+        const hotel = hotels.find(h => h.id === res.hotelId);
+        return { res, total, paid, outstanding, hotel };
+      })
+      .sort((a, b) => a.res.checkIn.localeCompare(b.res.checkIn));
+  }, [reservations, client.id, isSupplier, hotels]);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
@@ -422,6 +446,86 @@ export default function StatementReportPDF({ client, reservations, transactions,
               {finalBalance < 0 ? `-${Math.abs(finalBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : finalBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR
             </span>
           </div>
+
+          {/* Pending Requests Table (Unpaid / Partially Paid) */}
+          {pendingRequests.length > 0 && (
+            <div className="mb-4 no-page-break">
+              {/* Section Header */}
+              <div className="flex justify-between items-baseline mb-2 mt-2 border-b-2 border-amber-400 pb-1.5">
+                <h2 className="text-sm font-extrabold text-[#0f172a] font-sans tracking-wide uppercase">
+                  {isSupplier ? 'Pending Supplier Requests' : 'Pending Client Requests'}
+                </h2>
+                <h2 className="text-sm font-bold text-[#0f172a] font-serif">
+                  {isSupplier ? '\u0627\u0644\u0645\u0637\u0627\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0642\u0629' : '\u0627\u0644\u0645\u0637\u0627\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0642\u0629'}
+                </h2>
+              </div>
+              <p className="text-[9px] text-slate-500 mb-2 italic">Reservations with outstanding balance (not fully paid)</p>
+
+              <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto print:overflow-visible print:border-none print:rounded-none">
+                <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '10%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-amber-50/80 text-slate-700 font-extrabold border-b border-slate-200">
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-left whitespace-nowrap">RSV#</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-left whitespace-nowrap">Guest Name</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-left whitespace-nowrap">Hotel</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-center whitespace-nowrap">Check-in</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-center whitespace-nowrap">Check-out</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-right whitespace-nowrap">Total (SAR)</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-right whitespace-nowrap">Paid (SAR)</th>
+                      <th className="py-1.5 px-1.5 border-r border-slate-200 text-right whitespace-nowrap">Outstanding</th>
+                      <th className="py-1.5 px-1.5 text-center whitespace-nowrap">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 font-medium">
+                    {pendingRequests.map(({ res, total, paid, outstanding, hotel }) => (
+                      <tr key={res.id} className="bg-white hover:bg-slate-50/50 text-slate-800">
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 font-mono font-bold">{res.id}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap">{res.guestName}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 overflow-hidden text-ellipsis whitespace-nowrap" title={hotel?.name || ''}>{hotel?.name || 'N/A'}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{formatStandardDate(res.checkIn)}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-center font-mono">{formatStandardDate(res.checkOut)}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-semibold">{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-emerald-700">{paid.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-extrabold ${outstanding > 0 ? 'text-rose-700' : 'text-slate-600'}`}>{outstanding.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                        <td className="py-1.5 px-1.5 text-center">
+                          <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ${
+                            res.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' :
+                            res.status === 'Tentative' ? 'bg-amber-100 text-amber-800' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>{res.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Pending Totals Row */}
+                    <tr className="bg-amber-50/80 font-extrabold border-t border-amber-300">
+                      <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 text-right">Pending Total:</td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">
+                        {pendingRequests.reduce((s, p) => s + p.total, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-emerald-700">
+                        {pendingRequests.reduce((s, p) => s + p.paid, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-rose-700">
+                        {pendingRequests.reduce((s, p) => s + p.outstanding, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-1.5 px-1.5 text-center font-mono text-[8px] text-slate-500">{pendingRequests.length} item{pendingRequests.length !== 1 ? 's' : ''}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Legal disclaimer */}
           <div className="text-[9px] text-slate-650 font-medium italic mt-6 border-t border-slate-200 pt-3 leading-relaxed text-left">
