@@ -679,7 +679,7 @@ export const translations: Record<string, TranslationEntry> = {
 
   // ===== CURRENCY =====
   'currency.refreshRates': { en: 'Refresh Rates', ar: 'تحديث الأسعار' },
-  'currency.live': { en: 'LIVE (ECB)', ar: 'مباشر (ECB)' },
+  'currency.live': { en: 'LIVE', ar: 'مباشر' },
   'currency.inMultiple': { en: '{label} in Multiple Currencies', ar: '{label} بعملات متعددة' },
 
   // ===== PDF LABELS =====

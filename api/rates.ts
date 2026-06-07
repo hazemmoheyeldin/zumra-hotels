@@ -22,12 +22,28 @@ let cachedRates: {
   fetchedAt: number;
 } | null = null;
 
-// Cache duration: 24 hours (once per day)
+// Cache duration: refresh once per day at 9 AM Cairo time
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000;
 
-// Egypt time offset: UTC+2 (EET) or UTC+3 (EEST during summer)
-// We use UTC+3 for Egypt summer time (April-October)
+// Egypt UTC offset: +2 (EET winter) or +3 (EEST summer, April-October)
+// We approximate with +3 for most of the year
 const EGYPT_UTC_OFFSET = 3;
+
+/** Get the most recent 9 AM Cairo time in UTC milliseconds */
+function getLast9AMCairoMs(): number {
+  const now = new Date();
+  // Current time in Cairo timezone
+  const cairoNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + EGYPT_UTC_OFFSET * 3600000);
+  // Today's 9 AM in Cairo
+  const today9AM = new Date(cairoNow);
+  today9AM.setUTCHours(9, 0, 0, 0);
+  // If it's before 9 AM Cairo today, use yesterday's 9 AM
+  if (cairoNow.getTime() < today9AM.getTime()) {
+    today9AM.setUTCDate(today9AM.getUTCDate() - 1);
+  }
+  // Convert back to UTC
+  return today9AM.getTime() - EGYPT_UTC_OFFSET * 3600000 - now.getTimezoneOffset() * 60000;
+}
 
 function getEgyptNow(): Date {
   const now = new Date();
@@ -52,15 +68,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const now = Date.now();
+  const lastRefreshTime = getLast9AMCairoMs();
 
-  // Return cached rates if still valid (within 24h)
-  if (cachedRates && (now - cachedRates.fetchedAt) < CACHE_DURATION_MS) {
-    console.log('[rates] Returning cached rates');
+  // Return cached rates if they were fetched after the last 9 AM Cairo refresh
+  if (cachedRates && cachedRates.fetchedAt >= lastRefreshTime) {
+    console.log('[rates] Returning cached rates (fresh since 9 AM Cairo)');
     return res.status(200).json({
-      source: 'cache',
+      source: 'cached',
       rates: cachedRates.rates,
       timestamp: cachedRates.timestamp,
       cachedAt: new Date(cachedRates.fetchedAt).toISOString(),
+      nextRefresh: new Date(lastRefreshTime + 24 * 3600000).toISOString(),
     });
   }
 
@@ -123,10 +141,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[rates] Fetched fresh rates at ${getEgyptNow().toISOString()}`);
     return res.status(200).json({
-      source: 'live',
+      source: 'ExchangeRate-API',
       rates,
       timestamp: data.time_last_update_utc,
       fetchedAt: new Date(now).toISOString(),
+      nextRefresh: new Date(lastRefreshTime + 24 * 3600000).toISOString(),
     });
   } catch (err: any) {
     console.error('[rates] Fetch error:', err?.message);

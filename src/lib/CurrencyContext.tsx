@@ -48,6 +48,18 @@ function saveCache(data: CachedRates): void {
   } catch {}
 }
 
+/** Get the most recent 9 AM Cairo time in ms (UTC+3) */
+function getLast9AMCairoMs(): number {
+  const now = new Date();
+  const cairoNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 3 * 3600000);
+  const today9AM = new Date(cairoNow);
+  today9AM.setUTCHours(9, 0, 0, 0);
+  if (cairoNow.getTime() < today9AM.getTime()) {
+    today9AM.setUTCDate(today9AM.getUTCDate() - 1);
+  }
+  return today9AM.getTime() - 3 * 3600000 - now.getTimezoneOffset() * 60000;
+}
+
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
@@ -64,10 +76,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const fetchRates = async () => {
     const cached = loadCache();
-    const now = Date.now();
+    const lastRefreshTime = getLast9AMCairoMs();
 
-    // Client-side cache check: if we have rates less than 24h old, use them
-    if (cached && (now - cached.fetchedAt) < 24 * 60 * 60 * 1000) {
+    // Client-side cache: if rates were fetched after today's 9 AM Cairo, use them
+    if (cached && cached.fetchedAt >= lastRefreshTime) {
       setFxRates(cached.rates as Record<Currency, number>);
       setRatesTimestamp(cached.timestamp);
       setIsLiveRates(true);
@@ -122,8 +134,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchRates();
-    // Check every 6 hours if cache needs refreshing (the server also caches for 24h)
-    const interval = setInterval(fetchRates, 6 * 60 * 60 * 1000);
+    // Check every 30 minutes if the 9 AM Cairo refresh window has arrived
+    const interval = setInterval(fetchRates, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
