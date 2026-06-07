@@ -3,41 +3,45 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
-import Dashboard from './components/Dashboard';
-import ReservationsPage from './components/ReservationsPage';
-import HotelsPage from './components/HotelsPage';
-import AgentsPage from './components/AgentsPage';
-import GuestsPage from './components/GuestsPage';
-import AllotmentsPage from './components/AllotmentsPage';
-import TransactionsPage from './components/TransactionsPage';
-import ExternalTransfersPage from './components/ExternalTransfersPage';
-import AccountsPage from './components/AccountsPage';
-import ReportsPage from './components/ReportsPage';
-import UserManagementPage from './components/UserManagementPage';
-import SalesPage from './components/SalesPage';
-import ProductionPage from './components/ProductionPage';
+
+// Lazy-loaded page components for faster initial load
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const ReservationsPage = lazy(() => import('./components/ReservationsPage'));
+const HotelsPage = lazy(() => import('./components/HotelsPage'));
+const AgentsPage = lazy(() => import('./components/AgentsPage'));
+const GuestsPage = lazy(() => import('./components/GuestsPage'));
+const AllotmentsPage = lazy(() => import('./components/AllotmentsPage'));
+const TransactionsPage = lazy(() => import('./components/TransactionsPage'));
+const ExternalTransfersPage = lazy(() => import('./components/ExternalTransfersPage'));
+const AccountsPage = lazy(() => import('./components/AccountsPage'));
+const ReportsPage = lazy(() => import('./components/ReportsPage'));
+const UserManagementPage = lazy(() => import('./components/UserManagementPage'));
+const SalesPage = lazy(() => import('./components/SalesPage'));
+const ProductionPage = lazy(() => import('./components/ProductionPage'));
+const ClientPortal = lazy(() => import('./components/ClientPortal'));
+const ClientPortalSettings = lazy(() => import('./components/ClientPortalSettings'));
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const AuditLogPage = lazy(() => import('./components/AuditLogPage'));
+const GeneralDataPage = lazy(() => import('./components/GeneralDataPage'));
+const OtherServicesPage = lazy(() => import('./components/OtherServicesPage'));
+const PaymentGatewaysPage = lazy(() => import('./components/PaymentGatewaysPage'));
+const ExpensesPage = lazy(() => import('./components/ExpensesPage'));
+
+// Eagerly loaded (needed for modals/auth flow)
 import ZumraLogo from './components/ZumraLogo';
 import LoginPage from './components/LoginPage';
-import ClientPortal from './components/ClientPortal';
-import ClientPortalSettings from './components/ClientPortalSettings';
 import InboxModal from './components/InboxModal';
-import CalendarView from './components/CalendarView';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
-import AuditLogPage from './components/AuditLogPage';
 import InvoicePDF from './components/InvoicePDF';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmDialog from './components/ConfirmDialog';
-import GeneralDataPage from './components/GeneralDataPage';
-import OtherServicesPage from './components/OtherServicesPage';
-import PaymentGatewaysPage from './components/PaymentGatewaysPage';
-import ExpensesPage from './components/ExpensesPage';
 import EditApprovalModal from './components/EditApprovalModal';
 import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
@@ -45,6 +49,24 @@ import { seedHotelsIfEmpty } from './lib/hotelSeed';
 import { sendPreArrivalReminder } from './lib/email';
 import ApiWarningBanner from './components/ApiWarningBanner';
 import { downloadBackup, getDataSummary } from './lib/dataBackup';
+
+// Page loading fallback
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="w-8 h-8 border-3 border-slate-200 border-t-amber-500 rounded-full animate-spin"></div>
+  </div>
+);
+
+// Efficient shallow comparison to avoid JSON.stringify on large arrays
+function arraysEqual(a: any[], b: any[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  // Quick check: compare first and last items by reference or key
+  if (a.length === 0) return true;
+  if (a[0] !== b[0]) return false;
+  if (a.length > 1 && a[a.length - 1] !== b[b.length - 1]) return false;
+  return true;
+}
 
 const THEMES = [
   {
@@ -357,7 +379,7 @@ export default function App() {
     setAuthLoading(false);
 
     if (isFirebaseConfigured) {
-      console.log('[Firebase] Cloud sync enabled - attaching real-time listeners');
+      console.log('[Firebase] Cloud sync enabled');
 
       // 2. Initial Firestore data migration (runs once)
       const migrateData = async () => {
@@ -391,7 +413,7 @@ export default function App() {
             if (col.name === COLLECTIONS.HOTELS && localStorage.getItem('zumra_hotels_migrated') === 'true') {
               const freshHotels = ZumraDB.getHotels();
               if (freshHotels.length >= 1800) {
-                console.log(`[Firebase] Pushing ${freshHotels.length} new xlsx hotels to Firestore`);
+                console.log(`[Firebase] Pushing ${freshHotels.length} hotels to Firestore`);
                 await firestoreBulkSave(col.name, freshHotels);
                 col.setter(freshHotels);
                 localStorage.removeItem('zumra_hotels_migrated');
@@ -407,13 +429,13 @@ export default function App() {
               const localData = col.loader();
               if (localData.length > 0) {
                 await firestoreBulkSave(col.name, localData);
-                console.log(`[Firebase] Migrated ${localData.length} items from localStorage to ${col.name}`);
+                // Hotel migration complete
               }
             }
           }
-          console.log('[Firebase] Initial data migration complete');
+          // Initial data sync complete
         } catch (err) {
-          console.warn('[Firebase] Migration error, continuing with localStorage data:', err);
+          console.warn('[Firebase] Migration error, using localStorage:', err);
         }
       };
       migrateData();
@@ -424,121 +446,121 @@ export default function App() {
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
-            setHotels(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setHotels(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_agents', JSON.stringify(data));
-            setAgents(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setAgents(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_allotments', JSON.stringify(data));
-            setAllotments(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setAllotments(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_reservations', JSON.stringify(data));
-            setReservations(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setReservations(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_accounts', JSON.stringify(data));
-            setAccounts(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setAccounts(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_transactions', JSON.stringify(data));
-            setTransactions(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setTransactions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
-            setExternalTransfers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setExternalTransfers(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_users', JSON.stringify(data));
-            setUsers(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setUsers(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
-            setFollowUps(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setFollowUps(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_sales_persons', JSON.stringify(data));
-            setSalesPersons(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setSalesPersons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_cancellation_reasons', JSON.stringify(data));
-            setCancellationReasons(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setCancellationReasons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_terms_conditions', JSON.stringify(data));
-            setTermsAndConditions(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setTermsAndConditions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_other_services', JSON.stringify(data));
-            setOtherServices(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setOtherServices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_payment_gateways', JSON.stringify(data));
-            setPaymentGateways(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setPaymentGateways(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_pay_by_links', JSON.stringify(data));
-            setPayByLinks(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setPayByLinks(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_edit_approvals', JSON.stringify(data));
-            setEditApprovals(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setEditApprovals(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
-            setTaxSettings(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setTaxSettings(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_expenses', JSON.stringify(data));
-            setExpenses(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setExpenses(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
-            setExpenseCategories(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setExpenseCategories(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_consolidated_invoices', JSON.stringify(data));
-            setConsolidatedInvoices(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+            setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
       ];
@@ -556,55 +578,27 @@ export default function App() {
         window.removeEventListener('storage', handleStorage);
       };
     } else {
-      // Firebase not configured - fallback to localStorage polling
-      console.log('[Firebase] Not configured - using localStorage only');
+      // Firebase not configured - localStorage only
       const runSync = () => {
         try {
-          setHotels(prev => {
-            const fresh = ZumraDB.getHotels();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setAgents(prev => {
-            const fresh = ZumraDB.getAgents();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setAllotments(prev => {
-            const fresh = ZumraDB.getAllotments();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setReservations(prev => {
-            const fresh = ZumraDB.getReservations();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setAccounts(prev => {
-            const fresh = ZumraDB.getAccounts();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setTransactions(prev => {
-            const fresh = ZumraDB.getTransactions();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setExternalTransfers(prev => {
-            const fresh = ZumraDB.getExternalTransfers();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setUsers(prev => {
-            const fresh = ZumraDB.getUsers();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-          setFollowUps(prev => {
-            const fresh = ZumraDB.getFollowUps();
-            return JSON.stringify(fresh) !== JSON.stringify(prev) ? fresh : prev;
-          });
-        } catch (err) {
-          console.warn('Silent back storage synchronization error:', err);
+          setHotels(prev => { const f = ZumraDB.getHotels(); return f.length !== prev.length ? f : prev; });
+          setAgents(prev => { const f = ZumraDB.getAgents(); return f.length !== prev.length ? f : prev; });
+          setAllotments(prev => { const f = ZumraDB.getAllotments(); return f.length !== prev.length ? f : prev; });
+          setReservations(prev => { const f = ZumraDB.getReservations(); return f.length !== prev.length ? f : prev; });
+          setAccounts(prev => { const f = ZumraDB.getAccounts(); return f.length !== prev.length ? f : prev; });
+          setTransactions(prev => { const f = ZumraDB.getTransactions(); return f.length !== prev.length ? f : prev; });
+          setExternalTransfers(prev => { const f = ZumraDB.getExternalTransfers(); return f.length !== prev.length ? f : prev; });
+          setUsers(prev => { const f = ZumraDB.getUsers(); return f.length !== prev.length ? f : prev; });
+          setFollowUps(prev => { const f = ZumraDB.getFollowUps(); return f.length !== prev.length ? f : prev; });
+        } catch {
+          // Silent sync error - continue polling
         }
       };
       const handleStorage = (e: StorageEvent) => {
         if (e.key && e.key.startsWith('zumra_')) runSync();
       };
       window.addEventListener('storage', handleStorage);
-      const interval = setInterval(runSync, 1500);
+      const interval = setInterval(runSync, 5000);
       return () => {
         window.removeEventListener('storage', handleStorage);
         clearInterval(interval);
@@ -967,7 +961,7 @@ export default function App() {
         const reminderKey = `reminder_${r.id}_${r.checkIn}`;
         const updatedReminders = [...loadSentReminders(), reminderKey];
         saveSentReminders(updatedReminders);
-        console.log(`[Auto-Reminder] Sent pre-arrival reminder for RSV-${r.id} to ${client.email}`);
+        // Pre-arrival reminder sent
       }
     });
   }, [reservations, hotels]);
@@ -2268,16 +2262,21 @@ export default function App() {
             );
           })()}
 
-          {renderActivePage()}
+          <Suspense fallback={<PageLoader />}>
+            {renderActivePage()}
+          </Suspense>
         </div>
 
         {/* Status Bar */}
         <footer className={`${currentTheme.mainBg ? 'bg-transparent border-t border-white/10' : 'bg-white border-t border-slate-200'} h-8 px-6 flex items-center justify-between text-[10px] text-slate-400 font-medium flex-shrink-0 no-print select-none`}>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-              <FooterLabel field="systemLive" />
+              <span className={`w-1.5 h-1.5 rounded-full ${syncStatus.online ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
+              {syncStatus.online ? <FooterLabel field="systemLive" /> : <span className="text-rose-400">Reconnecting...</span>}
             </span>
+            {syncStatus.pendingCount > 0 && (
+              <span className="text-amber-400">· {syncStatus.pendingCount} pending</span>
+            )}
             <span className="hidden sm:inline text-slate-300">·</span>
             <span className="hidden sm:inline"><FooterLabel field="activeNodes" /></span>
           </div>

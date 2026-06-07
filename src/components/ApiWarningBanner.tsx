@@ -1,20 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { getApiWarnings, onApiWarningChange, clearApiWarning } from '../lib/safeFetch';
+import { getSyncStatus, onSyncStatusChange, SyncStatus } from '../lib/storage';
 
-/** Non-intrusive API warning banner - shows when external services are unavailable */
+/** Non-intrusive API warning banner - shows when external services are unavailable or offline */
 export default function ApiWarningBanner() {
   const [warnings, setWarnings] = useState(getApiWarnings());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
 
   useEffect(() => {
-    const unsub = onApiWarningChange(setWarnings);
-    return unsub;
+    const unsub1 = onApiWarningChange(setWarnings);
+    const unsub2 = onSyncStatusChange(setSyncStatus);
+    return () => { unsub1(); unsub2(); };
   }, []);
 
   const keys = Object.keys(warnings);
-  if (keys.length === 0) return null;
+  const isOffline = !syncStatus.online;
+
+  if (!isOffline && keys.length === 0) return null;
 
   return (
     <div className="fixed bottom-4 right-4 z-[9999] space-y-2 max-w-sm">
+      {isOffline && (
+        <div className="bg-rose-50 border border-rose-200 rounded-lg shadow-lg px-3 py-2 flex items-start gap-2 animate-slide-up">
+          <span className="text-rose-500 text-sm mt-0.5">🔌</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-semibold text-rose-800">Connection Lost</p>
+            <p className="text-[10px] text-rose-600">Working offline. Changes will sync when reconnected.</p>
+            {syncStatus.pendingCount > 0 && (
+              <p className="text-[9px] text-rose-400 mt-0.5">{syncStatus.pendingCount} change(s) pending</p>
+            )}
+          </div>
+          <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse flex-shrink-0 mt-1"></span>
+        </div>
+      )}
       {keys.map(key => (
         <div
           key={key}

@@ -363,7 +363,6 @@ export class ZumraDB {
     const HOTEL_DATA_VERSION = 3;
     const savedVersion = parseInt(localStorage.getItem('zumra_hotels_version') || '0');
     if (savedVersion < HOTEL_DATA_VERSION) {
-      console.log(`[Hotels] Migrating hotel data from v${savedVersion} to v${HOTEL_DATA_VERSION} (${CSV_HOTELS.length} hotels from xlsx)`);
       saveGlobalData('hotels', CSV_HOTELS);
       localStorage.setItem('zumra_hotels_migrated', 'true');
       localStorage.setItem('zumra_hotels_version', String(HOTEL_DATA_VERSION));
@@ -943,7 +942,7 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
     } catch (err) {
       item.retries++;
       if (item.retries >= MAX_RETRIES) {
-        console.error(`[SyncQueue] Dropping item after ${MAX_RETRIES} retries:`, item);
+        // Dropping sync item after max retries
         removeFromQueue(item.id);
       }
       failed++;
@@ -953,7 +952,7 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
   _isSyncing = false;
   notifySyncListeners();
   if (success > 0) {
-    console.log(`[SyncQueue] Flushed ${success} items to Firestore (${failed} failed)`);
+    // Sync queue flushed
   }
   return { success, failed };
 }
@@ -962,13 +961,11 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     isOnline = true;
-    console.log('[Sync] Network online - flushing queue');
     notifySyncListeners();
     flushSyncQueue();
   });
   window.addEventListener('offline', () => {
     isOnline = false;
-    console.warn('[Sync] Network offline - queueing writes');
     notifySyncListeners();
   });
   // Retry queue every 60 seconds if items are pending
@@ -1544,6 +1541,5 @@ export function seedTestDataIfEmpty(): void {
   ZumraDB.saveExpenseCategories(testExpenseCategories);
   ZumraDB.saveExpenses(testExpenses);
   ZumraDB.saveOtherServices(testOtherServices);
-  console.log(`[TestSeed] Seeded: ${allAgents.length} agents, ${testReservations.length} reservations, ${testTransactions.length} transactions, ${testSalesPersons.length} sales persons, ${testFollowUps.length} follow-ups, ${testExpenses.length} expenses, ${testOtherServices.length} services`);
 }
 
