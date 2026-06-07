@@ -112,14 +112,21 @@ tbody tr {
 @media print {
 
   @page {
+    size: auto;
     margin: 10mm;
   }
 
-  body {
+  html, body {
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    /* Force color fidelity — prevents logos, borders, gradients from disappearing */
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
   /* Always hide no-print elements */
@@ -173,20 +180,43 @@ tbody tr {
     height: auto !important;
   }
 
-  /* Force print background colors and gradients */
+  /* Force print background colors, gradients, and image fidelity */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Ensure tables print properly with page breaks between rows */
+  /* Layout locking: force full-width, border-box for consistent print output */
+  #print-area, #print-area-clone {
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    max-height: none !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  /* Prevent tables from reflowing or shrinking during print */
   table {
     page-break-inside: auto !important;
+    width: 100% !important;
+    table-layout: fixed !important;
   }
   tr {
     page-break-inside: avoid !important;
     page-break-after: auto !important;
+  }
+  th, td {
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* Ensure logos and images don't disappear or distort during print */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    image-rendering: auto !important;
   }
 
   /* Footer/summary rows should stay with preceding content */

@@ -260,12 +260,17 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
       }
       html {
         overflow: visible !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
       }
       body {
         overflow: visible !important;
         background: white !important;
         margin: 0 !important;
         padding: 0 !important;
+        print-color-adjust: exact !important;
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
       }
       /* Scale the fixed-width clone to fit the printed page */
       body.printing-report {

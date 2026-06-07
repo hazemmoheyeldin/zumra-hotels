@@ -1496,9 +1496,12 @@ export default function App() {
 
   // Scroll content area to top whenever active tab changes
   useEffect(() => {
-    if (contentAreaRef.current) {
-      contentAreaRef.current.scrollTop = 0;
-    }
+    // Use requestAnimationFrame to ensure DOM has remounted (key={activeTab})
+    requestAnimationFrame(() => {
+      if (contentAreaRef.current) {
+        contentAreaRef.current.scrollTop = 0;
+      }
+    });
   }, [activeTab]);
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {

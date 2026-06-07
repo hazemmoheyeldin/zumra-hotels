@@ -35,7 +35,7 @@ function isCustom(pos: StampPosition): pos is StampPositionCustom {
 export default function StampOverlay({
   visible,
   position,
-  opacity = 0.18,
+  opacity = 0.40,
   onPositionChange,
   containerId = 'print-area',
 }: StampOverlayProps) {
@@ -68,11 +68,13 @@ export default function StampOverlay({
     if (!container || !stampRef.current) return;
     const rect = container.getBoundingClientRect();
     const stampRect = stampRef.current.getBoundingClientRect();
+    // Account for scroll offset so stamp can be placed anywhere in scrollable area
+    const scrollTop = container.scrollTop;
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
       origX: ((stampRect.left - rect.left) / rect.width) * 100,
-      origY: ((stampRect.top - rect.top) / rect.height) * 100,
+      origY: ((stampRect.top - rect.top + scrollTop) / container.scrollHeight) * 100,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }, [containerId]);
@@ -83,13 +85,15 @@ export default function StampOverlay({
     const container = document.getElementById(containerId);
     if (!container) return;
     const rect = container.getBoundingClientRect();
+    const scrollTop = container.scrollTop;
     const dx = e.clientX - dragStartRef.current.startX;
     const dy = e.clientY - dragStartRef.current.startY;
     const newX = dragStartRef.current.origX + (dx / rect.width) * 100;
-    const newY = dragStartRef.current.origY + (dy / rect.height) * 100;
-    // Clamp to container bounds
-    const clampedX = Math.max(0, Math.min(90, newX));
-    const clampedY = Math.max(0, Math.min(90, newY));
+    // Use scrollHeight for Y so percentage maps to full scrollable area
+    const newY = dragStartRef.current.origY + (dy / container.scrollHeight) * 100;
+    // Clamp to container bounds (0-95% to keep stamp visible)
+    const clampedX = Math.max(0, Math.min(95, newX));
+    const clampedY = Math.max(0, Math.min(95, newY));
     setDragPos({ x: clampedX, y: clampedY });
   }, [isDragging, containerId]);
 
@@ -134,8 +138,8 @@ export default function StampOverlay({
         draggable={false}
       />
       {/* Visual drag hint - screen only */}
-      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[7px] text-slate-400 font-mono whitespace-nowrap no-print opacity-0 hover:opacity-100 transition-opacity">
-        drag to move
+      <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[8px] text-amber-600 font-bold whitespace-nowrap no-print bg-amber-50 px-1.5 py-0.5 rounded shadow-sm border border-amber-200">
+        ✋ drag to move
       </div>
     </div>
   );
@@ -154,7 +158,7 @@ export function getStampSettings(): { enabled: boolean; position: StampPosition;
       };
     }
   } catch {}
-  return { enabled: true, position: 'bottom-right', opacity: 0.18 };
+  return { enabled: true, position: 'bottom-right', opacity: 0.40 };
 }
 
 export function saveStampSettings(settings: { enabled: boolean; position: StampPosition; opacity: number }) {

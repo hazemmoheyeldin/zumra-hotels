@@ -137,7 +137,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             </label>
             {stampVisible && (
               <button
-                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.18 }); }}
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.40 }); }}
                 className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
                 title="Reset stamp to default position"
               >Reset</button>
@@ -189,8 +189,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}
-            opacity={0.18}
-            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.18 }); }}
+            opacity={0.40}
+            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.40 }); }}
           />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
