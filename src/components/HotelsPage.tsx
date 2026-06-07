@@ -331,7 +331,8 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   
   // Form States
   const [name, setName] = useState('');
-  const [city, setCity] = useState<'Makkah' | 'Madinah'>('Makkah');
+  const [nameAr, setNameAr] = useState('');
+  const [city, setCity] = useState<string>('Makkah');
   const [stars, setStars] = useState(5);
   const [address, setAddress] = useState('');
   const [contact, setContact] = useState('');
@@ -347,6 +348,8 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
 
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [filterStars, setFilterStars] = useState('');
 
   // Geoapify gather - primary lookup
   const handleGeoapifyGather = async () => {
@@ -506,6 +509,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const handleEdit = (hotel: Hotel) => {
     setEditingId(hotel.id);
     setName(hotel.name);
+    setNameAr(hotel.nameAr || '');
     setCity(hotel.city);
     setStars(hotel.stars);
     setAddress(hotel.address);
@@ -529,6 +533,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
     const newHotel: Hotel = {
       id: editingId || `h_${Date.now()}`,
       name,
+      nameAr: nameAr.trim() || undefined,
       city,
       stars,
       address,
@@ -548,6 +553,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const resetForm = () => {
     setEditingId(null);
     setName('');
+    setNameAr('');
     setCity('Makkah');
     setStars(5);
     setAddress('');
@@ -698,7 +704,7 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Full Name</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Full Name (English)</label>
               <input
                 type="text"
                 value={name}
@@ -710,15 +716,34 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               />
             </div>
 
+            <div className="md:col-span-2">
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Hotel Name (Arabic / الاسم بالعربية)</label>
+              <input
+                type="text"
+                value={nameAr}
+                onChange={(e) => setNameAr(e.target.value)}
+                placeholder="e.g. سويسوتيل مكة"
+                dir="rtl"
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none text-right"
+              />
+            </div>
+
             <div>
-              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Holy City</label>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">City</label>
               <select
                 value={city}
-                onChange={(e) => setCity(e.target.value as any)}
+                onChange={(e) => setCity(e.target.value)}
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:border-amber-500 focus:outline-none"
               >
                 <option value="Makkah">Makkah Al Mukarramah</option>
                 <option value="Madinah">Madinah Al Munawwarah</option>
+                <option value="Jeddah">Jeddah</option>
+                <option value="Riyadh">Riyadh</option>
+                <option value="Dubai">Dubai</option>
+                <option value="Cairo">Cairo</option>
+                <option value="Istanbul">Istanbul</option>
+                <option value="London">London</option>
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -858,26 +883,61 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
         </form>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px]">🔍</span>
-            <input
-              type="text"
-              placeholder="Search Hotel by name, city..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full max-w-sm"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <span className="text-[10px]">🔍</span>
+              <input
+                type="text"
+                placeholder="Search by name, city, Arabic name, or hotel #..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs w-full max-w-sm"
+              />
+            </div>
+            <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+              <option value="">All Cities</option>
+              {[...new Set(hotels.map(h => h.city))].sort().map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={filterStars} onChange={(e) => setFilterStars(e.target.value)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+              <option value="">All Stars</option>
+              <option value="5">★★★★★</option>
+              <option value="4">★★★★</option>
+              <option value="3">★★★</option>
+              <option value="2">★★</option>
+              <option value="1">★</option>
+            </select>
+            <span className="text-[10px] text-slate-400 font-semibold">{hotels.filter(h =>
+              (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
+              (!filterCity || h.city === filterCity) &&
+              (!filterStars || h.stars === parseInt(filterStars))
+            ).length} / {hotels.length} hotels</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {hotels.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase())).map((hotel) => (
+            {hotels.filter(h =>
+              (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
+              (!filterCity || h.city === filterCity) &&
+              (!filterStars || h.stars === parseInt(filterStars))
+            ).map((hotel) => (
               <div key={hotel.id} className="border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg transition-all text-xs bg-white overflow-hidden group">
                 {/* Header strip */}
-                <div className={`px-4 py-3 flex items-center justify-between ${hotel.city === 'Makkah' ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100' : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100'}`}>
+                <div className={`px-4 py-3 flex items-center justify-between ${
+                  hotel.city === 'Makkah' ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100' : 
+                  hotel.city === 'Madinah' ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100' :
+                  'bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100'
+                }`}>
                   <div>
-                    <h3 className="font-black text-slate-800 text-sm leading-tight">{hotel.name}</h3>
+                    <h3 className="font-black text-slate-800 text-sm leading-tight">
+                      {hotel.hotelNumber && <span className="text-[9px] font-mono text-slate-400 mr-1.5">#{hotel.hotelNumber}</span>}
+                      {hotel.name}
+                    </h3>
+                    {hotel.nameAr && <p className="text-[10px] text-slate-500 font-semibold mt-0.5" dir="rtl">{hotel.nameAr}</p>}
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${hotel.city === 'Makkah' ? 'bg-amber-200/50 text-amber-800' : 'bg-emerald-200/50 text-emerald-800'}`}>
-                        {hotel.city === 'Makkah' ? '🕋 Makkah' : '🕌 Madinah'}
+                      <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded ${
+                        hotel.city === 'Makkah' ? 'bg-amber-200/50 text-amber-800' : 
+                        hotel.city === 'Madinah' ? 'bg-emerald-200/50 text-emerald-800' :
+                        'bg-blue-200/50 text-blue-800'
+                      }`}>
+                        {hotel.city === 'Makkah' ? '🕋 Makkah' : hotel.city === 'Madinah' ? '🕌 Madinah' : `📍 ${hotel.city}`}
                       </span>
                       <span className="text-amber-500 font-mono text-[10px]">{'★'.repeat(hotel.stars)}</span>
                     </div>

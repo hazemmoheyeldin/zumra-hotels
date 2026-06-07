@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
@@ -34,9 +34,11 @@ import ConfirmDialog from './components/ConfirmDialog';
 import GeneralDataPage from './components/GeneralDataPage';
 import OtherServicesPage from './components/OtherServicesPage';
 import PaymentGatewaysPage from './components/PaymentGatewaysPage';
+import ExpensesPage from './components/ExpensesPage';
 import EditApprovalModal from './components/EditApprovalModal';
 import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
+import { seedHotelsIfEmpty } from './lib/hotelSeed';
 
 const THEMES = [
   {
@@ -150,6 +152,8 @@ export default function App() {
   const [payByLinks, setPayByLinks] = useState<PayByLink[]>([]);
   const [editApprovals, setEditApprovals] = useState<EditApprovalRequest[]>([]);
   const [taxSettings, setTaxSettings] = useState<TaxSettings[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [showEditApprovalModal, setShowEditApprovalModal] = useState(false);
   // Restore session from localStorage if user was previously logged in
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -260,6 +264,13 @@ export default function App() {
     setPayByLinks(ZumraDB.getPayByLinks());
     setEditApprovals(ZumraDB.getEditApprovals());
     setTaxSettings(ZumraDB.getTaxSettings());
+    setExpenses(ZumraDB.getExpenses());
+    setExpenseCategories(ZumraDB.getExpenseCategories());
+    // Seed hotels if empty (first run or force reset)
+    const seededHotels = seedHotelsIfEmpty(false);
+    if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
+      setHotels(seededHotels);
+    }
     // Session is restored from localStorage via useState initializer above
 
     if (isFirebaseConfigured) {
@@ -286,6 +297,8 @@ export default function App() {
             { name: COLLECTIONS.PAY_BY_LINKS, key: 'zumra_pay_by_links', setter: setPayByLinks, loader: ZumraDB.getPayByLinks },
             { name: COLLECTIONS.EDIT_APPROVALS, key: 'zumra_edit_approvals', setter: setEditApprovals, loader: ZumraDB.getEditApprovals },
             { name: COLLECTIONS.TAX_SETTINGS, key: 'zumra_tax_settings', setter: setTaxSettings, loader: ZumraDB.getTaxSettings },
+            { name: COLLECTIONS.EXPENSES, key: 'zumra_expenses', setter: setExpenses, loader: ZumraDB.getExpenses },
+            { name: COLLECTIONS.EXPENSE_CATEGORIES, key: 'zumra_expense_categories', setter: setExpenseCategories, loader: ZumraDB.getExpenseCategories },
           ];
 
           for (const col of collections) {
@@ -413,6 +426,18 @@ export default function App() {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
             setTaxSettings(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_expenses', JSON.stringify(data));
+            setExpenses(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
+            setExpenseCategories(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
       ];
@@ -953,6 +978,73 @@ export default function App() {
     showConfirm('Delete Transfer', 'Are you sure you want to delete this external transfer?', () => doDeleteExternalTransfer(id), 'destructive');
   };
 
+  // ==================== Expenses ====================
+  const handleSaveExpense = (exp: Expense) => {
+    const existing = expenses.find(e => e.id === exp.id);
+    let updatedList: Expense[];
+    if (existing) {
+      // If expense amount changed, reverse old deduction and apply new one
+      const oldAmount = existing.amount;
+      const newAmount = exp.amount;
+      const amountDiff = newAmount - oldAmount;
+      if (amountDiff !== 0) {
+        const updatedAccounts = accounts.map(acc => {
+          if (acc.id === exp.fromAccountId) return { ...acc, balance: acc.balance - amountDiff };
+          return acc;
+        });
+        setAccounts(updatedAccounts);
+        ZumraDB.saveAccounts(updatedAccounts);
+        updatedAccounts.filter(a => a.id === exp.fromAccountId).forEach(a => ZumraSync.saveAccount(a));
+      }
+      updatedList = expenses.map(e => e.id === exp.id ? exp : e);
+    } else {
+      // New expense - deduct from account
+      const updatedAccounts = accounts.map(acc => {
+        if (acc.id === exp.fromAccountId) return { ...acc, balance: acc.balance - exp.amount };
+        return acc;
+      });
+      setAccounts(updatedAccounts);
+      ZumraDB.saveAccounts(updatedAccounts);
+      updatedAccounts.filter(a => a.id === exp.fromAccountId).forEach(a => ZumraSync.saveAccount(a));
+      updatedList = [...expenses, exp];
+    }
+    setExpenses(updatedList);
+    ZumraDB.saveExpenses(updatedList);
+    ZumraSync.saveExpense(exp);
+    toast.success(`Expense "${exp.name}" saved (${exp.amount.toLocaleString()} SAR)`);
+  };
+
+  const handleDeleteExpense = (id: string) => {
+    const exp = expenses.find(e => e.id === id);
+    if (!exp) return;
+    showConfirm('Delete Expense', `Delete expense "${exp.name}" (${exp.amount.toLocaleString()} SAR)?\nThe amount will be refunded to the account.`, () => {
+      // Refund amount back to account
+      const updatedAccounts = accounts.map(acc => {
+        if (acc.id === exp.fromAccountId) return { ...acc, balance: acc.balance + exp.amount };
+        return acc;
+      });
+      setAccounts(updatedAccounts);
+      ZumraDB.saveAccounts(updatedAccounts);
+      updatedAccounts.filter(a => a.id === exp.fromAccountId).forEach(a => ZumraSync.saveAccount(a));
+
+      const updatedList = expenses.filter(e => e.id !== id);
+      setExpenses(updatedList);
+      ZumraDB.saveExpenses(updatedList);
+      ZumraSync.deleteExpense(id);
+      toast.success(`Expense "${exp.name}" deleted`);
+    }, 'destructive');
+  };
+
+  const handleSaveExpenseCategory = (cat: ExpenseCategory) => {
+    const existing = expenseCategories.find(c => c.id === cat.id);
+    const updatedList = existing
+      ? expenseCategories.map(c => c.id === cat.id ? cat : c)
+      : [...expenseCategories, cat];
+    setExpenseCategories(updatedList);
+    ZumraDB.saveExpenseCategories(updatedList);
+    ZumraSync.saveExpenseCategory(cat);
+  };
+
   // Fund transfers between cash blocks
   const handleModifyBalances = (fromId: string, toId: string, amount: number) => {
     const updatedAccounts = accounts.map(acc => {
@@ -1162,6 +1254,7 @@ export default function App() {
             onLogAudit={handleLogAudit}
             currentUserRole={currentUser.role}
             onRequestEditApproval={handleRequestEditApproval}
+            onNavigate={handleNavigate}
           />
           </ErrorBoundary>
         );
@@ -1245,6 +1338,13 @@ export default function App() {
             agents={agents}
             hotels={hotels}
             transactions={transactions}
+            accounts={accounts}
+            otherServices={otherServices}
+            taxSettings={taxSettings}
+            expenses={expenses}
+            expenseCategories={expenseCategories}
+            initialTab={activeFilters?.reportTab}
+            onNavigate={handleNavigate}
           />
           </ErrorBoundary>
         );
@@ -1332,6 +1432,20 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Expenses':
+        return (
+          <ErrorBoundary fallbackLabel="Expenses page failed to load.">
+          <ExpensesPage
+            expenses={expenses}
+            expenseCategories={expenseCategories}
+            accounts={accounts}
+            onSaveExpense={handleSaveExpense}
+            onDeleteExpense={handleDeleteExpense}
+            onSaveCategory={handleSaveExpenseCategory}
+            currentUserId={currentUser.id}
+          />
+          </ErrorBoundary>
+        );
       default:
         return <div>Pane Not Found.</div>;
     }
@@ -1355,6 +1469,7 @@ export default function App() {
     { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers' },
     { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes' },
     { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports' },
+    { name: 'Expenses', icon: '📤', group: 'Finance', key: 'expenses' },
     { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways' },
     { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog' },
     { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
@@ -1368,16 +1483,16 @@ export default function App() {
   // Get permitted nav items based on user's specific role
   const permittedNavItems = navItems.filter((item) => {
     if (currentUser.role === 'Reservationist') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'General Data'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'General Data', 'Expenses'].includes(item.name);
     }
     if (currentUser.role === 'Sales') {
       return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments', 'Other Services'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
-      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services', 'Expenses'].includes(item.name);
     }
     if (currentUser.role === 'ReservationsManager') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data', 'Expenses'].includes(item.name);
     }
     return true; // Admin gets everything
   });

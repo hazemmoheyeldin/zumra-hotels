@@ -5,17 +5,19 @@
 
 export interface Hotel {
   id: string;
+  hotelNumber?: number;
   name: string;
-  city: 'Makkah' | 'Madinah';
+  nameAr?: string;
+  city: string;
   stars: number;
   address: string;
   contact: string;
-  reservationsEmail?: string; // Hotel reservations department email
+  reservationsEmail?: string;
   roomTypes: string[];
   views: string[];
   mealPlans: string[];
-  suppliers?: string[]; // Supplier agent IDs who have/provide this hotel
-  mapUrl?: string; // Google Maps location URL for navigation
+  suppliers?: string[];
+  mapUrl?: string;
 }
 
 export type AgentType = 'Customer' | 'Supplier' | 'Both';
@@ -36,7 +38,7 @@ export interface AmendmentEntry {
   newValue: string;
 }
 
-export type EntityType = 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login' | 'OtherService' | 'PaymentGateway' | 'GeneralData' | 'EditApproval';
+export type EntityType = 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login' | 'OtherService' | 'PaymentGateway' | 'GeneralData' | 'EditApproval' | 'Expense';
 
 export interface GlobalAuditEntry {
   id: string;
@@ -365,4 +367,26 @@ export interface TaxSettings {
   rate: number;
   appliesTo: ServiceType[];
   active: boolean;
+}
+
+// ==================== Expenses ====================
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Expense {
+  id: string;
+  expenseNumber: number;
+  name: string;
+  category: string;
+  amount: number;
+  date: string;
+  fromAccountId: string;
+  description: string;
+  receiptNo?: string;
+  createdBy: string;
+  createdAt: string;
 }

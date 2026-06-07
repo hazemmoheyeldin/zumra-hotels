@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Reservation, Agent, Hotel, Transaction, Account, OtherService, TaxSettings } from '../types';
+import { Reservation, Agent, Hotel, Transaction, Account, OtherService, TaxSettings, Expense, ExpenseCategory } from '../types';
 import ArrivalReportPDF from './ArrivalReportPDF';
 import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
@@ -20,13 +20,22 @@ interface ReportsPageProps {
   accounts?: Account[];
   otherServices?: OtherService[];
   taxSettings?: TaxSettings[];
+  expenses?: Expense[];
+  expenseCategories?: ExpenseCategory[];
+  initialTab?: ReportTab;
+  onNavigate?: (page: string) => void;
 }
 
 type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax';
 
-export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [] }: ReportsPageProps) {
+export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], initialTab, onNavigate }: ReportsPageProps) {
   const { t, lang } = useLang();
-  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('arrival');
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab || 'arrival');
+
+  // React to initialTab changes (when navigating from other pages)
+  React.useEffect(() => {
+    if (initialTab) setActiveReportTab(initialTab);
+  }, [initialTab]);
 
   // Shared Filters
   const [fromDate, setFromDate] = useState('2024-01-01');
@@ -172,79 +181,87 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           )}
         </div>
         
-        <div className="flex border-b border-slate-100 mb-4 gap-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveReportTab('arrival')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'arrival' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            {t('reports.arrivalsTab')}
-          </button>
-          <button
-            onClick={() => setActiveReportTab('cancellation')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'cancellation' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            {t('reports.cancellationsTab')}
-          </button>
-          <button
-            onClick={() => setActiveReportTab('statement')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'statement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            {t('reports.clientStatement')}
-          </button>
-          <button
-            onClick={() => setActiveReportTab('supplierStatement')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'supplierStatement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            {t('reports.supplierStatement')}
-          </button>
-          <button
-            onClick={() => setActiveReportTab('reminders')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'reminders' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            📢 {t('reports.supplierReminders')}
-          </button>
-          <button
-            onClick={() => setActiveReportTab('balanceSheet')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'balanceSheet' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            Balance Sheet
-          </button>
-          <button
-            onClick={() => setActiveReportTab('incomeStatement')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'incomeStatement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            Income Statement
-          </button>
-          <button
-            onClick={() => setActiveReportTab('collection')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'collection' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            Under Collection
-          </button>
-          <button
-            onClick={() => setActiveReportTab('tax')}
-            className={`pb-2.5 px-4 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
-              activeReportTab === 'tax' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
-            }`}
-          >
-            Tax Report
-          </button>
+        <div className="flex border-b border-slate-100 mb-4 gap-1 overflow-x-auto">
+          {/* Operational Reports */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            <span className="text-[8px] uppercase font-bold text-slate-400 -rotate-90 whitespace-nowrap mr-1 hidden md:block">Operations</span>
+            <button
+              onClick={() => setActiveReportTab('arrival')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'arrival' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🛫 {t('reports.arrivalsTab')}
+            </button>
+            <button
+              onClick={() => setActiveReportTab('cancellation')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'cancellation' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              ❌ {t('reports.cancellationsTab')}
+            </button>
+            <button
+              onClick={() => setActiveReportTab('statement')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'statement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📄 {t('reports.clientStatement')}
+            </button>
+            <button
+              onClick={() => setActiveReportTab('supplierStatement')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'supplierStatement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📝 {t('reports.supplierStatement')}
+            </button>
+            <button
+              onClick={() => setActiveReportTab('reminders')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'reminders' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📢 {t('reports.supplierReminders')}
+            </button>
+          </div>
+          {/* Financial Reports */}
+          <div className="flex items-center gap-0.5">
+            <span className="text-[8px] uppercase font-bold text-slate-400 -rotate-90 whitespace-nowrap mr-1 hidden md:block">Finance</span>
+            <button
+              onClick={() => setActiveReportTab('balanceSheet')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'balanceSheet' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📊 Balance Sheet
+            </button>
+            <button
+              onClick={() => setActiveReportTab('incomeStatement')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'incomeStatement' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📈 Income Statement
+            </button>
+            <button
+              onClick={() => setActiveReportTab('collection')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'collection' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              💰 Under Collection
+            </button>
+            <button
+              onClick={() => setActiveReportTab('tax')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'tax' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🧾 Tax Report
+            </button>
+          </div>
         </div>
 
         {/* Global configuration filters */}
@@ -624,7 +641,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             totalCost += s.buyPrice * s.quantity;
           });
           const retainedEarnings = totalRevenue - totalCost;
-          const totalEquity = retainedEarnings;
+          const totalExpensesAmount = expenses.reduce((s, e) => s + e.amount, 0);
+          const totalEquity = retainedEarnings - totalExpensesAmount;
 
           return (
             <div className="space-y-6">
@@ -658,6 +676,9 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   <h4 className="font-bold text-indigo-800 text-sm mb-3 uppercase">Equity</h4>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between"><span>Retained Earnings</span><span className="font-mono font-bold">{retainedEarnings.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
+                    {totalExpensesAmount > 0 && (
+                      <div className="flex justify-between text-rose-600"><span>Less: Expenses</span><span className="font-mono font-bold">({totalExpensesAmount.toLocaleString('en-US', {minimumFractionDigits:2})})</span></div>
+                    )}
                     <div className="flex justify-between border-t border-indigo-300 pt-2 font-bold text-sm">
                       <span>Total Equity</span><span className="font-mono">{totalEquity.toLocaleString('en-US', {minimumFractionDigits:2})} SAR</span>
                     </div>
@@ -689,7 +710,12 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           const totalCOGS = resBuy + svcBuy;
           const grossProfit = totalRevenue - totalCOGS;
           const cancelImpact = cancelledRes.reduce((s, r) => s + (r.cancellationFee || 0), 0);
-          const netProfit = grossProfit + cancelImpact;
+          const totalExpensesForPeriod = expenses.filter(e => e.date >= fromDate && e.date <= toDate).reduce((s, e) => s + e.amount, 0);
+          const expensesByCategory: Record<string, number> = {};
+          expenses.filter(e => e.date >= fromDate && e.date <= toDate).forEach(e => {
+            expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + e.amount;
+          });
+          const netProfit = grossProfit + cancelImpact - totalExpensesForPeriod;
 
           return (
             <div className="space-y-4">
@@ -710,6 +736,16 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     <tr className="bg-indigo-50 font-bold text-base"><td className="px-4 py-3">Gross Profit</td><td className={`px-4 py-3 text-right font-mono ${grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{grossProfit.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
 
                     <tr className="border-b"><td className="px-4 py-2 text-slate-600">Cancellation Fees</td><td className="px-4 py-2 text-right font-mono text-amber-700">{cancelImpact.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
+
+                    {totalExpensesForPeriod > 0 && (
+                      <>
+                        <tr className="bg-orange-50"><td className="px-4 py-3 font-bold text-orange-800" colSpan={2}>Operating Expenses</td></tr>
+                        {Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1]).map(([cat, total]) => (
+                          <tr key={cat} className="border-b"><td className="px-4 py-2 pl-8 text-slate-600">{cat}</td><td className="px-4 py-2 text-right font-mono text-orange-700">{total.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
+                        ))}
+                        <tr className="bg-orange-50 font-bold"><td className="px-4 py-3 pl-8">Total Operating Expenses</td><td className="px-4 py-3 text-right font-mono text-orange-800">({totalExpensesForPeriod.toLocaleString('en-US', {minimumFractionDigits:2})})</td></tr>
+                      </>
+                    )}
 
                     <tr className="bg-slate-800 text-white font-bold text-base"><td className="px-4 py-3">Net Profit</td><td className={`px-4 py-3 text-right font-mono ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{netProfit.toLocaleString('en-US', {minimumFractionDigits:2})} SAR</td></tr>
                   </tbody>

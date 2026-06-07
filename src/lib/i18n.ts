@@ -20,6 +20,8 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.externalTransfers': { en: 'External Transfers', ar: 'التحويلات الخارجية' },
   'nav.banksSafes': { en: 'Banks & Safes', ar: 'البنوك والخزن' },
   'nav.reports': { en: 'Reports', ar: 'التقارير' },
+  'nav.expenses': { en: 'Expenses', ar: 'المصروفات' },
+  'nav.paymentGateways': { en: 'Payment Gateways', ar: 'بوابات الدفع' },
   'nav.users': { en: 'Users', ar: 'المستخدمين' },
   'nav.overview': { en: 'Overview', ar: 'نظرة عامة' },
   'nav.operations': { en: 'Operations', ar: 'العمليات' },

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings } from '../types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 
 // Egypt Time helper: UTC + 3 hours
@@ -579,6 +579,27 @@ export class ZumraDB {
   static saveTaxSettings(list: TaxSettings[]): void {
     saveGlobalData('tax_settings', list);
   }
+
+  // ==================== Expenses ====================
+  static getExpenses(): Expense[] {
+    return getSavedData('expenses', []);
+  }
+  static saveExpenses(list: Expense[]): void {
+    saveGlobalData('expenses', list);
+  }
+  static getExpenseCategories(): ExpenseCategory[] {
+    return getSavedData('expense_categories', [
+      { id: 'cat_utilities', name: 'Utilities', active: true },
+      { id: 'cat_transportation', name: 'Transportation', active: true },
+      { id: 'cat_communication', name: 'Communication', active: true },
+      { id: 'cat_employee_loans', name: 'Employee Loans', active: true },
+      { id: 'cat_office', name: 'Office Supplies', active: true },
+      { id: 'cat_other', name: 'Other', active: true },
+    ] as ExpenseCategory[]);
+  }
+  static saveExpenseCategories(list: ExpenseCategory[]): void {
+    saveGlobalData('expense_categories', list);
+  }
 }
 
 export function getAgentActualBalance(agent: Agent, reservations: Reservation[], transactions: Transaction[]): number {
@@ -889,6 +910,8 @@ export const ZumraSync = {
   savePayByLink: (p: PayByLink) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.PAY_BY_LINKS, p); },
   saveEditApproval: (e: EditApprovalRequest) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EDIT_APPROVALS, e); },
   saveTaxSettings: (t: TaxSettings) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TAX_SETTINGS, t); },
+  saveExpense: (e: Expense) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXPENSES, e); },
+  saveExpenseCategory: (c: ExpenseCategory) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, c); },
   deleteHotel: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
   deleteAgent: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
   deleteAllotment: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
@@ -905,6 +928,8 @@ export const ZumraSync = {
   deletePaymentGateway: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, id); },
   deletePayByLink: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAY_BY_LINKS, id); },
   deleteEditApproval: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EDIT_APPROVALS, id); },
+  deleteExpense: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXPENSES, id); },
+  deleteExpenseCategory: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, id); },
   bulkSyncAll: () => {
     if (!isFirebaseConfigured) return;
     syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));
@@ -925,6 +950,8 @@ export const ZumraSync = {
     syncCollectionToFirestore(COLLECTIONS.PAY_BY_LINKS, JSON.parse(localStorage.getItem('zumra_pay_by_links') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.EDIT_APPROVALS, JSON.parse(localStorage.getItem('zumra_edit_approvals') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.TAX_SETTINGS, JSON.parse(localStorage.getItem('zumra_tax_settings') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.EXPENSES, JSON.parse(localStorage.getItem('zumra_expenses') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, JSON.parse(localStorage.getItem('zumra_expense_categories') || '[]'));
   }
 };
 

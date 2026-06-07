@@ -62,6 +62,8 @@ export const COLLECTIONS = {
   PAY_BY_LINKS: 'pay_by_links',
   EDIT_APPROVALS: 'edit_approvals',
   TAX_SETTINGS: 'tax_settings',
+  EXPENSES: 'expenses',
+  EXPENSE_CATEGORIES: 'expense_categories',
 } as const;
 
 /**

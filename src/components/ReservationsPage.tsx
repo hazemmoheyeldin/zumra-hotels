@@ -14,6 +14,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { useToast, ToastContainer } from './Toast';
 import { hasDraft, loadDraft, clearDraft } from '../hooks/useDraft';
 import CancellationWizard, { CancellationResult } from './CancellationWizard';
+import SmartSelect, { SmartSelectOption } from './SmartSelect';
 
 interface RoomSelection {
   roomType: string;
@@ -62,6 +63,7 @@ interface ReservationsPageProps {
   onLogAudit?: (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>) => void;
   currentUserRole?: string;
   onRequestEditApproval?: (request: import('../types').EditApprovalRequest) => void;
+  onNavigate?: (page: string, filters?: any) => void;
 }
 
 export default function ReservationsPage({
@@ -80,7 +82,8 @@ export default function ReservationsPage({
   onSaveAllotment,
   onLogAudit,
   currentUserRole,
-  onRequestEditApproval
+  onRequestEditApproval,
+  onNavigate,
 }: ReservationsPageProps) {
   
   // View states
@@ -1200,6 +1203,22 @@ export default function ReservationsPage({
               >
                 📊 Export Full Report
               </button>
+              {onNavigate && (
+                <>
+                  <button
+                    onClick={() => onNavigate('Reports', { reportTab: 'arrival' })}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-blue-200"
+                  >
+                    🛫 Arrivals
+                  </button>
+                  <button
+                    onClick={() => onNavigate('Reports', { reportTab: 'cancellation' })}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-rose-200"
+                  >
+                    ❌ Cancellations
+                  </button>
+                </>
+              )}
               <button
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
@@ -1348,12 +1367,20 @@ export default function ReservationsPage({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.customerAgent')}</label>
-                <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">{t('res.chooseCustomer')}</option>
-                  {agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => (
-                    <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
-                  ))}
-                </select>
+                <SmartSelect
+                  options={agents.filter(a => a.type === 'Customer' || a.type === 'Both').map(a => ({
+                    id: a.id,
+                    label: a.companyName || a.name,
+                    number: a.agentNumber,
+                    badge: a.type === 'Both' ? 'Customer + Supplier' : undefined,
+                    warning: a.clientStatus === 'Suspended' ? '⚠️ Suspended' : a.clientStatus === 'Blacklisted' ? '⛔ Blacklisted' : undefined,
+                  }))}
+                  value={clientId || null}
+                  onChange={(id) => setClientId(id || '')}
+                  placeholder="Search client by name or number..."
+                  required
+                  clearable
+                />
                 {clientId && (() => {
                   const selectedClient = agents.find(a => a.id === clientId);
                   if (selectedClient?.clientStatus === 'Suspended') {
@@ -1367,25 +1394,47 @@ export default function ReservationsPage({
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplier')}</label>
-                <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-medium bg-slate-50 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">{t('res.chooseSupplier')}</option>
-                  <option value="DIRECT" className="font-bold">🏨 Direct from Hotel (no supplier)</option>
-                  {agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <SmartSelect
+                  options={agents.filter(a => a.type === 'Supplier' || a.type === 'Both').map(a => ({
+                    id: a.id,
+                    label: a.name,
+                    number: a.agentNumber,
+                  }))}
+                  topOptions={[{ id: 'DIRECT', label: '🏨 Direct from Hotel (no supplier)', badge: 'DIRECT' }]}
+                  value={supplierId || null}
+                  onChange={(id) => setSupplierId(id || '')}
+                  placeholder="Search supplier by name or number..."
+                  required
+                  clearable
+                />
                 {supplierId === 'DIRECT' && hotelId && (
                   <p className="text-[9px] text-amber-700 font-bold mt-1 bg-amber-50 px-2 py-1 rounded">🏨 Booking directly from: {hotels.find(h => h.id === hotelId)?.name}</p>
                 )}
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.destinationHotel')}</label>
-                <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); const matchedH = hotels.find(h => h.id === e.target.value); if (matchedH) { setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]); } }} className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm font-bold bg-slate-50 text-slate-800 focus:bg-white focus:border-amber-500 transition-colors" required>
-                  <option value="">{t('res.selectPartnerHotel')}</option>
-                  {hotels.map(h => (
-                    <option key={h.id} value={h.id}>{h.city === 'Makkah' ? '🕋' : '🕌'} {h.name}</option>
-                  ))}
-                </select>
+                <SmartSelect
+                  options={hotels.map(h => ({
+                    id: h.id,
+                    label: h.name,
+                    sublabel: h.nameAr,
+                    number: h.hotelNumber,
+                    badge: `${h.city === 'Makkah' ? '🕋' : h.city === 'Madinah' ? '🕌' : '📍'} ${h.city} ${'★'.repeat(h.stars)}`,
+                  }))}
+                  value={hotelId || null}
+                  onChange={(id) => {
+                    const eid = id || '';
+                    setHotelId(eid);
+                    const matchedH = hotels.find(h => h.id === eid);
+                    if (matchedH) {
+                      setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]);
+                    }
+                  }}
+                  placeholder="Search hotel by name, number, or Arabic name..."
+                  required
+                  clearable
+                  maxResults={30}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
