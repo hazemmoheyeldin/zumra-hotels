@@ -5,6 +5,7 @@
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
+import { CSV_HOTELS } from './csvHotels';
 
 // Egypt Time helper: UTC + 3 hours
 export function getEgyptTime(): Date {
@@ -24,53 +25,8 @@ export function formatEgyptDateTime(date: Date | string): string {
   return d.toISOString().replace('T', ' ').substring(0, 19);
 }
 
-// Default Hotels
-const DEFAULT_HOTELS: Hotel[] = [
-  {
-    id: 'h1',
-    name: 'AL HARAM Hotel (Madina)',
-    city: 'Madinah',
-    stars: 5,
-    address: 'Central Northern Area, Madinah',
-    contact: '+966 14 820 0000',
-    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
-    views: ['Haram View', 'City View', 'Courtyard View'],
-    mealPlans: ['RO', 'B.B', 'H.B', 'F.B', 'Iftar Ramadan', 'Sohour'],
-  },
-  {
-    id: 'h2',
-    name: 'VOCO Makkah Hotel',
-    city: 'Makkah',
-    stars: 4,
-    address: 'Ibrahim Al Khalil Road, Makkah',
-    contact: '+966 12 526 0000',
-    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
-    views: ['City View', 'Street View'],
-    mealPlans: ['RO', 'B.B', 'H.B', 'F.B'],
-  },
-  {
-    id: 'h3',
-    name: 'Movenpick Hajar Makkah',
-    city: 'Makkah',
-    stars: 5,
-    address: 'Abraj Al Bait, Makkah',
-    contact: '+966 12 571 7171',
-    roomTypes: ['Single', 'Double', 'Triple', 'Quad', 'Quint'],
-    views: ['Haram View', 'Kaaba View', 'City View'],
-    mealPlans: ['RO', 'B.B', 'H.B', 'F.B', 'Iftar Ramadan'],
-  },
-  {
-    id: 'h4',
-    name: 'Al Ansar Golden Tulip EX (Al Shourfa)',
-    city: 'Madinah',
-    stars: 4,
-    address: 'Central Northern Area, Madinah',
-    contact: '+966 14 820 1111',
-    roomTypes: ['Single', 'Double', 'Triple', 'Quad'],
-    views: ['City View', 'Haram View'],
-    mealPlans: ['RO', 'B.B', 'H.B', 'F.B'],
-  },
-];
+// Default Hotels (imported from CSV - 1877 hotels)
+const DEFAULT_HOTELS: Hotel[] = CSV_HOTELS;
 
 // Default Agents
 const DEFAULT_AGENTS: Agent[] = [

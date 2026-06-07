@@ -30,6 +30,9 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.exitPortal': { en: 'Exit Portal', ar: 'الخروج' },
   'nav.signOut': { en: 'Sign Out', ar: 'تسجيل الخروج' },
   'nav.management': { en: '{tab} Management', ar: 'إدارة {tab}' },
+  'nav.otherServices': { en: 'Other Services', ar: 'خدمات أخرى' },
+  'nav.auditLog': { en: 'Audit Log', ar: 'سجل التدقيق' },
+  'nav.generalData': { en: 'General Data', ar: 'البيانات العامة' },
 
   // ===== COMMON =====
   'common.save': { en: 'Save', ar: 'حفظ' },

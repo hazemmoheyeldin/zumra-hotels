@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
@@ -587,12 +587,18 @@ export default function App() {
 
   // Sync savers (internal — called after confirmation)
   const doSaveHotel = (h: Hotel) => {
+    const isNew = !hotels.some(item => item.id === h.id);
+    // Auto-assign hotel number for new hotels
+    if (isNew && !h.hotelNumber) {
+      const highestNum = hotels.reduce((max, hotel) => (hotel.hotelNumber || 0) > max ? (hotel.hotelNumber || 0) : max, 0);
+      h = { ...h, hotelNumber: highestNum + 1 };
+    }
     const updated = hotels.map(item => item.id === h.id ? h : item);
-    if (!hotels.some(item => item.id === h.id)) updated.push(h);
+    if (isNew) updated.push(h);
     setHotels(updated);
     ZumraDB.saveHotels(updated);
     ZumraSync.saveHotel(h);
-    toast.success(`Hotel "${h.name}" saved successfully`);
+    toast.success(`Hotel "${h.name}" (#${h.hotelNumber}) saved successfully`);
   };
   const handleSaveHotel = (h: Hotel) => {
     showConfirm('Save Hotel', `Save hotel "${h.name}"?`, () => doSaveHotel(h));
@@ -1183,6 +1189,31 @@ export default function App() {
     }
   };
 
+  // Profile image upload
+  const profileImageRef = useRef<HTMLInputElement>(null);
+  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+    if (file.size > 500 * 1024) { toast.error('Image too large. Max 500KB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      const updatedUser = { ...currentUser, profileImage: base64 };
+      setCurrentUser(updatedUser);
+      ZumraDB.setCurrentUser(updatedUser);
+      // Also update users list
+      setUsers(prev => {
+        const updated = prev.map(u => u.id === updatedUser.id ? updatedUser : u);
+        ZumraDB.saveUsers(updated);
+        ZumraSync.saveUser(updatedUser);
+        return updated;
+      });
+      toast.success('Profile image updated');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleSaveFollowUp = (fu: FollowUp) => {
     const updated = followUps.map(item => item.id === fu.id ? fu : item);
     if (!followUps.some(item => item.id === fu.id)) updated.push(fu);
@@ -1573,6 +1604,9 @@ export default function App() {
         <option value="Jordan"></option>
       </datalist>
 
+      {/* Hidden file input for profile image upload */}
+      <input ref={profileImageRef} type="file" accept="image/*" className="hidden" onChange={handleProfileImageChange} />
+
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
@@ -1667,9 +1701,16 @@ export default function App() {
             ) : (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 overflow-hidden">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDarkSidebar ? 'bg-white/[0.10] text-white' : 'bg-slate-200 text-slate-700'}`}>
-                  {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
-                </div>
+                {currentUser.profileImage ? (
+                  <img src={currentUser.profileImage} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0 cursor-pointer" onClick={() => profileImageRef.current?.click()} title="Change profile image" />
+                ) : (
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 cursor-pointer relative group ${isDarkSidebar ? 'bg-white/[0.10] text-white' : 'bg-slate-200 text-slate-700'}`} onClick={() => profileImageRef.current?.click()} title="Upload profile image">
+                    {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
+                    </div>
+                  </div>
+                )}
                 <div className="overflow-hidden">
                   <p className={`text-[11px] font-semibold truncate leading-tight ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>{currentUser.name}</p>
                   <p className={`text-[9px] truncate leading-tight ${isDarkSidebar ? 'text-slate-500' : 'text-slate-400'}`}>{currentUser.role}</p>
@@ -1819,8 +1860,12 @@ export default function App() {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center gap-2 hover:bg-slate-100 rounded-lg transition p-1.5 cursor-pointer"
                 >
-                  <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-[10px]`}>
-                    {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                  <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-[10px] overflow-hidden`}>
+                    {currentUser.profileImage ? (
+                      <img src={currentUser.profileImage} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'
+                    )}
                   </div>
                   <div className="hidden md:block text-left">
                     <p className="text-[11px] font-semibold text-slate-800 leading-none">{currentUser.name}</p>
@@ -1833,12 +1878,24 @@ export default function App() {
 
                 {isUserMenuOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up">
-                    <div className="px-4 py-3 border-b border-slate-100">
-                      <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{currentUser.email}</p>
-                      <span className={`inline-block mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
-                        {currentUser.role}
-                      </span>
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                      {currentUser.profileImage ? (
+                        <img src={currentUser.profileImage} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer" onClick={() => profileImageRef.current?.click()} title="Change profile image" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 flex-shrink-0 cursor-pointer relative group" onClick={() => profileImageRef.current?.click()} title="Upload profile image">
+                          {currentUser.name ? currentUser.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U'}
+                          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" /></svg>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{currentUser.email}</p>
+                        <span className={`inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
+                          {currentUser.role}
+                        </span>
+                      </div>
                     </div>
                     <div className="py-1">
                       <button

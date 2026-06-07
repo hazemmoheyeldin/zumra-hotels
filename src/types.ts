@@ -218,6 +218,7 @@ export interface User {
   email: string;
   password?: string;
   mustChangePassword?: boolean; // Force password change on next login
+  profileImage?: string; // base64 encoded profile image
 }
 
 export interface FollowUp {
