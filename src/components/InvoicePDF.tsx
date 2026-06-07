@@ -39,7 +39,8 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
   const handlePrint = async () => {
     const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
     const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-    await exportPDF('print-area', `${invoiceNo} ${guestSafe} ${hotelName} ${invoiceDate}.pdf`, { landscape: false });
+    const success = await exportPDF('print-area', `${invoiceNo} ${guestSafe} ${hotelName} ${invoiceDate}.pdf`, { landscape: false });
+    if (success) setTimeout(onClose, 400);
   };
 
   const formatDate = (d: string) => {

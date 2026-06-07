@@ -61,7 +61,11 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
       const primaryClient = reservations.length > 0 ? (agents.find(a => a.id === reservations[0].clientId)?.name || 'All Clients') : 'All Clients';
       const safeClientName = primaryClient.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const success = await exportPDF('print-area', `Arrival during period - ${safeClientName}.pdf`, { landscape: true });
-      if (!success) setPrintError(true);
+      if (success) {
+        setTimeout(onClose, 400);
+      } else {
+        setPrintError(true);
+      }
     } catch {
       setPrintError(true);
     } finally {

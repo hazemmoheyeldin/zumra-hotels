@@ -59,7 +59,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
         ? `(v) RSV-${reservation.id} ${guestSafe}.pdf`
         : `RSV-${reservation.id} (${status}) ${today}.pdf`;
       const success = await exportPDF('print-area', filename, { landscape: false });
-      if (!success) setPrintError(true);
+      if (success) {
+        setTimeout(onClose, 400);
+      } else {
+        setPrintError(true);
+      }
     } catch (e) {
       console.error('PDF generation failed:', e);
       setPrintError(true);

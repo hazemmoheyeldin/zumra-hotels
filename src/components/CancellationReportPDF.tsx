@@ -39,7 +39,8 @@ export default function CancellationReportPDF({ reservations, agents, hotels, fr
 
   const handlePrint = async () => {
     const dStr = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All';
-    await exportPDF('print-area', `Cancellations Report - ${dStr}.pdf`, { landscape: true });
+    const success = await exportPDF('print-area', `Cancellations Report - ${dStr}.pdf`, { landscape: true });
+    if (success) setTimeout(onClose, 400);
   };
 
   const totalPenalty = reservations.reduce((acc, res) => acc + (res.cancellationFee || 0), 0);

@@ -207,7 +207,11 @@ export default function StatementReportPDF({ client, reservations, transactions,
     try {
       const safeClientName = (client.companyName || client.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const success = await exportPDF('print-area', `${safeClientName}'s Account Statement.pdf`, { landscape: true });
-      if (!success) setPrintError(true);
+      if (success) {
+        setTimeout(onClose, 400);
+      } else {
+        setPrintError(true);
+      }
     } catch (e) {
       console.error('PDF generation failed:', e);
       setPrintError(true);

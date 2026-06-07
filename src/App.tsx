@@ -134,8 +134,17 @@ export default function App() {
   const [externalTransfers, setExternalTransfers] = useState<ExternalTransfer[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
-  // Start as null to always require login
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  // Restore session from localStorage if user was previously logged in
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('current_user');
+      if (saved) {
+        const user = JSON.parse(saved);
+        if (user && user.username && user.role) return user as User;
+      }
+    } catch {}
+    return null;
+  });
 
   // Theme states
   const [activeThemeId, setActiveThemeId] = useState<string>(() => {
@@ -224,7 +233,7 @@ export default function App() {
       setUsers(loadedUsers);
     }
     setFollowUps(ZumraDB.getFollowUps());
-    // Do NOT auto-login - always show login screen
+    // Session is restored from localStorage via useState initializer above
 
     if (isFirebaseConfigured) {
       console.log('[Firebase] Cloud sync enabled - attaching real-time listeners');
@@ -903,7 +912,11 @@ export default function App() {
 
   const handleSetCurrentUser = (user: User) => {
     setCurrentUser(user);
-    ZumraDB.setCurrentUser(user);
+    if (user) {
+      ZumraDB.setCurrentUser(user);
+    } else {
+      localStorage.removeItem('current_user');
+    }
   };
 
   const handleSaveFollowUp = (fu: FollowUp) => {
