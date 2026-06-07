@@ -1301,16 +1301,13 @@ export default function App() {
   };
 
   const doAddUser = (user: User) => {
-    // Use functional update to prevent stale closure race conditions
-    setUsers(prev => {
-      const existing = prev.find(u => u.id === user.id);
-      const updated = existing
-        ? prev.map(u => u.id === user.id ? user : u)
-        : [...prev, user];
-      ZumraDB.saveUsers(updated);
-      ZumraSync.saveUser(user);
-      return updated;
-    });
+    const existing = users.find(u => u.id === user.id);
+    const updated = existing
+      ? users.map(u => u.id === user.id ? user : u)
+      : [...users, user];
+    setUsers(updated);
+    ZumraDB.saveUsers(updated);
+    ZumraSync.saveUser(user);
     toast.success(`User "${user.name}" saved`);
   };
   const handleAddUser = (user: User) => {
@@ -1369,12 +1366,10 @@ export default function App() {
       setCurrentUser(updatedUser);
       ZumraDB.setCurrentUser(updatedUser);
       // Also update users list
-      setUsers(prev => {
-        const updated = prev.map(u => u.id === updatedUser.id ? updatedUser : u);
-        ZumraDB.saveUsers(updated);
-        ZumraSync.saveUser(updatedUser);
-        return updated;
-      });
+      const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+      setUsers(updatedUsers);
+      ZumraDB.saveUsers(updatedUsers);
+      ZumraSync.saveUser(updatedUser);
       toast.success('Profile image updated');
     };
     reader.readAsDataURL(file);
