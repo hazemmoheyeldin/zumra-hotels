@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Reservation, Transaction, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
+import ZumraLogo from './ZumraLogo';
 
 interface AnalyticsProps {
   reservations: Reservation[];
@@ -204,9 +205,12 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">{t('analytics.title')}</h1>
-          <p className="text-sm text-slate-500">{t('analytics.subtitle')}</p>
+        <div className="flex items-center gap-3">
+          <ZumraLogo size="sm" variant="gold" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">{t('analytics.title')}</h1>
+            <p className="text-sm text-slate-500">{t('analytics.subtitle')}</p>
+          </div>
         </div>
         <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
           {(['3M', '6M', '12M', 'ALL'] as TimeRange[]).map(r => (

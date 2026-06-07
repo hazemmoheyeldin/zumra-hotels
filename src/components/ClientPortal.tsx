@@ -7,6 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import { loadPortalSettings, PortalVisibilitySettings } from './ClientPortalSettings';
+import ZumraLogo from './ZumraLogo';
 
 interface ClientPortalProps {
   reservations: Reservation[];
@@ -65,8 +66,7 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
               <p className="text-sm text-slate-500 mt-1">Booking Portal &bull; {stats.total} active bookings</p>
             </div>
             <div className="text-right">
-              <div className="text-xs text-slate-400">Powered by</div>
-              <div className="text-lg font-bold text-amber-600">Zumra Hotels</div>
+              <ZumraLogo size="lg" variant="gold" className="justify-end" />
             </div>
           </div>
         </div>

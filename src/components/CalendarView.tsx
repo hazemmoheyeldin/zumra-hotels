@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Reservation, Transaction, FollowUp, Agent, Hotel } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import ZumraLogo from './ZumraLogo';
 
 interface CalendarViewProps {
   reservations: Reservation[];
@@ -191,9 +192,12 @@ export default function CalendarView({ reservations, transactions, followUps, ag
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">{t('cal.title')}</h1>
-          <p className="text-sm text-slate-500">{t('cal.subtitle')}</p>
+        <div className="flex items-center gap-3">
+          <ZumraLogo size="sm" variant="gold" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">{t('cal.title')}</h1>
+            <p className="text-sm text-slate-500">{t('cal.subtitle')}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={goPrevMonth} className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium">

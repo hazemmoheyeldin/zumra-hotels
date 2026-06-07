@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateSeedData } from '../lib/storage';
+import ZumraLogo from './ZumraLogo';
 
 export interface PortalVisibilitySettings {
   showFinancialInfo: boolean; // totals, paid, outstanding
@@ -122,9 +123,12 @@ export default function ClientPortalSettings({ onLogAudit }: ClientPortalSetting
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Client Portal Settings</h2>
-          <p className="text-sm text-slate-500 mt-1">Configure what information is visible to clients in their booking portal</p>
+        <div className="flex items-center gap-4">
+          <ZumraLogo size="md" variant="gold" />
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">Client Portal Settings</h2>
+            <p className="text-sm text-slate-500 mt-1">Configure what information is visible to clients in their booking portal</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
