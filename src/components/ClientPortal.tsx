@@ -182,9 +182,9 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
                       </div>
                       )}
                       {/* Agreement Status Badge */}
-                      {res.agreementNo && (
-                        <div className="text-center">
-                          <div className="text-[8px] uppercase font-bold text-slate-400">Agreement</div>
+                      <div className="text-center">
+                        <div className="text-[8px] uppercase font-bold text-slate-400">Agreement</div>
+                        {res.agreementNo ? (
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
                             res.agreementStatus === 'Approved' ? 'bg-emerald-100 text-emerald-800' :
                             res.agreementStatus === 'Declined' ? 'bg-rose-100 text-rose-800' :
@@ -192,8 +192,10 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
                           }`}>
                             {res.agreementStatus || 'Pending'}
                           </span>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-[9px] text-slate-400 font-mono">—</span>
+                        )}
+                      </div>
                       {visibility.showStatus && (
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                         res.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -259,54 +261,55 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
                         </div>
                       )}
                       {/* Agreement Section */}
-                      {res.agreementNo && (
-                        <div className={`rounded-xl border p-4 ${
-                          res.agreementStatus === 'Approved' ? 'bg-emerald-50 border-emerald-200' :
-                          res.agreementStatus === 'Declined' ? 'bg-rose-50 border-rose-200' :
-                          'bg-amber-50 border-amber-200'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div>
-                              <div className="text-[10px] uppercase font-bold text-slate-500">Agreement</div>
-                              <div className="font-mono font-bold text-slate-800 text-sm">{res.agreementNo}</div>
-                            </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              res.agreementStatus === 'Approved' ? 'bg-emerald-200 text-emerald-900' :
-                              res.agreementStatus === 'Declined' ? 'bg-rose-200 text-rose-900' :
-                              'bg-amber-200 text-amber-900'
-                            }`}>
-                              {res.agreementStatus === 'Approved' ? '✓ Approved' :
-                               res.agreementStatus === 'Declined' ? '✗ Declined' : '⏳ Pending'}
-                            </span>
+                      <div className={`rounded-xl border p-4 ${
+                        !res.agreementNo ? 'bg-slate-50 border-slate-200' :
+                        res.agreementStatus === 'Approved' ? 'bg-emerald-50 border-emerald-200' :
+                        res.agreementStatus === 'Declined' ? 'bg-rose-50 border-rose-200' :
+                        'bg-amber-50 border-amber-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-slate-500">Agreement Number</div>
+                            <div className="font-mono font-bold text-slate-800 text-sm">{res.agreementNo || '—'}</div>
                           </div>
-                          {onUpdateAgreementStatus && res.status !== 'Cancelled' && (
-                            <div className="flex gap-2 mt-3">
-                              <button
-                                onClick={() => onUpdateAgreementStatus(res.id, 'Approved')}
-                                disabled={res.agreementStatus === 'Approved'}
-                                className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                                  res.agreementStatus === 'Approved'
-                                    ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed'
-                                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
-                                }`}
-                              >
-                                {res.agreementStatus === 'Approved' ? '✓ Already Approved' : '✓ Approve Agreement'}
-                              </button>
-                              <button
-                                onClick={() => onUpdateAgreementStatus(res.id, 'Declined')}
-                                disabled={res.agreementStatus === 'Declined'}
-                                className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition ${
-                                  res.agreementStatus === 'Declined'
-                                    ? 'bg-rose-200 text-rose-700 cursor-not-allowed'
-                                    : 'bg-white text-rose-700 border border-rose-300 hover:bg-rose-50'
-                                }`}
-                              >
-                                {res.agreementStatus === 'Declined' ? '✗ Already Declined' : '✗ Decline'}
-                              </button>
-                            </div>
-                          )}
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            !res.agreementNo ? 'bg-slate-200 text-slate-600' :
+                            res.agreementStatus === 'Approved' ? 'bg-emerald-200 text-emerald-900' :
+                            res.agreementStatus === 'Declined' ? 'bg-rose-200 text-rose-900' :
+                            'bg-amber-200 text-amber-900'
+                          }`}>
+                            {!res.agreementNo ? '— Not Assigned' :
+                             res.agreementStatus === 'Approved' ? '✓ Approved' :
+                             res.agreementStatus === 'Declined' ? '✗ Declined' : '⏳ Pending'}
+                          </span>
                         </div>
-                      )}
+                        {onUpdateAgreementStatus && res.agreementNo && res.status !== 'Cancelled' && (
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => onUpdateAgreementStatus(res.id, 'Approved')}
+                              disabled={res.agreementStatus === 'Approved'}
+                              className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition ${
+                                res.agreementStatus === 'Approved'
+                                  ? 'bg-emerald-200 text-emerald-700 cursor-not-allowed'
+                                  : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                              }`}
+                            >
+                              {res.agreementStatus === 'Approved' ? '✓ Already Approved' : '✓ Approve Agreement'}
+                            </button>
+                            <button
+                              onClick={() => onUpdateAgreementStatus(res.id, 'Declined')}
+                              disabled={res.agreementStatus === 'Declined'}
+                              className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition ${
+                                res.agreementStatus === 'Declined'
+                                  ? 'bg-rose-200 text-rose-700 cursor-not-allowed'
+                                  : 'bg-white text-rose-700 border border-rose-300 hover:bg-rose-50'
+                              }`}
+                            >
+                              {res.agreementStatus === 'Declined' ? '✗ Already Declined' : '✗ Decline'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

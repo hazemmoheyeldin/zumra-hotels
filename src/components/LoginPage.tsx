@@ -161,7 +161,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     );
 
     if (matchedUser) {
-      setTimeout(() => validateLogin(matchedUser!, users), 800);
+      validateLogin(matchedUser!, users);
       return;
     }
 
@@ -169,7 +169,6 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     if (isFirebaseConfigured) {
       try {
         const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
-        console.log(`[Login] Firestore returned ${firestoreUsers.length} users`);
         if (firestoreUsers.length > 0) {
           // Update localStorage with Firestore data
           localStorage.setItem('zumra_users', JSON.stringify(firestoreUsers));
@@ -178,20 +177,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
             (u.email && u.email.toLowerCase() === userLower)
           );
           if (matchedUser) {
-            console.log(`[Login] User found in Firestore: ${matchedUser.username}`);
             onUpdateUser?.(matchedUser);
-            setTimeout(() => validateLogin(matchedUser!, firestoreUsers), 400);
+            validateLogin(matchedUser!, firestoreUsers);
             return;
           }
-          console.log(`[Login] User "${username}" not found in Firestore users:`, firestoreUsers.map(u => u.username));
+          console.warn(`[Login] User "${username}" not found in Firestore`);
         } else {
-          console.warn('[Login] Firestore returned 0 users');
+          // Firestore empty — use local data
         }
       } catch (err) {
         console.warn('[Login] Firestore user lookup failed:', err);
       }
-    } else {
-      console.warn('[Login] Firebase not configured — cannot fetch remote users');
     }
 
     setLoading(false);

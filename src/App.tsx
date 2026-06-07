@@ -383,9 +383,7 @@ export default function App() {
 
     // Restore Firebase Auth session and run migration
     if (isFirebaseConfigured) {
-      console.log('[Firebase] Cloud sync enabled');
-
-      // 2. Initial Firestore data migration (runs once, AFTER auth is confirmed)
+      // Initial Firestore data migration (runs once, AFTER auth is confirmed)
       const migrateData = async () => {
         try {
           const collections: Array<{name: string; key: string; setter: (d: any[]) => void; loader: () => any[]}> = [
@@ -417,7 +415,6 @@ export default function App() {
             if (col.name === COLLECTIONS.HOTELS && localStorage.getItem('zumra_hotels_migrated') === 'true') {
               const freshHotels = ZumraDB.getHotels();
               if (freshHotels.length >= 1800) {
-                console.log(`[Firebase] Pushing ${freshHotels.length} hotels to Firestore`);
                 await firestoreBulkSave(col.name, freshHotels);
                 col.setter(freshHotels);
                 localStorage.removeItem('zumra_hotels_migrated');
@@ -435,7 +432,6 @@ export default function App() {
                 const merged = Array.from(mergedMap.values());
                 localStorage.setItem(col.key, JSON.stringify(merged));
                 col.setter(merged);
-                console.log(`[Firebase] Merged USERS: ${localData.length} local + ${firestoreData.length} firestore = ${merged.length} total`);
               } else {
                 localStorage.setItem(col.key, JSON.stringify(firestoreData));
                 col.setter(firestoreData);
@@ -445,7 +441,6 @@ export default function App() {
               const localData = col.loader();
               if (localData.length > 0) {
                 await firestoreBulkSave(col.name, localData);
-                console.log(`[Firebase] Seeded ${col.name} with ${localData.length} items`);
               }
             }
           }
@@ -453,7 +448,6 @@ export default function App() {
           const currentUsers = ZumraDB.getUsers();
           if (currentUsers.length > 0) {
             await firestoreBulkSave(COLLECTIONS.USERS, currentUsers);
-            console.log(`[Firebase] Ensured ${currentUsers.length} users in Firestore`);
           }
           // Initial data sync complete
         } catch (err) {
@@ -482,7 +476,6 @@ export default function App() {
 
           // Check if already authenticated (from browserLocalPersistence)
           let isAuthed = !!auth?.currentUser;
-          console.log(`[Firebase Auth] Initial state: authenticated=${isAuthed}`);
 
           // If not authenticated, try to sign in with stored user credentials
           if (!isAuthed && currentUser?.email) {
@@ -490,12 +483,11 @@ export default function App() {
             isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
             if (!isAuthed) {
               // Firebase Auth user doesn't exist yet — create it
-              console.log(`[Firebase Auth] Creating auth user for ${currentUser.email}`);
               await firebaseCreateUser(currentUser.email, fbPwd);
               isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
             }
             if (isAuthed) {
-              console.log(`[Firebase Auth] Session restored for ${currentUser.username}`);
+              // Session restored
             } else {
               console.warn(`[Firebase Auth] Could not authenticate ${currentUser.email} — continuing with localStorage data`);
             }
@@ -513,7 +505,6 @@ export default function App() {
                   isAuthed = await firebaseSignIn(admin.email, fbPwd);
                 }
                 if (isAuthed) {
-                  console.log(`[Firebase Auth] Fallback: authenticated as admin ${admin.username}`);
                   break;
                 }
               }
@@ -544,7 +535,6 @@ export default function App() {
           if (allUsers.length > 1 && isAuthed) {
             // Use a small delay to let the UI render first
             setTimeout(async () => {
-              console.log(`[Firebase Auth] Ensuring ${allUsers.length} users have auth accounts...`);
               for (const u of allUsers) {
                 if (u.email && u.email !== currentUser?.email) {
                   const pwd = u.password || `${u.username}123`;
@@ -558,7 +548,6 @@ export default function App() {
                 const fbPwd = currentUser.password || `${currentUser.username}123`;
                 await firebaseSignIn(currentUser.email, fbPwd).catch(() => {});
               }
-              console.log(`[Firebase Auth] Bulk user auth provisioning complete`);
             }, 3000);
           }
         } catch (err) {
@@ -704,7 +693,6 @@ export default function App() {
         await waitForAuthAndMigrate();
         // Attach listeners immediately after auth (source of truth for real-time sync)
         attachFirestoreListeners();
-        console.log('[Firebase] Listeners attached — real-time sync active');
       };
       wrappedWaitForAuth();
 
