@@ -193,3 +193,46 @@ export async function sendInvitationEmail(
     };
   }
 }
+
+export async function sendSupplierRateConfirmation(
+  supplierEmail: string,
+  supplierName: string,
+  rsvId: number,
+  guestName: string,
+  hotelName: string,
+  checkIn: string,
+  checkOut: string,
+  nights: number,
+  totalBuy: number,
+  supplierVoucher?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) {
+    return { success: false, error: 'Email service not configured' };
+  }
+  try {
+    await (emailjs as any).send(
+      SERVICE_ID,
+      TEMPLATE_ID,
+      {
+        to_email: supplierEmail,
+        to_name: supplierName,
+        subject: `Rate Confirmation Request - RSV-${rsvId} | ${guestName} | ${checkIn}`,
+        message: `Dear ${supplierName},\n\nPlease confirm the following booking:\n\n` +
+          `RSV: ${rsvId}\n` +
+          `Guest: ${guestName}\n` +
+          `Hotel: ${hotelName}\n` +
+          `Check-in: ${checkIn}\n` +
+          `Check-out: ${checkOut}\n` +
+          `Nights: ${nights}\n` +
+          `Net Rate: ${totalBuy.toLocaleString()} SAR\n` +
+          (supplierVoucher ? `Your Ref: ${supplierVoucher}\n` : '') +
+          `\nPlease confirm at your earliest convenience.\n\nZumra Hotels`,
+        logo_url: `${window.location.origin}/zumra-logo.png`,
+      },
+      { publicKey: PUBLIC_KEY }
+    );
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send' };
+  }
+}

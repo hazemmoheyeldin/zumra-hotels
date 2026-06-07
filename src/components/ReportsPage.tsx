@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Reservation, Agent, Hotel, Transaction, Account, OtherService, TaxSettings, Expense, ExpenseCategory } from '../types';
+import { Reservation, Agent, Hotel, Transaction, Account, OtherService, TaxSettings, Expense, ExpenseCategory, SalesPerson } from '../types';
 import ArrivalReportPDF from './ArrivalReportPDF';
 import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
@@ -22,13 +22,14 @@ interface ReportsPageProps {
   taxSettings?: TaxSettings[];
   expenses?: Expense[];
   expenseCategories?: ExpenseCategory[];
+  salesPersons?: SalesPerson[];
   initialTab?: ReportTab;
   onNavigate?: (page: string) => void;
 }
 
-type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation';
+type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'commission' | 'seasonAnalytics' | 'supplierPayments';
 
-export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], initialTab, onNavigate }: ReportsPageProps) {
+export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate }: ReportsPageProps) {
   const { t, lang } = useLang();
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab || 'arrival');
 
@@ -268,6 +269,34 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               }`}
             >
               🔄 Reconciliation
+            </button>
+          </div>
+          {/* Analytics & Commission */}
+          <div className="flex items-center gap-0.5 pl-2 border-l border-slate-200 ml-1">
+            <span className="text-[8px] uppercase font-bold text-slate-400 -rotate-90 whitespace-nowrap mr-1 hidden md:block">Analytics</span>
+            <button
+              onClick={() => setActiveReportTab('commission')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'commission' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              💼 Commission
+            </button>
+            <button
+              onClick={() => setActiveReportTab('seasonAnalytics')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'seasonAnalytics' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📆 Season Analytics
+            </button>
+            <button
+              onClick={() => setActiveReportTab('supplierPayments')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'supplierPayments' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🏛️ Supplier Payments
             </button>
           </div>
         </div>
@@ -1139,6 +1168,228 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     </tr>
                   ))}
                   {clientRows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No client data</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== COMMISSION REPORT ==================== */}
+      {activeReportTab === 'commission' && (() => {
+        const activeReservations = reservations.filter(r => r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
+        const commissionData = salesPersons.filter(sp => sp.active).map(sp => {
+          const spBookings = activeReservations.filter(r => r.salesPersonId === sp.id);
+          const totalRevenue = spBookings.reduce((sum, r) => sum + getReservationTotals(r).totalSell, 0);
+          const totalCost = spBookings.reduce((sum, r) => sum + getReservationTotals(r).totalBuy, 0);
+          const totalProfit = totalRevenue - totalCost;
+          const commissionAmount = (totalRevenue * sp.commission) / 100;
+          return { sp, bookings: spBookings.length, totalRevenue, totalCost, totalProfit, commissionAmount };
+        });
+        const grandTotalCommission = commissionData.reduce((s, d) => s + d.commissionAmount, 0);
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-800">Sales Person Commission Report</h3>
+              <button onClick={() => {
+                const rows = commissionData.map(d => ({
+                  'Sales Person': d.sp.name, 'Commission %': `${d.sp.commission}%`, 'Bookings': d.bookings,
+                  'Revenue': d.totalRevenue, 'Cost': d.totalCost, 'Profit': d.totalProfit, 'Commission': d.commissionAmount
+                }));
+                exportToCSV('commission-report.csv', rows);
+              }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">Export CSV</button>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-indigo-800">{salesPersons.filter(sp => sp.active).length}</div>
+                <div className="text-[10px] text-indigo-600">Active Sales Persons</div>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-emerald-800">{commissionData.reduce((s, d) => s + d.bookings, 0)}</div>
+                <div className="text-[10px] text-emerald-600">Total Bookings</div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-amber-800">{grandTotalCommission.toLocaleString()}</div>
+                <div className="text-[10px] text-amber-600">Total Commission (SAR)</div>
+              </div>
+            </div>
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-slate-600">Sales Person</th>
+                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Commission %</th>
+                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Bookings</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Revenue</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Profit</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Commission</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {commissionData.map(d => (
+                    <tr key={d.sp.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium">{d.sp.name}</td>
+                      <td className="px-3 py-2 text-center font-mono">{d.sp.commission}%</td>
+                      <td className="px-3 py-2 text-center">{d.bookings}</td>
+                      <td className="px-3 py-2 text-right font-mono">{d.totalRevenue.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-700">{d.totalProfit.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono font-bold text-amber-700">{d.commissionAmount.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {commissionData.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No sales persons configured</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== SEASON ANALYTICS ==================== */}
+      {activeReportTab === 'seasonAnalytics' && (() => {
+        const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+        const months: Record<string, { label: string; revenue: number; cost: number; profit: number; bookings: number; nights: number }> = {};
+        const hotelPerf: Record<string, { name: string; revenue: number; cost: number; bookings: number }> = {};
+        const sourceStats: Record<string, { count: number; revenue: number }> = {};
+        activeRes.forEach(r => {
+          const month = r.checkIn.substring(0, 7);
+          if (!months[month]) {
+            const d = new Date(month + '-01');
+            months[month] = { label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }), revenue: 0, cost: 0, profit: 0, bookings: 0, nights: 0 };
+          }
+          const tot = getReservationTotals(r);
+          months[month].revenue += tot.totalSell;
+          months[month].cost += tot.totalBuy;
+          months[month].profit += tot.profit;
+          months[month].bookings++;
+          months[month].nights += r.nights;
+          const hotel = hotels.find(h => h.id === r.hotelId);
+          const hName = hotel?.name || 'Unknown';
+          if (!hotelPerf[hName]) hotelPerf[hName] = { name: hName, revenue: 0, cost: 0, bookings: 0 };
+          hotelPerf[hName].revenue += tot.totalSell;
+          hotelPerf[hName].cost += tot.totalBuy;
+          hotelPerf[hName].bookings++;
+          const src = r.bookingSource || 'Unknown';
+          if (!sourceStats[src]) sourceStats[src] = { count: 0, revenue: 0 };
+          sourceStats[src].count++;
+          sourceStats[src].revenue += tot.totalSell;
+        });
+        const sortedMonths = Object.entries(months).sort(([a], [b]) => a.localeCompare(b));
+        const sortedHotels = Object.values(hotelPerf).sort((a, b) => (b.revenue - b.cost) - (a.revenue - a.cost));
+        const sortedSources = Object.entries(sourceStats).sort(([, a], [, b]) => b.revenue - a.revenue);
+        const maxRevenue = Math.max(...sortedMonths.map(([, m]) => m.revenue), 1);
+        return (
+          <div className="space-y-6">
+            <h3 className="text-lg font-bold text-slate-800">Season & Period Pricing Analytics</h3>
+            <div className="bg-white border rounded-xl p-4">
+              <h4 className="font-semibold text-slate-700 mb-3 text-sm">Monthly Revenue & Profit</h4>
+              <div className="space-y-1">
+                {sortedMonths.map(([key, m]) => (
+                  <div key={key} className="flex items-center gap-2 text-[10px]">
+                    <span className="w-14 text-slate-500 font-mono flex-shrink-0">{m.label}</span>
+                    <div className="flex-1 flex gap-0.5">
+                      <div className="h-4 bg-indigo-400 rounded-sm" style={{ width: `${(m.revenue / maxRevenue) * 100}%` }} title={`Revenue: ${m.revenue.toLocaleString()}`} />
+                      <div className="h-4 bg-emerald-400 rounded-sm" style={{ width: `${(m.profit / maxRevenue) * 100}%` }} title={`Profit: ${m.profit.toLocaleString()}`} />
+                    </div>
+                    <span className="w-24 text-right font-mono text-slate-600 flex-shrink-0">{m.revenue.toLocaleString()}</span>
+                    <span className="w-16 text-right font-mono text-emerald-600 flex-shrink-0">{m.profit.toLocaleString()}</span>
+                    <span className="w-10 text-right text-slate-400 flex-shrink-0">{m.bookings}B</span>
+                  </div>
+                ))}
+                {sortedMonths.length === 0 && <div className="text-center py-4 text-slate-400">No data</div>}
+              </div>
+              <div className="flex gap-4 mt-2 text-[9px] text-slate-500">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 bg-indigo-400 rounded-sm inline-block" /> Revenue</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 bg-emerald-400 rounded-sm inline-block" /> Profit</span>
+              </div>
+            </div>
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b bg-slate-50"><h4 className="font-semibold text-slate-700 text-sm">Top Hotels by Profit</h4></div>
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50/50"><tr><th className="text-left px-3 py-2">Hotel</th><th className="text-center px-3 py-2">Bookings</th><th className="text-right px-3 py-2">Revenue</th><th className="text-right px-3 py-2">Cost</th><th className="text-right px-3 py-2">Margin %</th></tr></thead>
+                <tbody className="divide-y">
+                  {sortedHotels.slice(0, 10).map(h => (
+                    <tr key={h.name} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium">{h.name}</td>
+                      <td className="px-3 py-2 text-center">{h.bookings}</td>
+                      <td className="px-3 py-2 text-right font-mono">{h.revenue.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono">{h.cost.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-700">{h.revenue > 0 ? (((h.revenue - h.cost) / h.revenue) * 100).toFixed(1) : '0'}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="bg-white border rounded-xl p-4">
+              <h4 className="font-semibold text-slate-700 mb-3 text-sm">Booking Source Distribution</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {sortedSources.map(([src, stats]) => (
+                  <div key={src} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                    <div className="font-semibold text-slate-700 text-sm">{src}</div>
+                    <div className="text-[10px] text-slate-500">{stats.count} bookings &bull; {stats.revenue.toLocaleString()} SAR</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== SUPPLIER PAYMENT SCHEDULER ==================== */}
+      {activeReportTab === 'supplierPayments' && (() => {
+        const suppliers = agents.filter(a => a.type === 'Supplier' || a.type === 'Both');
+        const todayStr = new Date().toISOString().split('T')[0];
+        const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+        const supplierData = suppliers.map(sup => {
+          const supBookings = activeRes.filter(r => r.supplierId === sup.id);
+          const totalDue = supBookings.reduce((sum, r) => sum + getReservationTotals(r).totalBuy, 0);
+          const totalPaid = supBookings.reduce((sum, r) => sum + (r.amountPaidToSupplier || 0), 0);
+          const outstanding = totalDue - totalPaid;
+          const dueSoon = supBookings.filter(r => r.supplierDueDate && r.supplierDueDate <= todayStr && getReservationTotals(r).totalBuy > (r.amountPaidToSupplier || 0));
+          return { sup, totalDue, totalPaid, outstanding, dueSoon: dueSoon.length, bookings: supBookings.length };
+        }).filter(d => d.bookings > 0);
+        const grandOutstanding = supplierData.reduce((s, d) => s + d.outstanding, 0);
+        const overdueCount = supplierData.reduce((s, d) => s + d.dueSoon, 0);
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-800">Supplier Payment Scheduler</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-rose-800">{overdueCount}</div>
+                <div className="text-[10px] text-rose-600">Overdue Payments</div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-amber-800">{grandOutstanding.toLocaleString()}</div>
+                <div className="text-[10px] text-amber-600">Total Outstanding (SAR)</div>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-emerald-800">{supplierData.length}</div>
+                <div className="text-[10px] text-emerald-600">Active Suppliers</div>
+              </div>
+            </div>
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-slate-600">Supplier</th>
+                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Bookings</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Total Due</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Paid</th>
+                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Outstanding</th>
+                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {supplierData.sort((a, b) => b.outstanding - a.outstanding).map(d => (
+                    <tr key={d.sup.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium">{d.sup.name}</td>
+                      <td className="px-3 py-2 text-center">{d.bookings}</td>
+                      <td className="px-3 py-2 text-right font-mono">{d.totalDue.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-700">{d.totalPaid.toLocaleString()}</td>
+                      <td className={`px-3 py-2 text-right font-mono font-bold ${d.outstanding > 0 ? 'text-rose-700' : 'text-slate-500'}`}>{d.outstanding.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-center">{d.dueSoon > 0 ? <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-bold">{d.dueSoon}</span> : '-'}</td>
+                    </tr>
+                  ))}
+                  {supplierData.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No supplier data</td></tr>}
                 </tbody>
               </table>
             </div>

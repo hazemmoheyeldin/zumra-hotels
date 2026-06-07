@@ -180,6 +180,11 @@ export interface Reservation {
   groupRef?: string; // Group booking reference - links multiple rooms under one group
   passportExpiry?: string; // Guest passport expiry date
   visaExpiry?: string; // Guest visa expiry date
+  bookingSource?: string; // Channel: Direct, Booking.com, Expedia, Agent, Walk-in, etc.
+  salesPersonId?: string; // Linked sales person for commission tracking
+  tags?: string[]; // Custom labels: VIP, Honeymoon, Corporate, etc.
+  supplierDueDate?: string; // When supplier payment is due
+  specialRequests?: string; // Guest special requests/preferences for this booking
 }
 
 export interface Account {

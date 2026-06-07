@@ -4,10 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
-import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder } from '../lib/email';
+import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder, sendSupplierRateConfirmation } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
@@ -66,7 +66,13 @@ interface ReservationsPageProps {
   onRequestEditApproval?: (request: import('../types').EditApprovalRequest) => void;
   onNavigate?: (page: string, filters?: any) => void;
   termsAndConditions?: TermsAndConditions[];
+  salesPersons?: SalesPerson[];
+  onSaveFollowUp?: (fu: FollowUp) => void;
+  followUps?: FollowUp[];
 }
+
+const BOOKING_SOURCES = ['Direct', 'Booking.com', 'Expedia', 'Agoda', 'Agent', 'Walk-in', 'Phone', 'Email', 'Social Media', 'Partner', 'Other'];
+const TAG_OPTIONS = ['VIP', 'Honeymoon', 'Corporate', 'Family', 'Group-Tour', 'Long-Stay', 'Urgent', 'Repeat-Guest'];
 
 export default function ReservationsPage({
   reservations,
@@ -87,6 +93,9 @@ export default function ReservationsPage({
   onRequestEditApproval,
   onNavigate,
   termsAndConditions = [],
+  salesPersons = [],
+  onSaveFollowUp,
+  followUps = [],
 }: ReservationsPageProps) {
   
   // View states
@@ -285,6 +294,12 @@ export default function ReservationsPage({
   const [passportExpiry, setPassportExpiry] = useState('');
   const [visaExpiry, setVisaExpiry] = useState('');
   const [selectedTcId, setSelectedTcId] = useState('');
+  const [bookingSource, setBookingSource] = useState('Direct');
+  const [salesPersonId, setSalesPersonId] = useState('');
+  const [bookingTags, setBookingTags] = useState<string[]>([]);
+  const [supplierDueDate, setSupplierDueDate] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
+  const [compareIds, setCompareIds] = useState<number[]>([]);
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -504,6 +519,11 @@ export default function ReservationsPage({
     setBankAccountId(res.bankAccountId || '');
     setAgreementNo(res.agreementNo || '');
     setSelectedTcId(res.tcId || '');
+    setBookingSource(res.bookingSource || 'Direct');
+    setSalesPersonId(res.salesPersonId || '');
+    setBookingTags(res.tags || []);
+    setSupplierDueDate(res.supplierDueDate || '');
+    setSpecialRequests(res.specialRequests || '');
     setSupplierVoucher(res.supplierVoucher || '');
     setCancellationFee(res.cancellationFee || 0);
     setCancellationReason(res.cancellationReason || '');
@@ -658,6 +678,11 @@ export default function ReservationsPage({
       bankAccountId: bankAccountId || undefined,
       agreementNo,
       tcId: selectedTcId || undefined,
+      bookingSource: bookingSource || undefined,
+      salesPersonId: salesPersonId || undefined,
+      tags: bookingTags.length > 0 ? bookingTags : undefined,
+      supplierDueDate: supplierDueDate || undefined,
+      specialRequests: specialRequests || undefined,
       supplierVoucher,
       allotmentId: selectedAllotmentId || undefined,
       nonRefundable: nonRefundable || undefined,
@@ -753,6 +778,27 @@ export default function ReservationsPage({
 
     onSaveReservation(reservationToSave);
     clearDraft('reservation_form');
+
+    // Auto-create follow-up for option dates
+    if (onSaveFollowUp && reservationToSave.status === 'Tentative') {
+      const followUpDate = reservationToSave.clientOptionDate || reservationToSave.supplierOptionDate;
+      if (followUpDate) {
+        const existingFollowUp = followUps.find(f => f.topic.includes(`RSV-${reservationToSave.id}`) && f.status === 'Pending');
+        if (!existingFollowUp) {
+          const newFollowUp: FollowUp = {
+            id: `fu_auto_${Date.now()}`,
+            clientId: reservationToSave.clientId,
+            date: followUpDate,
+            topic: `Option Expiry - RSV-${reservationToSave.id}`,
+            notes: `Auto-created: ${reservationToSave.guestName} at ${hotels.find(h => h.id === reservationToSave.hotelId)?.name || ''}. Client option: ${reservationToSave.clientOptionDate || 'N/A'}, Supplier option: ${reservationToSave.supplierOptionDate || 'N/A'}`,
+            status: 'Pending',
+            createdBy: currentUser
+          };
+          onSaveFollowUp(newFollowUp);
+        }
+      }
+    }
+
     resetForm();
     toast.success(`Booking Reservation RSV-${nextId} saved successfully!`);
   };
@@ -843,6 +889,12 @@ export default function ReservationsPage({
     setPassportExpiry('');
     setVisaExpiry('');
     setSelectedTcId('');
+    setBookingSource('Direct');
+    setSalesPersonId('');
+    setBookingTags([]);
+    setSupplierDueDate('');
+    setSpecialRequests('');
+    setCompareIds([]);
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
     setShowForm(false);
   };
@@ -1004,6 +1056,7 @@ export default function ReservationsPage({
   });
 
   const handleExportCSV = () => {
+    const spMap = new Map(salesPersons.map(sp => [sp.id, sp.name]));
     const reportData = filteredReservations.map(res => {
       const h = hotels.find(ht => ht.id === res.hotelId);
       const c = agents.find(ac => ac.id === res.clientId);
@@ -1032,6 +1085,7 @@ export default function ReservationsPage({
   };
 
   const handleExportFullReport = () => {
+    const spMap = new Map(salesPersons.map(sp => [sp.id, sp.name]));
     const rows: object[] = [];
     filteredReservations.forEach(res => {
       const h = hotels.find(ht => ht.id === res.hotelId);
@@ -1075,7 +1129,12 @@ export default function ReservationsPage({
           'Cancel Fee': res.cancellationFee || 0,
           'Hotel Conf#': res.hotelConfirmationNo || '',
           'Booking Date': res.createdAt?.split(' ')[0] || '',
-          'Created By': res.createdBy || ''
+          'Created By': res.createdBy || '',
+          'Booking Source': res.bookingSource || '',
+          'Sales Person': spMap.get(res.salesPersonId || '') || '',
+          'Tags': (res.tags || []).join(', '),
+          'Supplier Due Date': res.supplierDueDate || '',
+          'Special Requests': res.specialRequests || ''
         });
       });
     });
@@ -1804,10 +1863,42 @@ export default function ReservationsPage({
                 </select>
               </div>
               <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Booking Source</label>
+                <select value={bookingSource} onChange={(e) => setBookingSource(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
+                  {BOOKING_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Sales Person</label>
+                <select value={salesPersonId} onChange={(e) => setSalesPersonId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
+                  <option value="">— None —</option>
+                  {salesPersons.filter(sp => sp.active).map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier Due Date</label>
+                <input type="date" value={supplierDueDate} onChange={(e) => setSupplierDueDate(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
+              </div>
+              <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>
                 <input type="text" value={supplierVoucher} onChange={(e) => setSupplierVoucher(e.target.value)} placeholder="Supplier Ref" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
               </div>
               {/* Non-Refundable Toggle */}
+              <div className="col-span-2">
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Tags / Labels</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {TAG_OPTIONS.map(tag => (
+                    <button key={tag} type="button" onClick={() => setBookingTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition ${
+                        bookingTags.includes(tag) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'
+                      }`}>{tag}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Special Requests / Guest Preferences</label>
+                <textarea value={specialRequests} onChange={(e) => setSpecialRequests(e.target.value)} placeholder="Early check-in, extra pillows, dietary requirements..." rows={2} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white resize-none" />
+              </div>
               <div className="col-span-2 flex items-center gap-3 bg-rose-50/50 border border-rose-200 rounded-xl px-4 py-3">
                 <button
                   type="button"
@@ -2846,6 +2937,46 @@ export default function ReservationsPage({
                       </>
                     );
                   })()}
+                  {/* WhatsApp Confirmation */}
+                  {(() => {
+                    const client = agents.find(a => a.id === resObj.clientId);
+                    const hotel = hotels.find(h => h.id === resObj.hotelId);
+                    const totals = getReservationTotals(resObj);
+                    const phone = (client?.phone || '').replace(/[^0-9+]/g, '');
+                    if (!phone) return null;
+                    const msg = encodeURIComponent(
+                      `Zumra Hotels - Booking Confirmation\n\n` +
+                      `RSV: ${resObj.id}\nGuest: ${resObj.guestName}\n` +
+                      `Hotel: ${hotel?.name || ''}\n` +
+                      `Check-in: ${resObj.checkIn}\nCheck-out: ${resObj.checkOut}\n` +
+                      `Nights: ${resObj.nights}\nTotal: ${totals.totalSell.toLocaleString()} SAR\n` +
+                      `Status: ${resObj.status}`
+                    );
+                    return (
+                      <a href={`https://wa.me/${phone.startsWith('+') ? phone.slice(1) : phone}?text=${msg}`} target="_blank" rel="noopener noreferrer"
+                        className="bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] inline-flex items-center gap-1 no-underline">
+                        <span>💬</span> WhatsApp
+                      </a>
+                    );
+                  })()}
+                  {/* Supplier Rate Confirmation */}
+                  {resObj.status === 'Confirmed' && (() => {
+                    const supplier = agents.find(a => a.id === resObj.supplierId);
+                    const hotel = hotels.find(h => h.id === resObj.hotelId);
+                    const totals = getReservationTotals(resObj);
+                    if (!supplier?.email) return null;
+                    return (
+                      <button onClick={async () => {
+                        const result = await sendSupplierRateConfirmation(supplier.email, supplier.name || supplier.companyName || '', resObj.id, resObj.guestName, hotel?.name || '', resObj.checkIn, resObj.checkOut, resObj.nights, totals.totalBuy, resObj.supplierVoucher);
+                        if (result.success) toast.success('Rate confirmation sent to supplier'); else toast.error(result.error || 'Email failed');
+                      }} className="bg-violet-600 hover:bg-violet-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]" title={`Send rate confirmation to ${supplier.email}`}>📧 Supplier</button>
+                    );
+                  })()}
+                  <button onClick={() => {
+                    setCompareIds(prev => prev.includes(resObj.id) ? prev.filter(id => id !== resObj.id) : prev.length < 2 ? [...prev, resObj.id] : prev);
+                  }} className={`font-bold px-3 py-1.5 rounded-lg transition text-[10px] ${
+                    compareIds.includes(resObj.id) ? 'bg-cyan-600 text-white' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'
+                  }`}>{compareIds.includes(resObj.id) ? '✓ Comparing' : '⇔ Compare'}</button>
                 </div>
                 <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">{t('common.close')}</button>
               </div>
@@ -2904,6 +3035,59 @@ export default function ReservationsPage({
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+
+      {/* Booking Comparison Modal */}
+      {compareIds.length === 2 && (() => {
+        const r1 = reservations.find(r => r.id === compareIds[0]);
+        const r2 = reservations.find(r => r.id === compareIds[1]);
+        if (!r1 || !r2) return null;
+        const h1 = hotels.find(h => h.id === r1.hotelId);
+        const h2 = hotels.find(h => h.id === r2.hotelId);
+        const t1 = getReservationTotals(r1);
+        const t2 = getReservationTotals(r2);
+        const fields: { label: string; v1: string | number; v2: string | number }[] = [
+          { label: 'RSV', v1: `RSV-${r1.id}`, v2: `RSV-${r2.id}` },
+          { label: 'Guest', v1: r1.guestName, v2: r2.guestName },
+          { label: 'Hotel', v1: h1?.name || '', v2: h2?.name || '' },
+          { label: 'Check-in', v1: r1.checkIn, v2: r2.checkIn },
+          { label: 'Check-out', v1: r1.checkOut, v2: r2.checkOut },
+          { label: 'Nights', v1: r1.nights, v2: r2.nights },
+          { label: 'Status', v1: r1.status, v2: r2.status },
+          { label: 'Total Buy', v1: t1.totalBuy, v2: t2.totalBuy },
+          { label: 'Total Sell', v1: t1.totalSell, v2: t2.totalSell },
+          { label: 'Profit', v1: t1.profit, v2: t2.profit },
+          { label: 'Client Paid', v1: r1.amountPaidByClient || 0, v2: r2.amountPaidByClient || 0 },
+          { label: 'Source', v1: r1.bookingSource || '-', v2: r2.bookingSource || '-' },
+        ];
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setCompareIds([])}>
+            <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-slate-900">⇔ Booking Comparison</h2>
+                <button onClick={() => setCompareIds([])} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+              </div>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="text-left p-2 font-semibold text-slate-600 border-b">Field</th>
+                    <th className="text-left p-2 font-semibold text-indigo-700 border-b">RSV-{r1.id}</th>
+                    <th className="text-left p-2 font-semibold text-emerald-700 border-b">RSV-{r2.id}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fields.map(f => (
+                    <tr key={f.label} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="p-2 font-medium text-slate-600">{f.label}</td>
+                      <td className={`p-2 font-mono ${String(f.v1) !== String(f.v2) ? 'text-indigo-700 font-bold bg-indigo-50/50' : 'text-slate-700'}`}>{typeof f.v1 === 'number' ? f.v1.toLocaleString() : f.v1}</td>
+                      <td className={`p-2 font-mono ${String(f.v1) !== String(f.v2) ? 'text-emerald-700 font-bold bg-emerald-50/50' : 'text-slate-700'}`}>{typeof f.v2 === 'number' ? f.v2.toLocaleString() : f.v2}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

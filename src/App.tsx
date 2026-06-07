@@ -25,6 +25,7 @@ import SalesPage from './components/SalesPage';
 import ProductionPage from './components/ProductionPage';
 import ZumraLogo from './components/ZumraLogo';
 import LoginPage from './components/LoginPage';
+import ClientPortal from './components/ClientPortal';
 import InboxModal from './components/InboxModal';
 import CalendarView from './components/CalendarView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
@@ -1377,6 +1378,9 @@ export default function App() {
             onRequestEditApproval={handleRequestEditApproval}
             onNavigate={handleNavigate}
             termsAndConditions={termsAndConditions}
+            salesPersons={salesPersons}
+            followUps={followUps}
+            onSaveFollowUp={handleSaveFollowUp}
           />
           </ErrorBoundary>
         );
@@ -1475,6 +1479,7 @@ export default function App() {
             taxSettings={taxSettings}
             expenses={expenses}
             expenseCategories={expenseCategories}
+            salesPersons={salesPersons}
             initialTab={activeFilters?.reportTab}
             onNavigate={handleNavigate}
           />
@@ -1647,6 +1652,11 @@ export default function App() {
   ];
 
   if (!currentUser) {
+    // Check for client portal URL
+    const portalId = new URLSearchParams(window.location.search).get('portal');
+    if (portalId) {
+      return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={portalId} />;
+    }
     return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={doAddUser} />;
   }
 
