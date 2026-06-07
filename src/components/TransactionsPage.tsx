@@ -19,7 +19,8 @@ interface TransactionsPageProps {
   onDeleteTransaction: (id: string) => void;
 }
 
-import { exportToCSV } from '../lib/storage';
+import { exportToCSV, getReservationTotals } from '../lib/storage';
+import { round2 } from '../lib/finance';
 
 export default function TransactionsPage({ transactions, agents, accounts, reservations, currentUser, onSaveTransaction, onDeleteTransaction }: TransactionsPageProps) {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -123,6 +124,41 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       if (!computedAmount || computedAmount <= 0) {
         showToast('Exchange rate and EGP amount must be valid.', 'warning');
         return;
+      }
+    }
+
+    // ── Transaction Validation ──
+    // Prevent negative or zero amounts
+    if (computedAmount <= 0) {
+      showToast('Transaction amount must be greater than zero.', 'warning');
+      return;
+    }
+
+    // Reservation-linked validation
+    if (reservationId) {
+      const linkedRes = reservations.find(r => r.id.toString() === reservationId);
+      if (linkedRes) {
+        const { totalSell, totalBuy } = getReservationTotals(linkedRes);
+        const isPayment = type === 'ClientPayment' || type === 'SupplierPayment';
+        const isRefund = type === 'ClientRefund' || type === 'SupplierRefund';
+        const totalOwed = (type === 'ClientPayment' || type === 'ClientRefund') ? totalSell : totalBuy;
+        const currentPaid = (type === 'ClientPayment' || type === 'ClientRefund')
+          ? (linkedRes.amountPaidByClient || 0)
+          : (linkedRes.amountPaidToSupplier || 0);
+
+        if (isPayment && totalOwed > 0) {
+          const remaining = round2(totalOwed - currentPaid);
+          if (computedAmount > remaining) {
+            showToast(`Payment (${round2(computedAmount)}) exceeds remaining balance (${remaining}). Consider using the reservation page for tracked payments.`, 'warning');
+          }
+        }
+
+        if (isRefund && currentPaid >= 0) {
+          if (computedAmount > currentPaid) {
+            showToast(`Refund amount (${round2(computedAmount)}) exceeds total paid (${round2(currentPaid)}) on this reservation.`, 'error');
+            return;
+          }
+        }
       }
     }
 

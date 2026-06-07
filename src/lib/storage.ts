@@ -6,6 +6,7 @@
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
+import { round2, safeAdd, safeSubtract } from './finance';
 
 // Egypt Time helper: UTC + 3 hours
 export function getEgyptTime(): Date {
@@ -602,49 +603,68 @@ export function getAgentActualBalance(agent: Agent, reservations: Reservation[],
   transactions.forEach(tr => {
     if (tr.agentId === agent.id) {
       if (!isSupplier && tr.type === 'ClientPayment') {
-        lifetimeTxSum += tr.amount;
+        lifetimeTxSum = safeAdd(lifetimeTxSum, tr.amount);
       } else if (isSupplier && tr.type === 'SupplierPayment') {
-        lifetimeTxSum += tr.amount;
+        lifetimeTxSum = safeAdd(lifetimeTxSum, tr.amount);
       } else if (!isSupplier && tr.type === 'ClientRefund') {
-        lifetimeTxSum -= tr.amount; // Refunds reverse payment effect
+        lifetimeTxSum = safeSubtract(lifetimeTxSum, tr.amount); // Refunds reverse payment effect
       } else if (isSupplier && tr.type === 'SupplierRefund') {
-        lifetimeTxSum -= tr.amount;
+        lifetimeTxSum = safeSubtract(lifetimeTxSum, tr.amount);
       }
     }
   });
 
   const originalOpeningBalance = isSupplier 
-    ? (agent.balance + lifetimeTxSum) 
-    : (agent.balance - lifetimeTxSum);
+    ? round2(agent.balance + lifetimeTxSum) 
+    : round2(agent.balance - lifetimeTxSum);
 
   let actualBalance = originalOpeningBalance;
 
   reservations.forEach(res => {
+    // Skip cancelled reservations — they net zero via reversal entries in statement.
+    // Include only if they have non-zero payments (cancellation fees retained).
+    const isCancelled = res.status === 'Cancelled';
+    
     if (!isSupplier && res.clientId === agent.id) {
-      const { totalSell } = getReservationTotals(res);
-      actualBalance += totalSell; 
+      if (!isCancelled) {
+        const { totalSell } = getReservationTotals(res);
+        actualBalance = safeAdd(actualBalance, totalSell);
+      } else {
+        // Cancelled: only include payments retained as cancellation fees
+        const paid = res.amountPaidByClient || 0;
+        if (paid > 0) {
+          actualBalance = safeSubtract(actualBalance, paid); // They still owe what they paid (net: zero debit + keep payment)
+        }
+      }
     }
     if (isSupplier && res.supplierId === agent.id) {
-      const { totalBuy } = getReservationTotals(res);
-      actualBalance += totalBuy; 
+      if (!isCancelled) {
+        const { totalBuy } = getReservationTotals(res);
+        actualBalance = safeAdd(actualBalance, totalBuy);
+      } else {
+        const paid = res.amountPaidToSupplier || 0;
+        if (paid > 0) {
+          actualBalance = safeSubtract(actualBalance, paid);
+        }
+      }
     }
   });
 
   transactions.forEach(tr => {
     if (tr.agentId === agent.id) {
       if (!isSupplier && tr.type === 'ClientPayment') {
-        actualBalance -= tr.amount; 
+        actualBalance = safeSubtract(actualBalance, tr.amount); 
       } else if (isSupplier && tr.type === 'SupplierPayment') {
-        actualBalance -= tr.amount; 
+        actualBalance = safeSubtract(actualBalance, tr.amount); 
       } else if (!isSupplier && tr.type === 'ClientRefund') {
-        actualBalance += tr.amount; // Refund adds back to what they owe
+        actualBalance = safeAdd(actualBalance, tr.amount); // Refund adds back to what they owe
       } else if (isSupplier && tr.type === 'SupplierRefund') {
-        actualBalance += tr.amount; // Supplier refund adds back to what we owe
+        actualBalance = safeAdd(actualBalance, tr.amount); // Supplier refund adds back to what we owe
       }
     }
   });
 
-  return actualBalance;
+  return round2(actualBalance);
 }
 
 // Helper to auto-calculate room pax from roomType name
@@ -740,14 +760,14 @@ export function getReservationTotals(res: Reservation) {
       extraMeal2Buy = (room.extraMeal2BuyRate || 0) * paxCount * res.nights * room.qty;
     }
 
-    totalSell += baseRoomSell + mealSell + extraBedSell + viewSuppSell + extraMeal1Sell + extraMeal2Sell;
-    totalBuy += baseRoomBuy + mealBuy + extraBedBuy + viewSuppBuy + extraMeal1Buy + extraMeal2Buy;
+    totalSell = safeAdd(totalSell, baseRoomSell + mealSell + extraBedSell + viewSuppSell + extraMeal1Sell + extraMeal2Sell);
+    totalBuy = safeAdd(totalBuy, baseRoomBuy + mealBuy + extraBedBuy + viewSuppBuy + extraMeal1Buy + extraMeal2Buy);
   });
 
-  const profit = totalSell - totalBuy;
-  const markupPct = totalBuy > 0 ? ((profit / totalBuy) * 100) : 0;
-  const vat = totalSell * 0.15; // 15% VAT
-  const totalWithVat = totalSell + vat;
+  const profit = safeSubtract(totalSell, totalBuy);
+  const markupPct = totalBuy > 0 ? round2((profit / totalBuy) * 100) : 0;
+  const vat = round2(totalSell * 0.15); // 15% VAT
+  const totalWithVat = safeAdd(totalSell, vat);
 
   return {
     totalSell,

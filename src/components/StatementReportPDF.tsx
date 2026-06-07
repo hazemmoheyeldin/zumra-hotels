@@ -6,6 +6,9 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Transaction, Hotel, StampPosition } from '../types';
 import { getReservationTotals } from '../lib/storage';
+import { round2, sumAmounts, safeAdd, safeSubtract, absAmount } from '../lib/finance';
+// NOTE: All financial accumulations use safeAdd/safeSubtract/round2 from finance.ts
+// to prevent IEEE 754 floating-point drift across large transaction sets.
 import ZumraLogo from './ZumraLogo';
 import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
@@ -60,6 +63,22 @@ export default function StatementReportPDF({ client, reservations, transactions,
     }
   };
 
+  // ── Sign Convention (symmetric for Client and Supplier) ──────────
+  // Client statement:
+  //   Reservation = DEBIT  (client owes us)   → totalSell
+  //   Payment     = CREDIT (client paid us)   → ClientPayment
+  //   Refund      = DEBIT  (we returned money) → ClientRefund
+  //
+  // Supplier statement:
+  //   Reservation = DEBIT  (we owe supplier)  → totalBuy
+  //   Payment     = CREDIT (we paid supplier)  → SupplierPayment
+  //   Refund      = DEBIT  (supplier returned)  → SupplierRefund
+  //
+  // Running balance: Previous Balance + Debits - Credits = New Balance
+  // A positive running balance = they owe us (debit balance)
+  // A negative running balance = they have credit (credit balance)
+  // ─────────────────────────────────────────────────────────────────
+
   // Compile chronological list of entries for this client in date range
   const getStatementEntries = (): StatementLine[] => {
     const list: StatementLine[] = [];
@@ -73,10 +92,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
       const isClientRefund = !isSupplier && tr.agentId === client.id && tr.type === 'ClientRefund';
       const isSupplierRefund = isSupplier && tr.agentId === client.id && tr.type === 'SupplierRefund';
       if (isClientPayment || isSupplierPayment) {
-        allLifetimeLegacyCredits += tr.amount;
+        allLifetimeLegacyCredits = safeAdd(allLifetimeLegacyCredits, tr.amount);
       }
       if (isClientRefund || isSupplierRefund) {
-        allLifetimeLegacyCredits -= tr.amount; // Refunds reverse payment effect
+        allLifetimeLegacyCredits = safeSubtract(allLifetimeLegacyCredits, tr.amount); // Refunds reverse payment effect
       }
     });
 
@@ -99,7 +118,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
       
       if (rDate < fromDate) {
         if (!isCancelled) {
-          priorDebits += amount;
+          priorDebits = safeAdd(priorDebits, amount);
         }
         // If cancelled in prior period, don't count (net zero)
       } else if (rDate <= toDate) {
@@ -144,8 +163,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
       const isRefundDebit = isClientRefund || isSupplierRefund;
 
       if (tr.date < fromDate) {
-        if (isPaymentCredit) priorCredits += tr.amount;
-        if (isRefundDebit) priorDebits += tr.amount;
+        if (isPaymentCredit) priorCredits = safeAdd(priorCredits, tr.amount);
+        if (isRefundDebit) priorDebits = safeAdd(priorDebits, tr.amount);
       } else if (tr.date <= toDate) {
         if (isPaymentCredit) {
           list.push({
@@ -178,10 +197,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
     list.sort((a, b) => a.date.localeCompare(b.date));
 
-    let runningBalance = originalOpeningBalance + priorDebits - priorCredits;
+    let runningBalance = round2(originalOpeningBalance + priorDebits - priorCredits);
 
     const statementLines: StatementLine[] = list.map(item => {
-      runningBalance = runningBalance + item.debit - item.credit;
+      runningBalance = safeSubtract(safeAdd(runningBalance, item.debit), item.credit);
       return {
         ...item,
         balance: runningBalance
@@ -193,11 +212,11 @@ export default function StatementReportPDF({ client, reservations, transactions,
   };
 
   const lines = getStatementEntries();
-  const totalDebit = lines.reduce((acc, l) => acc + l.debit, 0);
-  const totalCredit = lines.reduce((acc, l) => acc + l.credit, 0);
+  const totalDebit = sumAmounts(lines.map(l => l.debit));
+  const totalCredit = sumAmounts(lines.map(l => l.credit));
   // Final balance: negative = they owe us, positive = they have credit/overpaid
   const rawFinalBalance = lines.length > 0 ? lines[lines.length - 1].balance : 0;
-  const finalBalance = -rawFinalBalance; // Invert: negative=owes, positive=credit
+  const finalBalance = round2(-rawFinalBalance); // Invert: negative=owes, positive=credit
 
   // Pending Requests: ALL reservations with outstanding balance (Paid < Total), regardless of status
   const pendingRequests = React.useMemo(() => {
@@ -215,7 +234,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
         const { totalSell, totalBuy } = getReservationTotals(res);
         const total = isSupplier ? totalBuy : totalSell;
         const paid = isSupplier ? (res.amountPaidToSupplier || 0) : (res.amountPaidByClient || 0);
-        const outstanding = total - paid;
+        const outstanding = safeSubtract(total, paid);
         const hotel = hotels.find(h => h.id === res.hotelId);
         return { res, total, paid, outstanding, hotel };
       })
@@ -229,9 +248,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
   // Calculate reconciliation: difference between overall outstanding and pending table sum
   // This accounts for opening balance, prior-period reservations, and unlinked payments
-  const pendingTableOutstanding = pendingRequests.reduce((s, p) => s + p.outstanding, 0);
-  const overallOutstanding = finalBalance < 0 ? Math.abs(finalBalance) : 0;
-  const reconciliationDiff = overallOutstanding - pendingTableOutstanding;
+  const pendingTableOutstanding = sumAmounts(pendingRequests.map(p => p.outstanding));
+  const overallOutstanding = finalBalance < 0 ? absAmount(finalBalance) : 0;
+  const reconciliationDiff = safeSubtract(overallOutstanding, pendingTableOutstanding);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
@@ -527,8 +546,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
                     ))}
                     {/* Reconciliation row if opening balance or prior-period items create a difference */}
                     {Math.abs(reconciliationDiff) > 0.01 && (
-                      <tr className="bg-slate-50 font-semibold border-t border-slate-200 italic text-slate-600">
-                        <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-right">Prior Period / Opening Balance Adj.:</td>
+                      <tr className="bg-slate-50 font-semibold border-t border-slate-200 italic text-slate-600" title="This adjustment accounts for opening balance carried forward, prior-period reservations, and payments not shown in the current date range.">
+                        <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-right" title="Difference between ledger outstanding and pending table sum">Prior Period / Opening Balance Adj.:</td>
                         <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">—</td>
                         <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">—</td>
                         <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${reconciliationDiff > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
@@ -541,10 +560,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
                     <tr className="bg-amber-50/80 font-extrabold border-t border-amber-300">
                       <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 text-right">Outstanding Balance:</td>
                       <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">
-                        {pendingRequests.reduce((s, p) => s + p.total, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {sumAmounts(pendingRequests.map(p => p.total)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-emerald-700">
-                        {pendingRequests.reduce((s, p) => s + p.paid, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {sumAmounts(pendingRequests.map(p => p.paid)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-rose-700">
                         {overallOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2 })}
