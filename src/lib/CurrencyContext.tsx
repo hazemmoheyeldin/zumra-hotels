@@ -10,10 +10,11 @@ export interface CurrencyContextType {
   fxRates: Record<Currency, number>;
   isLiveRates: boolean;
   ratesTimestamp: string | null;
+  ratesSource: string;
   refreshRates: () => void;
 }
 
-// Default exchange rates (from SAR as base)
+// Default exchange rates (from SAR as base) - hardcoded fallback
 const DEFAULT_FX: Record<Currency, number> = {
   SAR: 1,
   USD: 0.2666,
@@ -21,72 +22,108 @@ const DEFAULT_FX: Record<Currency, number> = {
   EUR: 0.245,
 };
 
+// localStorage key for persistent cache
+const CACHE_KEY = 'zumra_fx_rates_cache';
+
+interface CachedRates {
+  rates: Record<string, number>;
+  timestamp: string;
+  fetchedAt: number;
+  source: string;
+}
+
+// Load cached rates from localStorage
+function loadCache(): CachedRates | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) return JSON.parse(raw) as CachedRates;
+  } catch {}
+  return null;
+}
+
+// Save rates to localStorage cache
+function saveCache(data: CachedRates): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  } catch {}
+}
+
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [activeCurrency, setActiveCurrency] = useState<Currency>('SAR');
-  const [fxRates, setFxRates] = useState<Record<Currency, number>>(DEFAULT_FX);
+  const [fxRates, setFxRates] = useState<Record<Currency, number>>(() => {
+    // Initialize from localStorage cache if available
+    const cached = loadCache();
+    if (cached?.rates) return cached.rates as Record<Currency, number>;
+    return DEFAULT_FX;
+  });
   const [isLiveRates, setIsLiveRates] = useState(false);
   const [ratesTimestamp, setRatesTimestamp] = useState<string | null>(null);
+  const [ratesSource, setRatesSource] = useState<string>('defaults');
 
-  const fetchLiveRates = async () => {
-    // Try multiple free APIs for reliability and accuracy
-    const fetchers = [
-      // Frankfurter.app - ECB-backed, very accurate
-      async () => {
-        const res = await fetch('https://api.frankfurter.app/latest?from=SAR');
-        const data = await res.json();
-        if (data?.rates && data.rates.USD && data.rates.EGP && data.rates.EUR) {
-          return {
-            rates: {
-              SAR: 1,
-              USD: data.rates.USD,
-              EGP: data.rates.EGP,
-              EUR: data.rates.EUR,
-            },
-            timestamp: data.date || new Date().toISOString().split('T')[0],
-          };
-        }
-        throw new Error('Frankfurter: incomplete data');
-      },
-      // ExchangeRate-API fallback
-      async () => {
-        const res = await fetch('https://open.er-api.com/v6/latest/SAR');
-        const data = await res.json();
-        if (data?.rates && data.rates.USD && data.rates.EGP && data.rates.EUR) {
-          return {
-            rates: {
-              SAR: 1,
-              USD: data.rates.USD,
-              EGP: data.rates.EGP,
-              EUR: data.rates.EUR,
-            },
-            timestamp: data.time_last_update_utc || new Date().toISOString(),
-          };
-        }
-        throw new Error('ER-API: incomplete data');
-      },
-    ];
+  const fetchRates = async () => {
+    const cached = loadCache();
+    const now = Date.now();
 
-    for (const fetcher of fetchers) {
-      try {
-        const result = await fetcher();
-        setFxRates(result.rates as Record<Currency, number>);
-        setRatesTimestamp(result.timestamp);
-        setIsLiveRates(true);
-        return;
-      } catch {
-        // Try next fallback
-      }
+    // Client-side cache check: if we have rates less than 24h old, use them
+    if (cached && (now - cached.fetchedAt) < 24 * 60 * 60 * 1000) {
+      setFxRates(cached.rates as Record<Currency, number>);
+      setRatesTimestamp(cached.timestamp);
+      setIsLiveRates(true);
+      setRatesSource(`cached (${cached.source})`);
+      return;
     }
-    // All APIs failed, keep defaults
+
+    // Fetch from serverless function (API key stays server-side)
+    try {
+      const res = await fetch('/api/rates', { signal: AbortSignal.timeout(15000) });
+      
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (data.rates) {
+        const rates = data.rates as Record<Currency, number>;
+        setFxRates(rates);
+        setRatesTimestamp(data.timestamp || new Date().toISOString().split('T')[0]);
+        setIsLiveRates(true);
+        setRatesSource(data.source || 'server');
+
+        // Cache in localStorage for offline/fallback
+        saveCache({
+          rates: data.rates,
+          timestamp: data.timestamp || new Date().toISOString(),
+          fetchedAt: Date.now(),
+          source: data.source || 'api',
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn('[CurrencyContext] Fetch failed, using fallback:', err);
+    }
+
+    // Fallback: use cached rates from localStorage if available
+    if (cached?.rates) {
+      setFxRates(cached.rates as Record<Currency, number>);
+      setRatesTimestamp(cached.timestamp);
+      setIsLiveRates(true);
+      setRatesSource(`cached-fallback (${cached.source})`);
+      return;
+    }
+
+    // Last resort: use hardcoded defaults
+    setFxRates(DEFAULT_FX);
     setIsLiveRates(false);
+    setRatesSource('defaults');
   };
 
   useEffect(() => {
-    fetchLiveRates();
-    // Re-fetch every 6 hours
-    const interval = setInterval(fetchLiveRates, 6 * 60 * 60 * 1000);
+    fetchRates();
+    // Check every 6 hours if cache needs refreshing (the server also caches for 24h)
+    const interval = setInterval(fetchRates, 6 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -107,7 +144,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <CurrencyContext.Provider value={{ activeCurrency, setActiveCurrency, formatCurrency, convertAmount, fxRates, isLiveRates, ratesTimestamp, refreshRates: fetchLiveRates }}>
+    <CurrencyContext.Provider value={{ activeCurrency, setActiveCurrency, formatCurrency, convertAmount, fxRates, isLiveRates, ratesTimestamp, ratesSource, refreshRates: fetchRates }}>
       {children}
     </CurrencyContext.Provider>
   );

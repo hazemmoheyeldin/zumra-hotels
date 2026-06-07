@@ -712,7 +712,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 }
 
 function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) {
-  const { fxRates, isLiveRates, ratesTimestamp, refreshRates } = useCurrency();
+  const { fxRates, isLiveRates, ratesTimestamp, ratesSource, refreshRates } = useCurrency();
   const { t } = useLang();
   const currencies = [
     { code: 'SAR', symbol: 'SAR', flag: '🇸🇦' },
@@ -724,11 +724,22 @@ function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold text-slate-500 uppercase">
-          {t('currency.inMultiple', { label })} {isLiveRates && <span className="text-emerald-500">{t('currency.live')}</span>}
+        <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+          {t('currency.inMultiple', { label })}
+          {isLiveRates ? (
+            <span className="flex items-center gap-1 text-emerald-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              {t('currency.live')}
+            </span>
+          ) : (
+            <span className="text-amber-500">Default Rates</span>
+          )}
           {ratesTimestamp && <span className="text-slate-400 font-normal ml-1">({ratesTimestamp})</span>}
+          {ratesSource && ratesSource !== 'defaults' && (
+            <span className="text-[8px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{ratesSource}</span>
+          )}
         </span>
-        <button onClick={refreshRates} className="text-[9px] text-blue-600 hover:text-blue-800 font-medium">{t('currency.refreshRates')}</button>
+        <button onClick={refreshRates} className="text-[9px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer hover:underline">{t('currency.refreshRates')}</button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {currencies.map(c => {
