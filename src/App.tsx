@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
+import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
@@ -1516,6 +1516,14 @@ export default function App() {
 
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const [isInboxOpen, setIsInboxOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
+
+  // Track sync status (online/offline + pending queue)
+  useEffect(() => {
+    const unsub = onSyncStatusChange(setSyncStatus);
+    setSyncStatus(getSyncStatus());
+    return unsub;
+  }, []);
 
   const navItems = [
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard' },
@@ -1777,6 +1785,33 @@ export default function App() {
                 )}
               </button>
             )}
+            {/* Sync Status Indicator */}
+            {isFirebaseConfigured && (
+              <div className="flex items-center gap-1" title={
+                syncStatus.pendingCount > 0
+                  ? `${syncStatus.pendingCount} pending sync(s) - click to retry`
+                  : syncStatus.online ? 'All data synced' : 'Offline - changes queued'
+              }>
+                {!syncStatus.online ? (
+                  <button onClick={() => flushSyncQueue()} className="flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[9px] font-bold text-amber-700 hover:bg-amber-100 transition cursor-pointer animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    OFFLINE
+                    {syncStatus.pendingCount > 0 && <span className="bg-amber-200 text-amber-800 px-1 rounded-full">{syncStatus.pendingCount}</span>}
+                  </button>
+                ) : syncStatus.pendingCount > 0 ? (
+                  <button onClick={() => flushSyncQueue()} className="flex items-center gap-1 px-2 py-1 bg-orange-50 border border-orange-200 rounded-lg text-[9px] font-bold text-orange-700 hover:bg-orange-100 transition cursor-pointer">
+                    <span className={`w-1.5 h-1.5 rounded-full bg-orange-500 ${syncStatus.isSyncing ? 'animate-spin' : 'animate-pulse'}`}></span>
+                    {syncStatus.isSyncing ? 'SYNCING' : 'PENDING'}
+                    <span className="bg-orange-200 text-orange-800 px-1 rounded-full">{syncStatus.pendingCount}</span>
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-1 px-1.5 py-1 text-[9px] font-bold text-emerald-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Inbox */}
             <button
               className="relative p-2 hover:bg-slate-100 rounded-lg transition"

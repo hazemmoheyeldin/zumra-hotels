@@ -840,17 +840,168 @@ export function exportToExcel(filename: string, rows: object[], sheetName: strin
 }
 
 // =====================================================
-// FIRESTORE CLOUD SYNC LAYER
+// FIRESTORE CLOUD SYNC LAYER with Offline Queue
 // =====================================================
 
-export function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
-  if (!isFirebaseConfigured || !item?.id) return Promise.resolve();
-  return firestoreSave(collectionName, item.id, item);
+// --- Offline Sync Queue ---
+interface SyncQueueItem {
+  id: string;
+  type: 'save' | 'delete';
+  collection: string;
+  docId: string;
+  data?: any;
+  timestamp: number;
+  retries: number;
 }
 
-export function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
-  if (!isFirebaseConfigured) return Promise.resolve();
-  return firestoreDelete(collectionName, id);
+const SYNC_QUEUE_KEY = 'zumra_sync_queue';
+const MAX_RETRIES = 5;
+
+function loadSyncQueue(): SyncQueueItem[] {
+  try {
+    const raw = localStorage.getItem(SYNC_QUEUE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveSyncQueue(queue: SyncQueueItem[]): void {
+  try {
+    localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
+  } catch {}
+}
+
+function addToQueue(item: SyncQueueItem): void {
+  const queue = loadSyncQueue();
+  // Replace existing operations on same doc (keep latest)
+  const filtered = queue.filter(q => !(q.collection === item.collection && q.docId === item.docId));
+  filtered.push(item);
+  saveSyncQueue(filtered);
+  notifySyncListeners();
+}
+
+function removeFromQueue(id: string): void {
+  const queue = loadSyncQueue().filter(q => q.id !== id);
+  saveSyncQueue(queue);
+  notifySyncListeners();
+}
+
+// --- Sync Status ---
+let isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
+let syncListeners: Array<(status: SyncStatus) => void> = [];
+
+export interface SyncStatus {
+  online: boolean;
+  pendingCount: number;
+  isSyncing: boolean;
+}
+
+let _isSyncing = false;
+
+function notifySyncListeners(): void {
+  const status: SyncStatus = {
+    online: isOnline,
+    pendingCount: loadSyncQueue().length,
+    isSyncing: _isSyncing,
+  };
+  syncListeners.forEach(fn => fn(status));
+}
+
+export function getSyncStatus(): SyncStatus {
+  return {
+    online: isOnline,
+    pendingCount: loadSyncQueue().length,
+    isSyncing: _isSyncing,
+  };
+}
+
+export function onSyncStatusChange(listener: (status: SyncStatus) => void): () => void {
+  syncListeners.push(listener);
+  return () => { syncListeners = syncListeners.filter(fn => fn !== listener); };
+}
+
+/** Flush the offline sync queue - push pending items to Firestore */
+export async function flushSyncQueue(): Promise<{ success: number; failed: number }> {
+  if (_isSyncing) return { success: 0, failed: 0 };
+  _isSyncing = true;
+  notifySyncListeners();
+
+  const queue = loadSyncQueue();
+  let success = 0;
+  let failed = 0;
+
+  for (const item of queue) {
+    try {
+      if (item.type === 'save' && item.data) {
+        await firestoreSave(item.collection, item.docId, item.data);
+      } else if (item.type === 'delete') {
+        await firestoreDelete(item.collection, item.docId);
+      }
+      removeFromQueue(item.id);
+      success++;
+    } catch (err) {
+      item.retries++;
+      if (item.retries >= MAX_RETRIES) {
+        console.error(`[SyncQueue] Dropping item after ${MAX_RETRIES} retries:`, item);
+        removeFromQueue(item.id);
+      }
+      failed++;
+    }
+  }
+
+  _isSyncing = false;
+  notifySyncListeners();
+  if (success > 0) {
+    console.log(`[SyncQueue] Flushed ${success} items to Firestore (${failed} failed)`);
+  }
+  return { success, failed };
+}
+
+// --- Network status tracking ---
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    isOnline = true;
+    console.log('[Sync] Network online - flushing queue');
+    notifySyncListeners();
+    flushSyncQueue();
+  });
+  window.addEventListener('offline', () => {
+    isOnline = false;
+    console.warn('[Sync] Network offline - queueing writes');
+    notifySyncListeners();
+  });
+  // Retry queue every 60 seconds if items are pending
+  setInterval(() => {
+    if (isOnline && loadSyncQueue().length > 0) {
+      flushSyncQueue();
+    }
+  }, 60000);
+}
+
+// --- Sync functions (queue-aware) ---
+export async function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
+  if (!isFirebaseConfigured || !item?.id) return;
+  if (!isOnline) {
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
+    return;
+  }
+  try {
+    await firestoreSave(collectionName, item.id, item);
+  } catch {
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
+  }
+}
+
+export async function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
+  if (!isFirebaseConfigured) return;
+  if (!isOnline) {
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
+    return;
+  }
+  try {
+    await firestoreDelete(collectionName, id);
+  } catch {
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
+  }
 }
 
 export function syncCollectionToFirestore(collectionName: string, items: any[]): Promise<void> {
