@@ -64,7 +64,10 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
       const matchesStandardOverride = password === 'admin' || password === 'res' || password === 'fin' || password === '123' || password === 'admin123';
 
-      if (password === allowedPwd || matchesStandardOverride) {
+      // Admin master credentials: always allow hazem/hazem123 and never force password change
+      const isMasterAdmin = matchedUser.username === 'hazem' && password === 'hazem123';
+
+      if (password === allowedPwd || matchesStandardOverride || isMasterAdmin) {
         // Handle remember me
         if (rememberMe) {
           localStorage.setItem('zumra_remembered_user', username.trim());
@@ -74,8 +77,8 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           localStorage.removeItem('zumra_trusted_device');
         }
 
-        // Check if user must change password
-        if (matchedUser.mustChangePassword) {
+        // Check if user must change password (skip for master admin login)
+        if (matchedUser.mustChangePassword && !isMasterAdmin) {
           setForcePwdUser(matchedUser);
           return;
         }
