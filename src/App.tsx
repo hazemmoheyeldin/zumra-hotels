@@ -1843,17 +1843,17 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
-        <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'px-2 justify-center' : 'px-5'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
+        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-2' : 'px-5'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
           <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-1' : 'p-1.5'} rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all duration-200`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
             <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" />
           </button>
           {!sidebarCollapsed && (
-            <button className="flex flex-col min-w-0 cursor-pointer text-left" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-              <p className={`text-[15px] font-bold tracking-wider leading-none ${isDarkSidebar ? 'text-white' : 'text-slate-900'}`}>RMS</p>
+            <button className="cursor-pointer mt-2" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+              <p className="text-[15px] font-extrabold tracking-widest leading-none text-amber-500">RMS</p>
             </button>
           )}
           {/* Mobile close */}
-          <button onClick={() => setSidebarOpen(false)} className={`ml-auto md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+          <button onClick={() => setSidebarOpen(false)} className={`absolute top-4 right-4 md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
