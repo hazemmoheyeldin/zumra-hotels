@@ -1843,9 +1843,9 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
-        <div className={`flex items-center gap-3 px-5 py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
-          <button className={`flex items-center justify-center bg-white p-1.5 rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-            <ZumraLogo size="xl" variant="dark" />
+        <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'px-2 justify-center' : 'px-5'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
+          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-1' : 'p-1.5'} rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all duration-200`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" />
           </button>
           {!sidebarCollapsed && (
             <button className="flex flex-col min-w-0 cursor-pointer text-left" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
