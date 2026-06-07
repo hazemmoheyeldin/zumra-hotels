@@ -707,16 +707,40 @@ const showPDFPreview = (blob: Blob, filename: string): Promise<boolean> => {
       }
     });
 
-    // Save button
-    header.querySelector('#pdf-preview-save')!.addEventListener('click', () => {
+    // Save button - uses File System Access API to let user choose where to save
+    header.querySelector('#pdf-preview-save')!.addEventListener('click', async () => {
       cleanup();
-      // Trigger download
+      try {
+        // Try native save dialog (choose location)
+        if ('showSaveFilePicker' in window) {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'PDF Document',
+              accept: { 'application/pdf': ['.pdf'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          resolve(true);
+          return;
+        }
+      } catch (e: any) {
+        // User cancelled the save dialog
+        if (e?.name === 'AbortError') {
+          resolve(true);
+          return;
+        }
+      }
+      // Fallback: standard download
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       resolve(true);
     });
 

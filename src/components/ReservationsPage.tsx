@@ -1192,16 +1192,16 @@ export default function ReservationsPage({
           
           <div id="rooming-list-pdf" className="bg-white p-8 max-w-4xl mx-auto my-8 print:my-0 shadow-sm print:shadow-none text-slate-900 font-sans border border-slate-200 print:border-none">
             <div className="flex justify-between items-center mb-2 border-b-[3px] border-slate-300 pb-2 gap-4">
-              <div className="flex-shrink-0">
-                <ZumraLogo size="xxl" />
-              </div>
-              <div className="flex flex-col text-right font-sans gap-1 flex-1">
+              <div className="flex flex-col text-left font-sans gap-1 flex-1">
                 <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                   ZUMRA HOTELS
                 </span>
                 <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                   زمرة للفنادق
                 </span>
+              </div>
+              <div className="flex-shrink-0">
+                <ZumraLogo size="xxl" />
               </div>
             </div>
             
@@ -1475,7 +1475,7 @@ export default function ReservationsPage({
                   }))}
                   value={clientId || null}
                   onChange={(id) => setClientId(id || '')}
-                  placeholder="Search client by name or number..."
+                  placeholder="Enter Agent Name"
                   required
                   clearable
                 />
@@ -1501,7 +1501,7 @@ export default function ReservationsPage({
                   topOptions={[{ id: 'DIRECT', label: '🏨 Direct from Hotel (no supplier)', badge: 'DIRECT' }]}
                   value={supplierId || null}
                   onChange={(id) => setSupplierId(id || '')}
-                  placeholder="Search supplier by name or number..."
+                  placeholder="Enter Suppliers name"
                   required
                   clearable
                 />
@@ -1528,7 +1528,7 @@ export default function ReservationsPage({
                       setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]);
                     }
                   }}
-                  placeholder="Select hotel"
+                  placeholder="Enter Hotel Name"
                   required
                   clearable
                   maxResults={30}
@@ -2017,10 +2017,6 @@ export default function ReservationsPage({
                     </div>
                   );
                 })()}
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier Due Date</label>
-                <input type="date" value={supplierDueDate} onChange={(e) => setSupplierDueDate(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>

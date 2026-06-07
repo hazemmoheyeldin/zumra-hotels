@@ -414,7 +414,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         <div className="absolute -right-10 -top-10 w-32 h-32 bg-blue-400/10 rounded-full"></div>
         <div className="flex flex-col sm:flex-row items-center gap-4 z-10 w-full md:w-auto">
           <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-sm shadow-inner flex items-center justify-center">
-            <ZumraLogo size="xl" variant="light" />
+            <ZumraLogo size="xxl" variant="light" />
           </div>
           <div className="text-center sm:text-left">
             <h2 className="text-xl font-bold uppercase tracking-tight text-amber-100">{t('dash.title')}</h2>

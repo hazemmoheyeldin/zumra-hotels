@@ -88,12 +88,9 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             className="relative bg-white p-6 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
           >
             <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
-            {/* Header: Logo LEFT + Company Name RIGHT */}
+            {/* Header: Company Name LEFT + Logo RIGHT */}
             <div className="flex items-center justify-between border-b-2 border-slate-300 pb-4 mb-4 gap-4">
-              <div className="flex-shrink-0">
-                <ZumraLogo size="xxl" />
-              </div>
-              <div className="flex flex-col text-right font-sans flex-1">
+              <div className="flex flex-col text-left font-sans flex-1">
                 <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                   ZUMRA HOTELS
                 </span>
@@ -101,6 +98,9 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                   زمرة للفنادق
                 </span>
                 <p className="text-sm text-slate-500 mt-1">{t('ipdf.invoiceTitle')}</p>
+              </div>
+              <div className="flex-shrink-0">
+                <ZumraLogo size="xxl" />
               </div>
             </div>
 

@@ -158,7 +158,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
           <div className="text-center flex flex-col items-center space-y-3">
-            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
             <div className="mt-1">
               <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Reset</p>
@@ -239,7 +239,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
           <div className="text-center flex flex-col items-center space-y-3">
-            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
             <div className="mt-1">
               <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Change Required</p>
@@ -345,7 +345,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="text-center flex flex-col items-center space-y-3">
           <div className="relative">
             <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-xl scale-150"></div>
-            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
           </div>
           <div className="mt-1">
             <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>

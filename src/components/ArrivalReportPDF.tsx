@@ -114,18 +114,18 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
         {/* Printable Paper Area (Landscape) */}
         <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           
-          {/* Document Header: Logo LEFT + Company Name RIGHT */}
+          {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center mb-1 gap-4">
-            <div className="flex-shrink-0">
-              <ZumraLogo size="xxl" />
-            </div>
-            <div className="flex flex-col text-right font-sans flex-1">
+            <div className="flex flex-col text-left font-sans flex-1">
               <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
               <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
                 زمرة للفنادق
               </span>
+            </div>
+            <div className="flex-shrink-0">
+              <ZumraLogo size="xxl" />
             </div>
           </div>
 

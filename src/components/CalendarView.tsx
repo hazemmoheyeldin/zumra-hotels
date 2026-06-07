@@ -193,7 +193,7 @@ export default function CalendarView({ reservations, transactions, followUps, ag
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <ZumraLogo size="sm" variant="gold" />
+          <ZumraLogo size="xxl" variant="gold" />
           <div>
             <h1 className="text-2xl font-bold text-slate-800">{t('cal.title')}</h1>
             <p className="text-sm text-slate-500">{t('cal.subtitle')}</p>

@@ -1833,7 +1833,7 @@ export default function App() {
         {/* Brand Header */}
         <div className={`flex items-center gap-3 px-5 py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
           <button className={`flex items-center justify-center bg-white p-1.5 rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-            <ZumraLogo size="sm" variant="dark" />
+            <ZumraLogo size="xl" variant="dark" />
           </button>
           {!sidebarCollapsed && (
             <button className="flex flex-col min-w-0 cursor-pointer text-left" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">

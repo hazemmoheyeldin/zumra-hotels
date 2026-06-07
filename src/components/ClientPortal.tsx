@@ -65,13 +65,32 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
               <h1 className="text-2xl font-bold text-slate-900">{clientName}</h1>
               <p className="text-sm text-slate-500 mt-1">Booking Portal &bull; {stats.total} active bookings</p>
             </div>
-            <div className="text-right">
-              <ZumraLogo size="lg" variant="gold" className="justify-end" />
+            <div className="text-right flex-shrink-0">
+              <ZumraLogo size="xxl" variant="gold" />
             </div>
           </div>
         </div>
       </div>
 
+      {/* Data Loading Indicator */}
+      {agents.length === 0 && (
+        <div className="max-w-5xl mx-auto px-6 py-12 text-center">
+          <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm font-medium text-slate-500">Loading your bookings...</p>
+        </div>
+      )}
+
+      {/* Invalid Client ID */}
+      {agents.length > 0 && !client && (
+        <div className="max-w-5xl mx-auto px-6 py-16 text-center">
+          <div className="text-6xl mb-4">🔗</div>
+          <h2 className="text-xl font-bold text-slate-700 mb-2">Invalid Portal Link</h2>
+          <p className="text-sm text-slate-500">The client ID in the URL doesn't match any record. Please check the link provided by your agent.</p>
+        </div>
+      )}
+
+      {/* Main Content - only show when data is loaded and client is valid */}
+      {agents.length > 0 && client && (
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
         {/* Stats */}
         {visibility.showStats && (
@@ -233,6 +252,7 @@ export default function ClientPortal({ reservations, agents, hotels, clientId }:
           )}
         </div>
       </div>
+      )}
 
       {/* Footer */}
       <div className="text-center py-6 text-xs text-slate-400">

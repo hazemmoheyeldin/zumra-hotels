@@ -124,7 +124,7 @@ export default function ClientPortalSettings({ onLogAudit }: ClientPortalSetting
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <ZumraLogo size="md" variant="gold" />
+          <ZumraLogo size="xxl" variant="gold" />
           <div>
             <h2 className="text-xl font-bold text-slate-800">Client Portal Settings</h2>
             <p className="text-sm text-slate-500 mt-1">Configure what information is visible to clients in their booking portal</p>
