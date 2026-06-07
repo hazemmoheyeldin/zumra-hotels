@@ -461,13 +461,18 @@ export default function App() {
       const waitForAuthAndMigrate = async () => {
         try {
           // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
+          // Strict 3-second timeout — no infinite spinners
           await new Promise<void>((resolve) => {
             const unsub = onFirebaseAuthStateChanged((fbUser) => {
               unsub();
               resolve();
             });
-            // Safety timeout: don't wait forever
-            setTimeout(() => { unsub(); resolve(); }, 5000);
+            // Safety timeout: 3 seconds max
+            setTimeout(() => {
+              unsub();
+              console.warn('[Firebase Auth] Auth state timeout after 3s — proceeding without Firebase Auth');
+              resolve();
+            }, 3000);
           });
 
           // Check if already authenticated (from browserLocalPersistence)

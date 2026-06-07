@@ -11,6 +11,7 @@ import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   signOut as fbSignOut, onAuthStateChanged as fbOnAuthStateChanged,
+  GoogleAuthProvider, signInWithPopup,
   User as FBUser
 } from 'firebase/auth';
 
@@ -54,6 +55,87 @@ if (isFirebaseConfigured) {
 export { db, auth };
 export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch };
 export type { FBUser };
+
+// ===== Staff Whitelist (Authorization Guard) =====
+// Only these emails can access the app via Google Sign-In
+const STAFF_WHITELIST: string[] = [
+  'hazemmoheyeldin@gmail.com',
+  'hazem@zumrahotels.com',
+  'zaki@zumrahotels.com',
+  'yasmeen@zumrahotels.com',
+];
+
+// Allowed domains (any email matching these domains is allowed)
+const ALLOWED_DOMAINS: string[] = [
+  '@zumrahotels.com',
+];
+
+/**
+ * Check if an email is authorized to use the app.
+ * Returns true if the email is in the whitelist or matches an allowed domain.
+ */
+export function isStaffAuthorized(email: string): boolean {
+  const lower = email.toLowerCase();
+  if (STAFF_WHITELIST.some(e => e.toLowerCase() === lower)) return true;
+  if (ALLOWED_DOMAINS.some(d => lower.endsWith(d))) return true;
+  return false;
+}
+
+/**
+ * Add an email to the staff whitelist (called when admin adds a new user).
+ */
+export function addToStaffWhitelist(email: string): void {
+  const lower = email.toLowerCase();
+  if (!STAFF_WHITELIST.some(e => e.toLowerCase() === lower)) {
+    STAFF_WHITELIST.push(lower);
+    console.log(`[Auth] Added ${email} to staff whitelist`);
+  }
+}
+
+// ===== Google Sign-In =====
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
+
+/**
+ * Sign in with Google.
+ * Returns { uid, email, displayName, photoURL } on success.
+ * Throws if unauthorized or failed.
+ */
+export async function firebaseGoogleSignIn(): Promise<{
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL: string;
+} | null> {
+  if (!auth) return null;
+  try {
+    const cred = await signInWithPopup(auth, googleProvider);
+    const user = cred.user;
+    const email = user.email || '';
+
+    // Staff whitelist check
+    if (!isStaffAuthorized(email)) {
+      console.warn(`[Auth] Unauthorized Google sign-in attempt: ${email}`);
+      await fbSignOut(auth);
+      return null; // Caller should show "Unauthorized" message
+    }
+
+    console.log(`[Auth] Google sign-in: ${user.uid} (${email})`);
+    return {
+      uid: user.uid,
+      email,
+      displayName: user.displayName || email.split('@')[0],
+      photoURL: user.photoURL || '',
+    };
+  } catch (err: any) {
+    if (err?.code === 'auth/popup-closed-by-user') {
+      console.log('[Auth] Google sign-in popup closed by user');
+      return null;
+    }
+    console.warn(`[Auth] Google sign-in failed:`, err?.code || err?.message || err);
+    throw err;
+  }
+}
 
 // ===== Firebase Auth Helpers =====
 
@@ -168,6 +250,48 @@ export const COLLECTIONS = {
   CONSOLIDATED_INVOICES: 'consolidated_invoices',
   AUDIT_LOG: 'audit_log',
 };
+
+/**
+ * Auto-create user profile in Firestore if it doesn't exist.
+ * Called after Google Sign-In to ensure the user has a profile record.
+ */
+export async function ensureUserProfileInFirestore(profile: {
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  role?: string;
+}): Promise<void> {
+  if (!db) return;
+  try {
+    const userRef = doc(db, COLLECTIONS.USERS, profile.uid);
+    const existingDocs = await getDocs(collection(db, COLLECTIONS.USERS));
+    const existingUsers = existingDocs.docs.map(d => d.data());
+    const alreadyExists = existingUsers.some(u => u.email === profile.email || u.uid === profile.uid);
+
+    if (!alreadyExists) {
+      // Create profile with default role
+      const userData = {
+        id: profile.uid,
+        uid: profile.uid,
+        username: profile.email.split('@')[0],
+        name: profile.displayName,
+        email: profile.email,
+        role: profile.role || 'Reservationist',
+        photoURL: profile.photoURL || '',
+        createdAt: new Date().toISOString(),
+        mustChangePassword: false,
+        authProvider: 'google',
+      };
+      await setDoc(userRef, userData);
+      console.log(`[Firestore] Auto-created user profile: ${profile.email} (uid: ${profile.uid})`);
+    } else {
+      console.log(`[Firestore] User profile already exists: ${profile.email}`);
+    }
+  } catch (err) {
+    console.warn('[Firestore] Failed to ensure user profile:', err);
+  }
+}
 
 /**
  * Helper: Load all documents from a Firestore collection
