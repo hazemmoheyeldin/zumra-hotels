@@ -9,6 +9,7 @@ import ZumraLogo from './ZumraLogo';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
+import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -41,7 +42,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
   const [confirmPwd, setConfirmPwd] = useState('');
   const [pwdError, setPwdError] = useState('');
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -52,19 +53,9 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     setLoading(true);
 
-    setTimeout(() => {
+    // Helper to validate credentials against a matched user
+    const validateLogin = (matchedUser: User, allUsers: User[]) => {
       setLoading(false);
-      const userLower = username.trim().toLowerCase();
-      const matchedUser = users.find(u => 
-        u.username.toLowerCase() === userLower || 
-        (u.email && u.email.toLowerCase() === userLower)
-      );
-
-      if (!matchedUser) {
-        setErrorMsg('User identity not recognized.');
-        return;
-      }
-
       const allowedPwd = matchedUser.password || (
                          matchedUser.username === 'hazem' ? 'hazem123' :
                          matchedUser.username === 'zaki' ? 'zaki123' :
@@ -72,12 +63,9 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
                          `${matchedUser.username}123`);
 
       const matchesStandardOverride = password === 'admin' || password === 'res' || password === 'fin' || password === '123' || password === 'admin123';
-
-      // Admin master credentials: always allow hazem/hazem123 and never force password change
       const isMasterAdmin = matchedUser.username === 'hazem' && password === 'hazem123';
 
       if (password === allowedPwd || matchesStandardOverride || isMasterAdmin) {
-        // Handle remember me
         if (rememberMe) {
           localStorage.setItem('zumra_remembered_user', username.trim());
           localStorage.setItem('zumra_trusted_device', 'true');
@@ -85,18 +73,53 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           localStorage.removeItem('zumra_remembered_user');
           localStorage.removeItem('zumra_trusted_device');
         }
-
-        // Check if user must change password (skip for master admin login)
         if (matchedUser.mustChangePassword && !isMasterAdmin) {
           setForcePwdUser(matchedUser);
           return;
         }
-
         onLoginSuccess(matchedUser);
       } else {
         setErrorMsg('Invalid password. Access denied.');
       }
-    }, 800);
+    };
+
+    // First try local users
+    const userLower = username.trim().toLowerCase();
+    let matchedUser = users.find(u => 
+      u.username.toLowerCase() === userLower || 
+      (u.email && u.email.toLowerCase() === userLower)
+    );
+
+    if (matchedUser) {
+      setTimeout(() => validateLogin(matchedUser!, users), 800);
+      return;
+    }
+
+    // User not found locally — try fetching from Firestore
+    if (isFirebaseConfigured) {
+      try {
+        const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
+        if (firestoreUsers.length > 0) {
+          // Update local state with Firestore users
+          localStorage.setItem('zumra_users', JSON.stringify(firestoreUsers));
+          matchedUser = firestoreUsers.find(u =>
+            u.username.toLowerCase() === userLower ||
+            (u.email && u.email.toLowerCase() === userLower)
+          );
+          if (matchedUser) {
+            // Pass Firestore users so parent can update state
+            onUpdateUser?.(matchedUser);
+            setTimeout(() => validateLogin(matchedUser!, firestoreUsers), 400);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('[Login] Firestore user lookup failed:', err);
+      }
+    }
+
+    setLoading(false);
+    setErrorMsg('User identity not recognized.');
   };
 
   const handleForcePwdSubmit = (e: React.FormEvent) => {
