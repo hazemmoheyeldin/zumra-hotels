@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, User, Account, StampPosition, TermsAndConditions } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import StampOverlay, { getStampSettings } from './StampOverlay';
+import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
@@ -136,10 +136,11 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
             </label>
             {stampVisible && (
-              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
-                <option value="bottom-right">bottom right</option><option value="bottom-left">bottom left</option>
-                <option value="bottom-center">bottom center</option><option value="top-right">top right</option>
-              </select>
+              <button
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.18 }); }}
+                className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
+                title="Reset stamp to default position"
+              >Reset</button>
             )}
             <PageBreakToggle />
             <button
@@ -185,7 +186,12 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
           id="print-area"
           className="relative bg-white p-4 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-3 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
         >
-          <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
+          <StampOverlay
+            visible={stampVisible}
+            position={stampPosition}
+            opacity={0.18}
+            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.18 }); }}
+          />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center mb-0.5 gap-4">

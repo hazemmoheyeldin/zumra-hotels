@@ -412,7 +412,9 @@ export interface Expense {
 
 // ==================== Consolidated Invoices ====================
 
-export type StampPosition = 'bottom-right' | 'bottom-left' | 'bottom-center' | 'top-right';
+export type StampPositionPreset = 'bottom-right' | 'bottom-left' | 'bottom-center' | 'top-right';
+export interface StampPositionCustom { x: number; y: number; }
+export type StampPosition = StampPositionPreset | StampPositionCustom;
 
 export interface ConsolidatedInvoiceItem {
   type: 'OtherService' | 'Reservation';

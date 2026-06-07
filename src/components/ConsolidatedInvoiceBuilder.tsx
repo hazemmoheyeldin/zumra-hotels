@@ -7,7 +7,7 @@
 import React, { useState, useMemo } from 'react';
 import { Agent, OtherService, Reservation, ConsolidatedInvoice, ConsolidatedInvoiceItem, StampPosition, User } from '../types';
 import { getReservationTotals } from '../lib/storage';
-import { getStampSettings } from './StampOverlay';
+import { getStampSettings, saveStampSettings } from './StampOverlay';
 import { showToast } from './Toast';
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -151,7 +151,7 @@ export default function ConsolidatedInvoiceBuilder({
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
@@ -198,17 +198,13 @@ export default function ConsolidatedInvoiceBuilder({
               </label>
             </div>
             {showStamp && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {(['bottom-right', 'bottom-left', 'bottom-center', 'top-right'] as StampPosition[]).map(pos => (
-                  <button
-                    key={pos}
-                    onClick={() => setStampPosition(pos)}
-                    className={`relative h-16 border-2 rounded-lg text-[10px] font-bold uppercase transition ${stampPosition === pos ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}
-                  >
-                    <div className={`absolute w-4 h-4 rounded-full bg-emerald-300 ${pos === 'bottom-right' ? 'bottom-1 right-1' : pos === 'bottom-left' ? 'bottom-1 left-1' : pos === 'bottom-center' ? 'bottom-1 left-1/2 -translate-x-1/2' : 'top-1 right-1'}`} />
-                    <span className="relative z-10">{pos.replace('-', ' ')}</span>
-                  </button>
-                ))}
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span>Stamp can be dragged on the PDF preview to reposition.</span>
+                <button
+                  onClick={() => setStampPosition('bottom-right')}
+                  className="px-2 py-1 border border-slate-200 rounded text-xs bg-white hover:bg-slate-50 cursor-pointer"
+                  title="Reset to default position"
+                >Reset</button>
               </div>
             )}
           </div>

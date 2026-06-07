@@ -46,8 +46,8 @@ const compressionCache = new Map<string, string>();
  */
 export const compressImagesForPrint = async (
   containerId: string,
-  maxWidth: number = 800,
-  quality: number = 0.82
+  maxWidth: number = 600,
+  quality: number = 0.72
 ): Promise<void> => {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -514,8 +514,8 @@ const generatePDFBlob = async (
   captureWidth?: number
 ): Promise<Blob | null> => {
   const landscape = options?.landscape || false;
-  const jpegQuality = options?.jpegQuality ?? 0.92;
-  const scale = options?.scale ?? 2;
+  const jpegQuality = options?.jpegQuality ?? 0.78;
+  const scale = options?.scale ?? 1.5;
   const hiddenElements: { el: HTMLElement; origDisplay: string }[] = [];
   let origMaxHeight = '', origOverflow = '', origOverflowX = '';
   let origWidth = '', origMinWidth = '';
@@ -556,7 +556,7 @@ const generatePDFBlob = async (
     const dataUrl = await toPng(element, {
       pixelRatio: scale,
       backgroundColor: '#ffffff',
-      cacheBust: true,
+      cacheBust: false,
       width: captureWidth || undefined,
       filter: (node: Node) => {
         if (node instanceof HTMLElement) return !node.classList.contains('no-print');

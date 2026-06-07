@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Transaction, Hotel, StampPosition } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
-import StampOverlay, { getStampSettings } from './StampOverlay';
+import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
@@ -199,17 +199,17 @@ export default function StatementReportPDF({ client, reservations, transactions,
   const rawFinalBalance = lines.length > 0 ? lines[lines.length - 1].balance : 0;
   const finalBalance = -rawFinalBalance; // Invert: negative=owes, positive=credit
 
-  // Pending Requests: reservations that are not fully paid (unpaid or partially paid)
+  // Pending Requests: ALL reservations with outstanding balance (Paid < Total), regardless of status
   const pendingRequests = React.useMemo(() => {
     return reservations
       .filter(res => {
-        if (res.status === 'Cancelled') return false;
+        // Include ALL statuses (Definite, Tentative, Confirmed, Cancelled) as long as money is owed
         if (isSupplier && res.supplierId !== client.id) return false;
         if (!isSupplier && res.clientId !== client.id) return false;
         const { totalSell, totalBuy } = getReservationTotals(res);
         const total = isSupplier ? totalBuy : totalSell;
         const paid = isSupplier ? (res.amountPaidToSupplier || 0) : (res.amountPaidByClient || 0);
-        return total > 0 && paid < total; // not fully paid
+        return total > 0 && paid < total; // outstanding balance > 0
       })
       .map(res => {
         const { totalSell, totalBuy } = getReservationTotals(res);
@@ -219,8 +219,19 @@ export default function StatementReportPDF({ client, reservations, transactions,
         const hotel = hotels.find(h => h.id === res.hotelId);
         return { res, total, paid, outstanding, hotel };
       })
-      .sort((a, b) => a.res.checkIn.localeCompare(b.res.checkIn));
+      .sort((a, b) => {
+        // Sort by reservation creation date (oldest first) for aging visibility
+        const dateA = a.res.createdAt ? a.res.createdAt.split(' ')[0] : a.res.checkIn;
+        const dateB = b.res.createdAt ? b.res.createdAt.split(' ')[0] : b.res.checkIn;
+        return dateA.localeCompare(dateB);
+      });
   }, [reservations, client.id, isSupplier, hotels]);
+
+  // Calculate reconciliation: difference between overall outstanding and pending table sum
+  // This accounts for opening balance, prior-period reservations, and unlinked payments
+  const pendingTableOutstanding = pendingRequests.reduce((s, p) => s + p.outstanding, 0);
+  const overallOutstanding = finalBalance < 0 ? Math.abs(finalBalance) : 0;
+  const reconciliationDiff = overallOutstanding - pendingTableOutstanding;
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
@@ -265,10 +276,11 @@ export default function StatementReportPDF({ client, reservations, transactions,
               <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
             </label>
             {stampVisible && (
-              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
-                <option value="bottom-right">bottom right</option><option value="bottom-left">bottom left</option>
-                <option value="bottom-center">bottom center</option><option value="top-right">top right</option>
-              </select>
+              <button
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.18 }); }}
+                className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
+                title="Reset stamp to default position"
+              >Reset</button>
             )}
             <PageBreakToggle />
             <button
@@ -297,7 +309,12 @@ export default function StatementReportPDF({ client, reservations, transactions,
 
         {/* Printable Paper Area (A4) */}
         <div id="print-area" className="relative bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
-          <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
+          <StampOverlay
+            visible={stampVisible}
+            position={stampPosition}
+            opacity={0.18}
+            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.18 }); }}
+          />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center pb-2 gap-4">
@@ -448,7 +465,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Pending Requests Table (Unpaid / Partially Paid) */}
-          {pendingRequests.length > 0 && (
+          {(pendingRequests.length > 0 || Math.abs(reconciliationDiff) > 0.01) && (
             <div className="mb-4 no-page-break">
               {/* Section Header */}
               <div className="flex justify-between items-baseline mb-2 mt-2 border-b-2 border-amber-400 pb-1.5">
@@ -459,7 +476,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
                   {isSupplier ? '\u0627\u0644\u0645\u0637\u0627\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0642\u0629' : '\u0627\u0644\u0645\u0637\u0627\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0639\u0644\u0642\u0629'}
                 </h2>
               </div>
-              <p className="text-[9px] text-slate-500 mb-2 italic">Reservations with outstanding balance (not fully paid)</p>
+              <p className="text-[9px] text-slate-500 mb-2 italic">All reservations with outstanding balance (Paid &lt; Total), sorted oldest first</p>
 
               <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto print:overflow-visible print:border-none print:rounded-none">
                 <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
@@ -502,14 +519,27 @@ export default function StatementReportPDF({ client, reservations, transactions,
                           <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-bold ${
                             res.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' :
                             res.status === 'Tentative' ? 'bg-amber-100 text-amber-800' :
+                            res.status === 'Cancelled' ? 'bg-rose-100 text-rose-800' :
                             'bg-slate-100 text-slate-600'
                           }`}>{res.status}</span>
                         </td>
                       </tr>
                     ))}
-                    {/* Pending Totals Row */}
+                    {/* Reconciliation row if opening balance or prior-period items create a difference */}
+                    {Math.abs(reconciliationDiff) > 0.01 && (
+                      <tr className="bg-slate-50 font-semibold border-t border-slate-200 italic text-slate-600">
+                        <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-right">Prior Period / Opening Balance Adj.:</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">—</td>
+                        <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">—</td>
+                        <td className={`py-1.5 px-1.5 border-r border-slate-200 text-right font-mono font-bold ${reconciliationDiff > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          {reconciliationDiff > 0 ? reconciliationDiff.toLocaleString('en-US', { minimumFractionDigits: 2 }) : `(${Math.abs(reconciliationDiff).toLocaleString('en-US', { minimumFractionDigits: 2 })})`}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono text-[8px] text-slate-400">adj.</td>
+                      </tr>
+                    )}
+                    {/* Pending Totals Row — matches Outstanding Balance from main statement */}
                     <tr className="bg-amber-50/80 font-extrabold border-t border-amber-300">
-                      <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 text-right">Pending Total:</td>
+                      <td colSpan={5} className="py-1.5 px-1.5 border-r border-slate-200 text-slate-900 text-right">Outstanding Balance:</td>
                       <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono">
                         {pendingRequests.reduce((s, p) => s + p.total, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
@@ -517,7 +547,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
                         {pendingRequests.reduce((s, p) => s + p.paid, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-1.5 px-1.5 border-r border-slate-200 text-right font-mono text-rose-700">
-                        {pendingRequests.reduce((s, p) => s + p.outstanding, 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {overallOutstanding.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-1.5 px-1.5 text-center font-mono text-[8px] text-slate-500">{pendingRequests.length} item{pendingRequests.length !== 1 ? 's' : ''}</td>
                     </tr>

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { ConsolidatedInvoice, Agent, StampPosition } from '../types';
 import ZumraLogo from './ZumraLogo';
-import StampOverlay, { getStampSettings } from './StampOverlay';
+import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { exportPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 
 interface ConsolidatedInvoicePDFProps {
@@ -15,7 +15,7 @@ interface ConsolidatedInvoicePDFProps {
   onClose: () => void;
 }
 
-const STAMP_POSITIONS: StampPosition[] = ['bottom-right', 'bottom-left', 'bottom-center', 'top-right'];
+const STAMP_POSITIONS: StampPosition[] = ['bottom-right', 'bottom-left', 'bottom-center', 'top-right']; // kept for backward compat
 
 export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: ConsolidatedInvoicePDFProps) {
   const stampDefaults = getStampSettings();
@@ -65,7 +65,7 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Action bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-3 border-b border-slate-200 no-print">
@@ -77,9 +77,11 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
               Stamp
             </label>
             {stampVisible && (
-              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
-                {STAMP_POSITIONS.map(p => <option key={p} value={p}>{p.replace('-', ' ')}</option>)}
-              </select>
+              <button
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.18 }); }}
+                className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
+                title="Reset stamp to default position"
+              >Reset</button>
             )}
             <button onClick={handlePrint} disabled={isGenerating} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
               {isGenerating ? 'Generating...' : 'Print / Save PDF'}
@@ -94,7 +96,12 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
           <div id="print-area" className="relative bg-white p-6 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
 
             {/* Stamp Overlay */}
-            <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
+            <StampOverlay
+              visible={stampVisible}
+              position={stampPosition}
+              opacity={0.18}
+              onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.18 }); }}
+            />
 
             {/* Header: Company Name LEFT + Logo RIGHT */}
             <div className="flex justify-between items-center mb-1 gap-4">

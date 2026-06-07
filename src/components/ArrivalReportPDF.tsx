@@ -112,7 +112,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
         </div>
 
         {/* Printable Paper Area (Landscape) */}
-        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+        <div id="print-area" className="relative bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center mb-1 gap-4">
