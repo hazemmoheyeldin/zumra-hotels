@@ -2215,7 +2215,8 @@ export default function App() {
               </button>
               
               {isAlertsOpen && (
-                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3">
+                <div className="absolute right-0 pt-2 w-80 max-w-[calc(100vw-2rem)] z-[1000] animate-fade-in-up">
+                  <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
                   <div className="px-4 py-3 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</h3>
                   </div>
@@ -2242,6 +2243,7 @@ export default function App() {
                         No new notifications
                       </div>
                     )}
+                  </div>
                   </div>
                 </div>
               )}
@@ -2293,7 +2295,8 @@ export default function App() {
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 z-[1000] overflow-hidden animate-fade-in-up before:content-[''] before:absolute before:-top-3 before:left-0 before:right-0 before:h-3">
+                  <div className="absolute right-0 pt-2 w-64 bg-white z-[1000] animate-fade-in-up">
+                    <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
                     <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
                       {currentUser.profileImage ? (
                         <img src={currentUser.profileImage} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer" onClick={() => profileImageRef.current?.click()} title="Change profile image" />
@@ -2357,6 +2360,7 @@ export default function App() {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
                         {t('nav.signOut')}
                       </button>
+                    </div>
                     </div>
                   </div>
                 )}
