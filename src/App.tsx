@@ -201,6 +201,11 @@ export default function App() {
 
   // Initial DB loading, Firestore migration, and real-time sync
   useEffect(() => {
+    // TEMP: Clear all data except hotels and users for fresh testing
+    const keysToKeep = ['zumra_hotels', 'zumra_users', 'current_user'];
+    const allKeys = ['zumra_agents', 'zumra_allotments', 'zumra_reservations', 'zumra_accounts', 'zumra_transactions', 'zumra_external_transfers', 'zumra_follow_ups'];
+    allKeys.forEach(k => { if (!keysToKeep.includes(k)) localStorage.setItem(k, '[]'); });
+
     // 1. Instant UI load from localStorage
     setHotels(ZumraDB.getHotels());
     setAgents(ZumraDB.getAgents());
