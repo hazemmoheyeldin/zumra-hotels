@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Transaction } from '../types';
+import { Reservation, Agent, Transaction, StampPosition } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
+import StampOverlay, { getStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
@@ -36,6 +37,9 @@ interface StatementReportPDFProps {
 export default function StatementReportPDF({ client, reservations, transactions, fromDate, toDate, isSupplier, onClose }: StatementReportPDFProps) {
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
+  const stampDefaults = getStampSettings();
+  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
   
   // Format Helper for dates as standard DD/MM/YYYY
   const formatStandardDate = (dateStr: string) => {
@@ -233,6 +237,15 @@ export default function StatementReportPDF({ client, reservations, transactions,
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
+            </label>
+            {stampVisible && (
+              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
+                <option value="bottom-right">bottom right</option><option value="bottom-left">bottom left</option>
+                <option value="bottom-center">bottom center</option><option value="top-right">top right</option>
+              </select>
+            )}
             <PageBreakToggle />
             <button
               onClick={handlePrint}
@@ -259,7 +272,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
         </div>
 
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+        <div id="print-area" className="relative bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+          <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center pb-2 gap-4">

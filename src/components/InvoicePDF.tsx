@@ -1,7 +1,8 @@
-import React from 'react';
-import { Reservation, Agent, Hotel, Transaction } from '../types';
+import React, { useState } from 'react';
+import { Reservation, Agent, Hotel, Transaction, StampPosition } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
+import StampOverlay, { getStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { useLang } from '../lib/LanguageContext';
 
@@ -16,6 +17,9 @@ interface InvoicePDFProps {
 export default function InvoicePDF({ reservation, client, hotel, transactions, onClose }: InvoicePDFProps) {
   const totals = getReservationTotals(reservation);
   const { t, lang } = useLang();
+  const stampDefaults = getStampSettings();
+  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
 
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
   React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
@@ -58,7 +62,16 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
         {/* Action bar */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 no-print">
           <h2 className="font-bold text-slate-800">{t('ipdf.preview')}</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
+            </label>
+            {stampVisible && (
+              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
+                <option value="bottom-right">bottom right</option><option value="bottom-left">bottom left</option>
+                <option value="bottom-center">bottom center</option><option value="top-right">top right</option>
+              </select>
+            )}
             <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
               {t('ipdf.printSave')}
             </button>
@@ -72,8 +85,9 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
         <div className="overflow-y-auto flex-1 p-4">
           <div
             id="print-area"
-            className="bg-white p-6 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
+            className="relative bg-white p-6 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
           >
+            <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
             {/* Header */}
             <div className="flex items-start justify-between border-b-2 border-slate-300 pb-4 mb-4">
               <div>

@@ -38,7 +38,7 @@ export interface AmendmentEntry {
   newValue: string;
 }
 
-export type EntityType = 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login' | 'OtherService' | 'PaymentGateway' | 'GeneralData' | 'EditApproval' | 'Expense';
+export type EntityType = 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login' | 'OtherService' | 'PaymentGateway' | 'GeneralData' | 'EditApproval' | 'Expense' | 'ConsolidatedInvoice';
 
 export interface GlobalAuditEntry {
   id: string;
@@ -389,4 +389,41 @@ export interface Expense {
   receiptNo?: string;
   createdBy: string;
   createdAt: string;
+}
+
+// ==================== Consolidated Invoices ====================
+
+export type StampPosition = 'bottom-right' | 'bottom-left' | 'bottom-center' | 'top-right';
+
+export interface ConsolidatedInvoiceItem {
+  type: 'OtherService' | 'Reservation';
+  refId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  total: number;
+}
+
+export interface ConsolidatedInvoice {
+  id: string;
+  invoiceNo: string;
+  clientId: string;
+  items: ConsolidatedInvoiceItem[];
+  currency: 'SAR' | 'EGP';
+  exchangeRate: number;
+  subtotal: number;
+  vatAmount: number;
+  totalWithVat: number;
+  notes?: string;
+  stampPosition?: StampPosition;
+  showStamp?: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface StampSettings {
+  enabled: boolean;
+  position: StampPosition;
+  opacity: number;
 }

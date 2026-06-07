@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Transaction, Agent, Reservation } from '../types';
+import { Transaction, Agent, Reservation, StampPosition } from '../types';
 import ZumraLogo from './ZumraLogo';
+import StampOverlay, { getStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
@@ -22,6 +23,9 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
   const { t, lang } = useLang();
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
+  const stampDefaults = getStampSettings();
+  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
 
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
   React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
@@ -78,6 +82,15 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             </h2>
           </div>
           <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
+            </label>
+            {stampVisible && (
+              <select value={stampPosition} onChange={e => setStampPosition(e.target.value as StampPosition)} className="px-2 py-1 border rounded text-xs bg-white">
+                <option value="bottom-right">bottom right</option><option value="bottom-left">bottom left</option>
+                <option value="bottom-center">bottom center</option><option value="top-right">top right</option>
+              </select>
+            )}
             <PageBreakToggle />
             <button
               onClick={handlePrint}
@@ -113,7 +126,8 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
         </div>
 
         {/* Printable Paper Area */}
-        <div id="print-area" className="bg-white p-6 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="relative bg-white p-6 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
+          <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}
           <div className="flex justify-between items-center mb-1 gap-4">

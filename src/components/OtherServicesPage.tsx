@@ -4,9 +4,11 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { OtherService, Agent, TaxSettings, ServiceType, User } from '../types';
+import { OtherService, Agent, TaxSettings, ServiceType, User, Reservation, ConsolidatedInvoice } from '../types';
 import { ZumraDB, ZumraSync, exportToCSV } from '../lib/storage';
 import { showToast } from './Toast';
+import ConsolidatedInvoiceBuilder from './ConsolidatedInvoiceBuilder';
+import ConsolidatedInvoicePDF from './ConsolidatedInvoicePDF';
 
 interface OtherServicesPageProps {
   otherServices: OtherService[];
@@ -15,6 +17,9 @@ interface OtherServicesPageProps {
   taxSettings: TaxSettings[];
   currentUser: User;
   onLogAudit: (action: string, entityType: any, entityId: string, detail: string) => void;
+  reservations?: Reservation[];
+  consolidatedInvoices?: ConsolidatedInvoice[];
+  onSaveConsolidatedInvoice?: (ci: ConsolidatedInvoice) => void;
 }
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -33,6 +38,7 @@ const SERVICE_ICONS: Record<ServiceType, string> = {
 
 export default function OtherServicesPage({
   otherServices, setOtherServices, agents, taxSettings, currentUser, onLogAudit,
+  reservations = [], consolidatedInvoices = [], onSaveConsolidatedInvoice,
 }: OtherServicesPageProps) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
@@ -42,6 +48,8 @@ export default function OtherServicesPage({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewInvoice, setViewInvoice] = useState<OtherService | null>(null);
+  const [showConsolidatedBuilder, setShowConsolidatedBuilder] = useState(false);
+  const [viewConsolidatedInvoice, setViewConsolidatedInvoice] = useState<ConsolidatedInvoice | null>(null);
 
   // Form state
   const [form, setForm] = useState<Partial<OtherService>>({
@@ -220,9 +228,12 @@ export default function OtherServicesPage({
           <h1 className="text-2xl font-bold text-gray-900">Other Services</h1>
           <p className="text-sm text-gray-500">Outbound hotels, flights, visas, and transportation</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={handleExport} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700">
             Export CSV
+          </button>
+          <button onClick={() => setShowConsolidatedBuilder(true)} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">
+            + Create Invoice
           </button>
           <button onClick={() => { resetForm(); setShowForm(true); }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
             + New Service
@@ -459,6 +470,70 @@ export default function OtherServicesPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Consolidated Invoices List */}
+      {consolidatedInvoices.length > 0 && (
+        <div className="bg-white border rounded-xl p-4">
+          <h3 className="text-sm font-bold text-gray-800 mb-3">Consolidated Invoices ({consolidatedInvoices.length})</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-purple-50 border-b border-purple-100">
+                  <th className="px-3 py-2 text-left font-bold">Invoice #</th>
+                  <th className="px-3 py-2 text-left font-bold">Client</th>
+                  <th className="px-3 py-2 text-center font-bold">Items</th>
+                  <th className="px-3 py-2 text-right font-bold">Total (SAR)</th>
+                  <th className="px-3 py-2 text-center font-bold">Currency</th>
+                  <th className="px-3 py-2 text-left font-bold">Date</th>
+                  <th className="px-3 py-2 text-right font-bold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consolidatedInvoices.slice().reverse().map(ci => {
+                  const client = agents.find(a => a.id === ci.clientId);
+                  return (
+                    <tr key={ci.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono font-bold text-purple-700">{ci.invoiceNo}</td>
+                      <td className="px-3 py-2">{client?.companyName || client?.name || 'N/A'}</td>
+                      <td className="px-3 py-2 text-center">{ci.items.length}</td>
+                      <td className="px-3 py-2 text-right font-bold">{ci.totalWithVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-2 text-center"><span className={`px-2 py-0.5 rounded text-[10px] font-bold ${ci.currency === 'SAR' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{ci.currency}</span></td>
+                      <td className="px-3 py-2 text-gray-500">{ci.createdAt.split('T')[0]}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button onClick={() => setViewConsolidatedInvoice(ci)} className="text-purple-600 hover:text-purple-800 font-medium">View</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Consolidated Invoice Builder Modal */}
+      {showConsolidatedBuilder && (
+        <ConsolidatedInvoiceBuilder
+          agents={agents}
+          otherServices={otherServices}
+          reservations={reservations}
+          currentUser={currentUser}
+          onSave={(ci) => {
+            onSaveConsolidatedInvoice?.(ci);
+            setShowConsolidatedBuilder(false);
+          }}
+          onClose={() => setShowConsolidatedBuilder(false)}
+        />
+      )}
+
+      {/* Consolidated Invoice PDF Modal */}
+      {viewConsolidatedInvoice && (
+        <ConsolidatedInvoicePDF
+          invoice={viewConsolidatedInvoice}
+          client={agents.find(a => a.id === viewConsolidatedInvoice.clientId)}
+          onClose={() => setViewConsolidatedInvoice(null)}
+        />
       )}
     </div>
   );

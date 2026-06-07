@@ -64,6 +64,7 @@ export const COLLECTIONS = {
   TAX_SETTINGS: 'tax_settings',
   EXPENSES: 'expenses',
   EXPENSE_CATEGORIES: 'expense_categories',
+  CONSOLIDATED_INVOICES: 'consolidated_invoices',
 } as const;
 
 /**

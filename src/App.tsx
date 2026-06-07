@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
@@ -154,6 +154,7 @@ export default function App() {
   const [taxSettings, setTaxSettings] = useState<TaxSettings[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [consolidatedInvoices, setConsolidatedInvoices] = useState<ConsolidatedInvoice[]>([]);
   const [showEditApprovalModal, setShowEditApprovalModal] = useState(false);
   // Restore session from localStorage if user was previously logged in
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -266,6 +267,7 @@ export default function App() {
     setTaxSettings(ZumraDB.getTaxSettings());
     setExpenses(ZumraDB.getExpenses());
     setExpenseCategories(ZumraDB.getExpenseCategories());
+    setConsolidatedInvoices(ZumraDB.getConsolidatedInvoices());
     // Seed hotels if empty (first run or force reset)
     const seededHotels = seedHotelsIfEmpty(false);
     if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
@@ -299,6 +301,7 @@ export default function App() {
             { name: COLLECTIONS.TAX_SETTINGS, key: 'zumra_tax_settings', setter: setTaxSettings, loader: ZumraDB.getTaxSettings },
             { name: COLLECTIONS.EXPENSES, key: 'zumra_expenses', setter: setExpenses, loader: ZumraDB.getExpenses },
             { name: COLLECTIONS.EXPENSE_CATEGORIES, key: 'zumra_expense_categories', setter: setExpenseCategories, loader: ZumraDB.getExpenseCategories },
+            { name: COLLECTIONS.CONSOLIDATED_INVOICES, key: 'zumra_consolidated_invoices', setter: setConsolidatedInvoices, loader: ZumraDB.getConsolidatedInvoices },
           ];
 
           for (const col of collections) {
@@ -438,6 +441,12 @@ export default function App() {
           if (data.length > 0 && !isRecentLocalWrite()) {
             localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
             setExpenseCategories(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_consolidated_invoices', JSON.stringify(data));
+            setConsolidatedInvoices(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
       ];
@@ -1045,6 +1054,15 @@ export default function App() {
     ZumraSync.saveExpenseCategory(cat);
   };
 
+  // ==================== Consolidated Invoices ====================
+  const handleSaveConsolidatedInvoice = (ci: ConsolidatedInvoice) => {
+    const updatedList = [...consolidatedInvoices, ci];
+    setConsolidatedInvoices(updatedList);
+    ZumraDB.saveConsolidatedInvoices(updatedList);
+    ZumraSync.saveConsolidatedInvoice(ci);
+    handleLogAuditSimple('Create', 'ConsolidatedInvoice', ci.id, `Created consolidated invoice ${ci.invoiceNo}`);
+  };
+
   // Fund transfers between cash blocks
   const handleModifyBalances = (fromId: string, toId: string, amount: number) => {
     const updatedAccounts = accounts.map(acc => {
@@ -1416,6 +1434,9 @@ export default function App() {
             taxSettings={taxSettings}
             currentUser={currentUser}
             onLogAudit={handleLogAuditSimple}
+            reservations={reservations}
+            consolidatedInvoices={consolidatedInvoices}
+            onSaveConsolidatedInvoice={handleSaveConsolidatedInvoice}
           />
           </ErrorBoundary>
         );
