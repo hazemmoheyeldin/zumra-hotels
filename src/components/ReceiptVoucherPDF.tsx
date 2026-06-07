@@ -129,18 +129,18 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
         <div id="print-area" className="relative bg-white p-6 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
           <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
           
-          {/* Document Header: Company Name LEFT + Logo RIGHT */}
+          {/* Document Header: Logo LEFT + Company Name RIGHT */}
           <div className="flex justify-between items-center mb-1 gap-4">
-            <div className="flex flex-col text-left font-sans flex-1">
+            <div className="flex-shrink-0">
+              <ZumraLogo size="xxl" />
+            </div>
+            <div className="flex flex-col text-right font-sans flex-1">
               <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
               <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
                 زمرة للفنادق
               </span>
-            </div>
-            <div className="flex-shrink-0">
-              <ZumraLogo size="xxl" />
             </div>
           </div>
 

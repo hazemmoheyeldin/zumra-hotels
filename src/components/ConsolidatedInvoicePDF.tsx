@@ -97,12 +97,12 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
             <StampOverlay visible={stampVisible} position={stampPosition} opacity={0.18} />
 
             {/* Header */}
-            <div className="flex justify-between items-center mb-1">
-              <div className="flex flex-col text-left font-sans flex-1">
+            <div className="flex justify-between items-center mb-1 gap-4">
+              <div className="flex-shrink-0"><ZumraLogo size="xxl" /></div>
+              <div className="flex flex-col text-right font-sans flex-1">
                 <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">ZUMRA HOTELS</span>
                 <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-0.5" dir="rtl">زمرة للفنادق</span>
               </div>
-              <div className="flex-shrink-0"><ZumraLogo size="xxl" /></div>
             </div>
             <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
 

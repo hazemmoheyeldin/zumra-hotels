@@ -82,18 +82,18 @@ export default function CancellationReportPDF({ reservations, agents, hotels, fr
         {/* Printable Paper Area (Landscape) */}
         <div id="print-area" className="bg-white p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full">
           
-          {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-1">
-            <div className="flex flex-col text-left font-sans gap-0.5 flex-1">
+          {/* Document Header: Logo LEFT + Company Name RIGHT */}
+          <div className="flex justify-between items-center mb-1 gap-4">
+            <div className="flex-shrink-0">
+              <ZumraLogo size="xxl" />
+            </div>
+            <div className="flex flex-col text-right font-sans gap-0.5 flex-1">
               <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
                 ZUMRA HOTELS
               </span>
               <span className="text-xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                 زمرة للفنادق
               </span>
-            </div>
-            <div className="flex-shrink-0 flex justify-end">
-              <ZumraLogo size="xxl" />
             </div>
           </div>
 

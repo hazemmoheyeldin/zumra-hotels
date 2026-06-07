@@ -1191,17 +1191,17 @@ export default function ReservationsPage({
           </div>
           
           <div id="rooming-list-pdf" className="bg-white p-8 max-w-4xl mx-auto my-8 print:my-0 shadow-sm print:shadow-none text-slate-900 font-sans border border-slate-200 print:border-none">
-            <div className="flex justify-between items-center mb-2 border-b-[3px] border-slate-300 pb-2">
-              <div className="flex flex-col text-left font-sans gap-1 flex-1">
+            <div className="flex justify-between items-center mb-2 border-b-[3px] border-slate-300 pb-2 gap-4">
+              <div className="flex-shrink-0">
+                <ZumraLogo size="xxl" />
+              </div>
+              <div className="flex flex-col text-right font-sans gap-1 flex-1">
                 <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
                   ZUMRA HOTELS
                 </span>
                 <span className="text-2xl font-bold text-slate-800 tracking-wider font-serif" dir="rtl">
                   زمرة للفنادق
                 </span>
-              </div>
-              <div className="flex-shrink-0 flex justify-end">
-                <ZumraLogo size="xxl" />
               </div>
             </div>
             
