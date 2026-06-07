@@ -18,7 +18,7 @@ interface GeneralDataPageProps {
   onLogAudit: (action: string, entityType: any, entityId: string, detail: string) => void;
 }
 
-type Tab = 'salesPersons' | 'cancellationReasons' | 'termsConditions';
+type Tab = 'salesPersons' | 'cancellationReasons' | 'termsConditions' | 'backup';
 
 export default function GeneralDataPage({
   salesPersons, setSalesPersons,
@@ -51,6 +51,7 @@ export default function GeneralDataPage({
     { key: 'salesPersons', label: 'Sales Persons', icon: '👤' },
     { key: 'cancellationReasons', label: 'Cancellation Reasons', icon: '❌' },
     { key: 'termsConditions', label: 'Terms & Conditions', icon: '📜' },
+    { key: 'backup', label: 'Backup & Restore', icon: '💾' },
   ];
 
   // ==================== Sales Persons ====================
@@ -466,6 +467,78 @@ export default function GeneralDataPage({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== BACKUP & RESTORE TAB ==================== */}
+      {activeTab === 'backup' && (
+        <div className="space-y-6">
+          <div className="bg-white border rounded-xl p-6 space-y-4">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">📤 Export Backup</h3>
+            <p className="text-sm text-gray-500">Download a complete backup of all application data as a JSON file. Use this for disaster recovery or to migrate data.</p>
+            <button
+              onClick={() => {
+                const backup: Record<string, any> = { _backupDate: new Date().toISOString(), _version: 1 };
+                const keys = ['hotels','agents','allotments','reservations','accounts','transactions','users','followups','external_transfers','audit_log','sales_persons','cancellation_reasons','terms_conditions','other_services','payment_gateways','pay_by_links','edit_approvals','tax_settings','expenses','expense_categories','consolidated_invoices','messages'];
+                keys.forEach(k => { try { backup[k] = JSON.parse(localStorage.getItem(`zumra_${k}`) || '[]'); } catch { backup[k] = []; } });
+                const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = `zumra-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+                URL.revokeObjectURL(url);
+                showToast('Backup downloaded successfully');
+                onLogAudit('Backup', 'GeneralData', 'backup', `Exported full backup`);
+              }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+            >
+              Download Full Backup
+            </button>
+          </div>
+
+          <div className="bg-white border rounded-xl p-6 space-y-4">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">📥 Restore from Backup</h3>
+            <p className="text-sm text-gray-500">Restore data from a previously exported JSON backup file. <span className="text-red-500 font-medium">This will overwrite current data.</span></p>
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (!confirm('This will OVERWRITE all current data with the backup. Are you sure?')) { e.target.value = ''; return; }
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const backup = JSON.parse(ev.target?.result as string);
+                    if (!backup._backupDate) { showToast('Invalid backup file', 'error'); return; }
+                    const keys = Object.keys(backup).filter(k => !k.startsWith('_'));
+                    keys.forEach(k => { localStorage.setItem(`zumra_${k}`, JSON.stringify(backup[k])); });
+                    showToast(`Restored ${keys.length} collections. Reloading...`);
+                    onLogAudit('Restore', 'GeneralData', 'restore', `Restored from backup dated ${backup._backupDate}`);
+                    setTimeout(() => window.location.reload(), 1500);
+                  } catch (err) {
+                    showToast('Failed to parse backup file', 'error');
+                  }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+              }}
+              className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+          </div>
+
+          <div className="bg-white border rounded-xl p-6 space-y-4">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">🗂️ Data Statistics</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              {(['hotels','agents','reservations','transactions','allotments','accounts','other_services','expenses'] as const).map(k => {
+                try { const d = JSON.parse(localStorage.getItem(`zumra_${k}`) || '[]'); return (
+                  <div key={k} className="bg-gray-50 rounded-lg p-3 text-center">
+                    <div className="text-lg font-bold text-gray-800">{Array.isArray(d) ? d.length : 1}</div>
+                    <div className="text-xs text-gray-500 capitalize">{k.replace(/_/g,' ')}</div>
+                  </div>
+                ); } catch { return null; }
+              })}
+            </div>
           </div>
         </div>
       )}

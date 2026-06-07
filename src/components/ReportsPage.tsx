@@ -26,7 +26,7 @@ interface ReportsPageProps {
   onNavigate?: (page: string) => void;
 }
 
-type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax';
+type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation';
 
 export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], initialTab, onNavigate }: ReportsPageProps) {
   const { t, lang } = useLang();
@@ -260,6 +260,14 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               }`}
             >
               🧾 Tax Report
+            </button>
+            <button
+              onClick={() => setActiveReportTab('reconciliation')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'reconciliation' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🔄 Reconciliation
             </button>
           </div>
         </div>
@@ -1086,6 +1094,53 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 </button>
               </div>
 
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== RECONCILIATION REPORT ==================== */}
+      {activeReportTab === 'reconciliation' && (() => {
+        const customers = agents.filter(a => a.type === 'Customer' || a.type === 'Both');
+        const clientRows = customers.map(client => {
+          const clientRes = reservations.filter(r => r.clientId === client.id && r.status !== 'Cancelled');
+          const totalSell = clientRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+          const clientPayments = transactions.filter(t => t.agentId === client.id && (t.type === 'ClientPayment' || t.type === 'CreditApplied')).reduce((s, t) => s + t.amount, 0);
+          const bookedAmount = clientRes.reduce((s, r) => s + (r.amountPaidByClient || 0), 0);
+          const outstanding = totalSell - bookedAmount;
+          return { client, totalSell, bookedAmount, clientPayments, outstanding, bookings: clientRes.length };
+        }).filter(r => r.bookings > 0).sort((a, b) => b.outstanding - a.outstanding);
+
+        return (
+          <div className="space-y-4">
+            <h3 className="font-bold text-slate-800 uppercase text-xs">Client Reconciliation Report</h3>
+            <p className="text-xs text-slate-500">Compare system records against client accounts. Outstanding = Total Sell - Client Paid.</p>
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-2 text-[10px] uppercase font-bold text-slate-500">Client</th>
+                    <th className="text-center px-3 py-2 text-[10px] uppercase font-bold text-slate-500">Bookings</th>
+                    <th className="text-right px-3 py-2 text-[10px] uppercase font-bold text-slate-500">Total Sell</th>
+                    <th className="text-right px-3 py-2 text-[10px] uppercase font-bold text-slate-500">Client Paid</th>
+                    <th className="text-right px-3 py-2 text-[10px] uppercase font-bold text-slate-500">Payments</th>
+                    <th className="text-right px-3 py-2 text-[10px] uppercase font-bold text-slate-500">Outstanding</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-xs">
+                  {clientRows.map(r => (
+                    <tr key={r.client.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium">{r.client.companyName || r.client.name}</td>
+                      <td className="px-3 py-2 text-center font-mono">{r.bookings}</td>
+                      <td className="px-3 py-2 text-right font-mono">{r.totalSell.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-emerald-700">{r.bookedAmount.toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono text-indigo-700">{r.clientPayments.toLocaleString()}</td>
+                      <td className={`px-3 py-2 text-right font-mono font-bold ${r.outstanding > 0 ? 'text-rose-700' : r.outstanding < 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{r.outstanding.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {clientRows.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No client data</td></tr>}
+                </tbody>
+              </table>
             </div>
           </div>
         );

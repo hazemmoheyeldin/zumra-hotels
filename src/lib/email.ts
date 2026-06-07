@@ -49,6 +49,114 @@ export async function sendDailySummaryEmail(
   }
 }
 
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  userName: string,
+  tempPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) {
+    return { success: false, error: 'Email service not configured.' };
+  }
+  try {
+    await emailjs.send(
+      SERVICE_ID,
+      TEMPLATE_ID,
+      {
+        to_email: toEmail,
+        user_name: userName,
+        username: '',
+        temp_password: tempPassword,
+        login_url: window.location.origin,
+        logo_url: `${window.location.origin}/zumra-logo.png`,
+        message: `Your password has been reset. Your temporary password is: <strong>${tempPassword}</strong><br/><br/>You will be required to change it on next login.`,
+        subject: 'Zumra Hotels - Password Reset',
+      },
+      { publicKey: PUBLIC_KEY }
+    );
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send reset email.' };
+  }
+}
+
+export async function sendBookingConfirmation(
+  toEmail: string,
+  guestName: string,
+  reservationId: number,
+  hotelName: string,
+  checkIn: string,
+  checkOut: string,
+  totalAmount: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) return { success: false, error: 'Email service not configured.' };
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: toEmail,
+      user_name: guestName,
+      username: '',
+      temp_password: '',
+      login_url: window.location.origin,
+      logo_url: `${window.location.origin}/zumra-logo.png`,
+      message: `<h3>Booking Confirmation - RSV-${reservationId}</h3><p>Dear ${guestName},</p><p>Your booking has been confirmed:</p><ul><li><strong>Hotel:</strong> ${hotelName}</li><li><strong>Check-in:</strong> ${checkIn}</li><li><strong>Check-out:</strong> ${checkOut}</li><li><strong>Total:</strong> ${totalAmount.toLocaleString()} SAR</li></ul><p>Thank you for choosing Zumra Hotels.</p>`,
+      subject: `Zumra Hotels - Booking Confirmation RSV-${reservationId}`,
+    }, { publicKey: PUBLIC_KEY });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send.' };
+  }
+}
+
+export async function sendPaymentReceipt(
+  toEmail: string,
+  clientName: string,
+  voucherNo: string,
+  amount: number,
+  date: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) return { success: false, error: 'Email service not configured.' };
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: toEmail,
+      user_name: clientName,
+      username: '',
+      temp_password: '',
+      login_url: window.location.origin,
+      logo_url: `${window.location.origin}/zumra-logo.png`,
+      message: `<h3>Payment Receipt - ${voucherNo}</h3><p>Dear ${clientName},</p><p>We confirm receipt of your payment:</p><ul><li><strong>Voucher:</strong> ${voucherNo}</li><li><strong>Amount:</strong> ${amount.toLocaleString()} SAR</li><li><strong>Date:</strong> ${date}</li></ul><p>Thank you.</p>`,
+      subject: `Zumra Hotels - Payment Receipt ${voucherNo}`,
+    }, { publicKey: PUBLIC_KEY });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send.' };
+  }
+}
+
+export async function sendPaymentReminder(
+  toEmail: string,
+  clientName: string,
+  reservationId: number,
+  guestName: string,
+  amountDue: number,
+  checkIn: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) return { success: false, error: 'Email service not configured.' };
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: toEmail,
+      user_name: clientName,
+      username: '',
+      temp_password: '',
+      login_url: window.location.origin,
+      logo_url: `${window.location.origin}/zumra-logo.png`,
+      message: `<h3>Payment Reminder - RSV-${reservationId}</h3><p>Dear ${clientName},</p><p>This is a friendly reminder that payment is due for:</p><ul><li><strong>Guest:</strong> ${guestName}</li><li><strong>Reservation:</strong> RSV-${reservationId}</li><li><strong>Amount Due:</strong> ${amountDue.toLocaleString()} SAR</li><li><strong>Check-in:</strong> ${checkIn}</li></ul><p>Please arrange payment at your earliest convenience.</p>`,
+      subject: `Zumra Hotels - Payment Reminder RSV-${reservationId}`,
+    }, { publicKey: PUBLIC_KEY });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send.' };
+  }
+}
+
 export async function sendInvitationEmail(
   toEmail: string,
   userName: string,

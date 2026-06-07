@@ -14,6 +14,7 @@ import Dashboard from './components/Dashboard';
 import ReservationsPage from './components/ReservationsPage';
 import HotelsPage from './components/HotelsPage';
 import AgentsPage from './components/AgentsPage';
+import GuestsPage from './components/GuestsPage';
 import AllotmentsPage from './components/AllotmentsPage';
 import TransactionsPage from './components/TransactionsPage';
 import ExternalTransfersPage from './components/ExternalTransfersPage';
@@ -109,6 +110,24 @@ const THEMES = [
     badgeBg: 'bg-amber-50 text-amber-800',
     footerText: 'text-slate-500',
     topBarGradient: 'from-amber-500 via-neutral-600 to-[#1a1a1a]',
+  },
+  {
+    id: 'dark-mode',
+    name: 'Dark Mode',
+    emoji: '🌙',
+    mainBg: 'bg-gray-900 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-gray-100',
+    sidebarBg: 'bg-gray-950',
+    sidebarBorder: 'border-gray-800',
+    sidebarHover: 'hover:bg-gray-800',
+    sidebarActive: 'bg-gray-800 text-white',
+    sidebarText: 'text-gray-400',
+    brandBg: 'bg-amber-500',
+    brandText: 'text-amber-400',
+    brandLetterColor: 'text-white',
+    btnPrimary: 'bg-amber-500 hover:bg-amber-600 text-gray-900 shadow-sm',
+    badgeBg: 'bg-gray-800 text-gray-200',
+    footerText: 'text-gray-500',
+    topBarGradient: 'from-gray-800 via-gray-700 to-gray-900',
   },
 ];
 
@@ -212,6 +231,48 @@ export default function App() {
             message: `RSV-${res.id} (${res.guestName}) check-in in ${daysUntilCheckIn} days - Client owes ${clientOwes.toLocaleString()} SAR`,
             resId: res.id.toString(),
           });
+        }
+      }
+
+      // Document expiry alerts (passport & visa)
+      if (res.status !== 'Cancelled') {
+        if (res.passportExpiry) {
+          const pExp = new Date(res.passportExpiry);
+          const daysToExpiry = Math.ceil((pExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysToExpiry <= 90 && daysToExpiry >= 0) {
+            alerts.push({
+              id: `passport_${res.id}`,
+              type: 'Passport Expiring',
+              message: `RSV-${res.id} (${res.guestName}) passport expires in ${daysToExpiry} days (${res.passportExpiry})`,
+              resId: res.id.toString(),
+            });
+          } else if (daysToExpiry < 0) {
+            alerts.push({
+              id: `passport_exp_${res.id}`,
+              type: 'Passport Expired',
+              message: `RSV-${res.id} (${res.guestName}) passport EXPIRED on ${res.passportExpiry}`,
+              resId: res.id.toString(),
+            });
+          }
+        }
+        if (res.visaExpiry) {
+          const vExp = new Date(res.visaExpiry);
+          const daysToExpiry = Math.ceil((vExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysToExpiry <= 60 && daysToExpiry >= 0) {
+            alerts.push({
+              id: `visa_${res.id}`,
+              type: 'Visa Expiring',
+              message: `RSV-${res.id} (${res.guestName}) visa expires in ${daysToExpiry} days (${res.visaExpiry})`,
+              resId: res.id.toString(),
+            });
+          } else if (daysToExpiry < 0) {
+            alerts.push({
+              id: `visa_exp_${res.id}`,
+              type: 'Visa Expired',
+              message: `RSV-${res.id} (${res.guestName}) visa EXPIRED on ${res.visaExpiry}`,
+              resId: res.id.toString(),
+            });
+          }
         }
       }
     });
@@ -1343,6 +1404,16 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Guests':
+        return (
+          <ErrorBoundary fallbackLabel="Guests page failed to load.">
+          <GuestsPage
+            reservations={reservations}
+            agents={agents}
+            hotels={hotels}
+          />
+          </ErrorBoundary>
+        );
       case 'Allotments':
         return (
           <ErrorBoundary fallbackLabel="Allotments page failed to load.">
@@ -1525,6 +1596,32 @@ export default function App() {
     return unsub;
   }, []);
 
+  // Keyboard shortcuts
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!currentUser) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (e.key === '?' && !mod && !e.shiftKey) return; // ignore unmodified ?
+      if (e.shiftKey && e.key === '?') { setShowShortcuts(s => !s); e.preventDefault(); return; }
+      if (e.key === 'Escape') { setShowShortcuts(false); setIsAlertsOpen(false); return; }
+      if (!mod) return; // remaining shortcuts require Ctrl/Cmd
+      switch (e.key.toLowerCase()) {
+        case '1': setActiveTab('Dashboard'); e.preventDefault(); break;
+        case '2': setActiveTab('Reservations'); e.preventDefault(); break;
+        case '3': setActiveTab('Hotels'); e.preventDefault(); break;
+        case '4': setActiveTab('Agents'); e.preventDefault(); break;
+        case '5': setActiveTab('Transactions'); e.preventDefault(); break;
+        case 'k': setActiveTab('Calendar'); e.preventDefault(); break;
+        case 'b': setActiveTab('Reports'); e.preventDefault(); break;
+        case 'j': setActiveTab('Sales'); e.preventDefault(); break;
+        case '.': setSidebarOpen(s => !s); e.preventDefault(); break;
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentUser]);
+
   const navItems = [
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard' },
     { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar' },
@@ -1534,6 +1631,7 @@ export default function App() {
     { name: 'Production', icon: '📈', group: 'Operations', key: 'production' },
     { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels' },
     { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents' },
+    { name: 'Guests', icon: '🧳', group: 'Operations', key: 'guests' },
     { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments' },
     { name: 'Other Services', icon: '🌐', group: 'Operations', key: 'otherServices' },
     { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions' },
@@ -1554,10 +1652,10 @@ export default function App() {
   // Get permitted nav items based on user's specific role
   const permittedNavItems = navItems.filter((item) => {
     if (currentUser.role === 'Reservationist') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'General Data', 'Expenses'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Guests', 'Allotments', 'Other Services', 'General Data', 'Expenses'].includes(item.name);
     }
     if (currentUser.role === 'Sales') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments', 'Other Services'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Guests', 'Allotments', 'Other Services'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
       return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services', 'Expenses'].includes(item.name);
@@ -2086,6 +2184,40 @@ export default function App() {
           onReject={handleRejectEdit}
           onClose={() => setShowEditApprovalModal(false)}
         />
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">⌨️ Keyboard Shortcuts</h2>
+              <button onClick={() => setShowShortcuts(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ['Shift + ?', 'Show shortcuts'],
+                  ['Esc', 'Close modals'],
+                  ['Ctrl + 1', 'Dashboard'],
+                  ['Ctrl + 2', 'Reservations'],
+                  ['Ctrl + 3', 'Hotels'],
+                  ['Ctrl + 4', 'Agents'],
+                  ['Ctrl + 5', 'Transactions'],
+                  ['Ctrl + K', 'Calendar'],
+                  ['Ctrl + B', 'Reports'],
+                  ['Ctrl + J', 'Sales'],
+                  ['Ctrl + .', 'Toggle sidebar'],
+                ].map(([key, desc]) => (
+                  <React.Fragment key={key}>
+                    <kbd className="px-2 py-1 bg-gray-100 border rounded text-xs font-mono text-gray-700 text-right">{key}</kbd>
+                    <span className="text-gray-600 flex items-center">{desc}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Confirmation Dialog */}

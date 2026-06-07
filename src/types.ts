@@ -176,6 +176,9 @@ export interface Reservation {
   allotmentId?: string; // Linked allotment ID if booked through allotment
   nonRefundable?: boolean; // Non-refundable booking flag
   amendmentHistory?: AmendmentEntry[]; // Track changes to this reservation
+  groupRef?: string; // Group booking reference - links multiple rooms under one group
+  passportExpiry?: string; // Guest passport expiry date
+  visaExpiry?: string; // Guest visa expiry date
 }
 
 export interface Account {

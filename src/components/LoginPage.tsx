@@ -7,6 +7,8 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { useLang } from '../lib/LanguageContext';
+import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
+import { ZumraDB, ZumraSync } from '../lib/storage';
 
 interface LoginPageProps {
   users: User[];
@@ -25,6 +27,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(() => !!localStorage.getItem('zumra_remembered_user'));
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot password state
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMsg, setResetMsg] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
 
   // Forced password change state
   const [forcePwdUser, setForcePwdUser] = useState<User | null>(null);
@@ -108,6 +117,101 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     onUpdateUser?.(updatedUser);
     onLoginSuccess(updatedUser);
   };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetMsg(''); setResetError('');
+    if (!resetEmail.trim()) { setResetError('Please enter your email or username.'); return; }
+    setResetLoading(true);
+    try {
+      const query = resetEmail.trim().toLowerCase();
+      const matchedUser = users.find(u => u.email?.toLowerCase() === query || u.username.toLowerCase() === query);
+      if (!matchedUser) { setResetError('No account found with that email or username.'); setResetLoading(false); return; }
+      if (!matchedUser.email) { setResetError('This account has no email address. Contact your administrator.'); setResetLoading(false); return; }
+      // Generate temp password
+      const tempPwd = 'Zumra' + Math.random().toString(36).slice(2, 8) + '!';
+      const updatedUser = { ...matchedUser, password: tempPwd, mustChangePassword: true };
+      onUpdateUser?.(updatedUser);
+      ZumraDB.saveUsers(users.map(u => u.id === matchedUser.id ? updatedUser : u));
+      ZumraSync.saveUser(updatedUser);
+      const result = await sendPasswordResetEmail(matchedUser.email, matchedUser.name, tempPwd);
+      if (result.success) {
+        setResetMsg(`A temporary password has been sent to ${matchedUser.email}`);
+      } else {
+        setResetError(result.error || 'Failed to send email.');
+      }
+    } catch (err: any) {
+      setResetError('An unexpected error occurred.');
+    }
+    setResetLoading(false);
+  };
+
+  // Forgot password screen
+  if (forgotMode) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
+        <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
+        <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+
+        <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+
+          <div className="text-center flex flex-col items-center space-y-3">
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
+            <div className="mt-1">
+              <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+              <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Reset</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
+
+          {!isEmailConfigured && (
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2">
+              <span className="text-sm">⚠️</span>
+              <p className="font-mono text-[10px] uppercase leading-snug">Email service is not configured. Contact your administrator.</p>
+            </div>
+          )}
+
+          {resetError && (
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2">
+              <span className="text-sm">⚠️</span>
+              <p className="font-mono text-[10px] uppercase leading-snug">{resetError}</p>
+            </div>
+          )}
+          {resetMsg && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-300 flex items-start gap-2">
+              <span className="text-sm">✅</span>
+              <p className="font-mono text-[10px] uppercase leading-snug">{resetMsg}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="group relative">
+              <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${resetEmail ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+                Email or Username
+              </label>
+              <input type="text" value={resetEmail} onChange={e => { setResetEmail(e.target.value); setResetError(''); setResetMsg(''); }}
+                className="w-full bg-white/5 px-4 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all placeholder-transparent"
+                placeholder=" " required disabled={!isEmailConfigured} />
+            </div>
+            <button type="submit" disabled={resetLoading || !isEmailConfigured}
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 active:scale-[0.98] transition-all text-slate-900 font-extrabold uppercase text-xs py-3 rounded-xl flex items-center justify-center gap-2 mt-2 disabled:opacity-50 shadow-lg shadow-amber-500/20">
+              {resetLoading ? 'Sending...' : 'Reset Password'}
+            </button>
+          </form>
+
+          <button onClick={() => { setForgotMode(false); setResetEmail(''); setResetMsg(''); setResetError(''); }}
+            className="w-full text-center text-[10px] text-slate-500 hover:text-amber-400 font-mono transition cursor-pointer">
+            ← Back to login
+          </button>
+        </div>
+
+        <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      </div>
+    );
+  }
 
   const getPasswordStrength = (pwd: string): { label: string; color: string; pct: number } => {
     if (!pwd) return { label: '', color: '', pct: 0 };
@@ -323,6 +427,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
                 {t('login.trustedDevice')}
               </span>
             )}
+          </div>
+
+          {/* Forgot password link */}
+          <div className="text-right -mt-2">
+            <button type="button" onClick={() => setForgotMode(true)} className="text-[10px] text-amber-400/70 hover:text-amber-400 font-mono transition cursor-pointer">Forgot password?</button>
           </div>
 
           {/* Submit */}

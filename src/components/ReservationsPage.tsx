@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
+import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
@@ -90,6 +91,7 @@ export default function ReservationsPage({
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [printingDoc, setPrintingDoc] = useState<{ res: Reservation; isVoucher: boolean } | null>(null);
   const [printingInvoice, setPrintingInvoice] = useState<Reservation | null>(null);
 
@@ -277,6 +279,9 @@ export default function ReservationsPage({
   const [amountPaidByClient, setAmountPaidByClient] = useState<number>(0);
   const [amountPaidToSupplier, setAmountPaidToSupplier] = useState<number>(0);
   const [nonRefundable, setNonRefundable] = useState<boolean>(false);
+  const [groupRef, setGroupRef] = useState('');
+  const [passportExpiry, setPassportExpiry] = useState('');
+  const [visaExpiry, setVisaExpiry] = useState('');
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -651,6 +656,9 @@ export default function ReservationsPage({
       supplierVoucher,
       allotmentId: selectedAllotmentId || undefined,
       nonRefundable: nonRefundable || undefined,
+      groupRef: groupRef || undefined,
+      passportExpiry: passportExpiry || undefined,
+      visaExpiry: visaExpiry || undefined,
       createdAt: editingId ? (reservations.find(r => r.id.toString() === editingId)?.createdAt || getEgyptTime().toISOString().replace('T', ' ').substring(0, 19)) : getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
       createdBy: currentUser
     };
@@ -826,6 +834,9 @@ export default function ReservationsPage({
     setAmountPaidByClient(0);
     setAmountPaidToSupplier(0);
     setNonRefundable(false);
+    setGroupRef('');
+    setPassportExpiry('');
+    setVisaExpiry('');
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
     setShowForm(false);
   };
@@ -1005,7 +1016,10 @@ export default function ReservationsPage({
         'Booking Date': res.createdAt?.split(' ')[0] || '',
         'Total Buy': totals.totalBuy,
         'Total Sell': totals.totalSell,
-        'Profit': totals.profit
+        'Profit': totals.profit,
+        'Markup %': `${totals.markupPct.toFixed(1)}%`,
+        'Client Paid': res.amountPaidByClient || 0,
+        'Outstanding': Math.max(totals.totalSell - (res.amountPaidByClient || 0), 0)
       };
     });
     exportToCSV('reservations-export.csv', reportData);
@@ -1800,6 +1814,20 @@ export default function ReservationsPage({
                   </p>
                 </div>
               </div>
+              {/* Group Booking Reference */}
+              <div className="col-span-2">
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Group Reference</label>
+                <input type="text" value={groupRef} onChange={(e) => setGroupRef(e.target.value)} placeholder="e.g. GRP-2026-001 (links multiple rooms)" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
+              {/* Document Expiry Dates */}
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Passport Expiry</label>
+                <input type="date" value={passportExpiry} onChange={(e) => setPassportExpiry(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Visa Expiry</label>
+                <input type="date" value={visaExpiry} onChange={(e) => setVisaExpiry(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white" />
+              </div>
               {/* Down payment fields removed - shown in Financial Summary below */}
             </div>
           </div>
@@ -1931,11 +1959,43 @@ export default function ReservationsPage({
           )}
         </div>
 
+        {/* Bulk Actions Toolbar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-sm">
+            <span className="font-bold text-indigo-700">{selectedIds.size} selected</span>
+            <button
+              onClick={() => {
+                if (!confirm(`Cancel ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;
+                const toCancel = reservations.filter(r => selectedIds.has(r.id) && r.status !== 'Cancelled');
+                toCancel.forEach(r => onSaveReservation({ ...r, status: 'Cancelled' as const, cancellationReason: 'Bulk cancellation' }));
+                setSelectedIds(new Set());
+                toast.success(`${toCancel.length} reservation(s) cancelled`);
+              }}
+              className="px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg font-bold text-xs hover:bg-rose-200 transition border border-rose-200"
+            >Bulk Cancel</button>
+            <button
+              onClick={() => {
+                if (!confirm(`Delete ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;
+                selectedIds.forEach(id => onDeleteReservation(id.toString()));
+                setSelectedIds(new Set());
+                toast.success(`${selectedIds.size} reservation(s) deleted`);
+              }}
+              className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold text-xs hover:bg-red-200 transition border border-red-200"
+            >Bulk Delete</button>
+            <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs text-indigo-500 hover:text-indigo-700 font-medium">Clear Selection</button>
+          </div>
+        )}
+
         {/* Desktop Table Layout */}
         <div className="hidden md:block bg-white border border-slate-150 rounded-2xl p-4 shadow-sm overflow-x-auto text-[11px] -webkit-overflow-scrolling: touch">
           <table className="w-full text-left border-collapse min-w-[900px] md:min-w-0">
             <thead>
               <tr className="border-b border-light text-slate-400 font-semibold bg-slate-50/50 uppercase tracking-wider text-[10px]">
+                <th className="py-2.5 px-3 font-mono">
+                  <input type="checkbox" checked={sortedReservations.length > 0 && selectedIds.size === sortedReservations.length}
+                    onChange={e => setSelectedIds(e.target.checked ? new Set(sortedReservations.map(r => r.id)) : new Set())}
+                    className="rounded" title="Select all" />
+                </th>
                 <th className="py-2.5 px-3 font-mono">{t('res.id')}</th>
                 <th className="py-2.5 px-3">{t('res.guestName')}</th>
                 <th className="py-2.5 px-3 text-left">{t('res.client')}</th>
@@ -1957,7 +2017,12 @@ export default function ReservationsPage({
                 const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
 
                 return (
-                  <tr key={res.id} className="hover:bg-slate-50/40 text-xs">
+                  <tr key={res.id} className={`hover:bg-slate-50/40 text-xs ${selectedIds.has(res.id) ? 'bg-indigo-50/40' : ''}`}>
+                    <td className="py-3 px-3">
+                      <input type="checkbox" checked={selectedIds.has(res.id)}
+                        onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(res.id) : s.delete(res.id); setSelectedIds(s); }}
+                        className="rounded" />
+                    </td>
                     <td className="py-3 px-3 font-bold font-mono text-slate-900 bg-amber-50/5">
                       RSV-{res.id}
                     </td>
@@ -2198,7 +2263,7 @@ export default function ReservationsPage({
                   { key: 'payment' as const, label: t('res.recordPaymentTitle'), icon: '💳' },
                   { key: 'agreements' as const, label: t('res.agreementsRooms'), icon: '⚙️' },
                   { key: 'documents' as const, label: t('res.documents'), icon: '📄' },
-                  ...(resObj.amendmentHistory && resObj.amendmentHistory.length > 0 ? [{ key: 'history' as const, label: 'History', icon: '🕐' }] : []),
+                  { key: 'history' as const, label: 'Timeline', icon: '🕐' },
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -2687,30 +2752,51 @@ export default function ReservationsPage({
                 {/* ===== HISTORY TAB ===== */}
                 {activeDetailTab === 'history' && (
                   <div className="space-y-3">
-                    <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest">Amendment History</h5>
-                    {resObj.amendmentHistory && resObj.amendmentHistory.length > 0 ? (
-                      <div className="relative border-l-2 border-slate-200 ml-3 pl-6 space-y-4">
-                        {resObj.amendmentHistory.map((entry) => (
-                          <div key={entry.id} className="relative">
-                            <div className="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow"></div>
-                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-bold text-slate-800 text-[11px]">{entry.field}</span>
-                                <span className="text-[9px] text-slate-400 font-mono">{new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-[10px]">
-                                <span className="text-rose-600 line-through">{entry.oldValue}</span>
-                                <span className="text-slate-400">→</span>
-                                <span className="text-emerald-700 font-semibold">{entry.newValue}</span>
-                              </div>
-                              <div className="text-[9px] text-slate-400 mt-1">by {entry.user}</div>
-                            </div>
+                    <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest">Activity Timeline</h5>
+                    <div className="relative border-l-2 border-slate-200 ml-3 pl-6 space-y-4">
+                      {/* Creation event */}
+                      <div className="relative">
+                        <div className="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow"></div>
+                        <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-emerald-800 text-[11px]">Reservation Created</span>
+                            <span className="text-[9px] text-slate-400 font-mono">{resObj.createdAt}</span>
                           </div>
-                        ))}
+                          <div className="text-[10px] text-slate-600">by {resObj.createdBy || 'System'}</div>
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-slate-400 italic text-[10px] py-4 text-center">No amendments recorded</p>
-                    )}
+                      {/* Status event */}
+                      {resObj.status !== 'Tentative' && (
+                        <div className="relative">
+                          <div className={`absolute -left-[25px] top-1 w-3 h-3 rounded-full border-2 border-white shadow ${resObj.status === 'Confirmed' ? 'bg-blue-500' : 'bg-rose-500'}`}></div>
+                          <div className={`rounded-lg p-3 border ${resObj.status === 'Confirmed' ? 'bg-blue-50 border-blue-100' : 'bg-rose-50 border-rose-100'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`font-bold text-[11px] ${resObj.status === 'Confirmed' ? 'text-blue-800' : 'text-rose-800'}`}>Status: {resObj.status}</span>
+                              {resObj.hotelConfirmationNo && <span className="text-[9px] text-slate-400 font-mono">Hotel Conf#: {resObj.hotelConfirmationNo}</span>}
+                            </div>
+                            {resObj.cancellationReason && <div className="text-[10px] text-slate-600">Reason: {resObj.cancellationReason}</div>}
+                          </div>
+                        </div>
+                      )}
+                      {/* Amendment entries */}
+                      {resObj.amendmentHistory && resObj.amendmentHistory.map((entry) => (
+                        <div key={entry.id} className="relative">
+                          <div className="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow"></div>
+                          <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-slate-800 text-[11px]">{entry.field}</span>
+                              <span className="text-[9px] text-slate-400 font-mono">{new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px]">
+                              <span className="text-rose-600 line-through">{entry.oldValue}</span>
+                              <span className="text-slate-400">→</span>
+                              <span className="text-emerald-700 font-semibold">{entry.newValue}</span>
+                            </div>
+                            <div className="text-[9px] text-slate-400 mt-1">by {entry.user}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2718,10 +2804,33 @@ export default function ReservationsPage({
 
               {/* Footer */}
               <div className="border-t border-slate-200 px-6 py-3 bg-slate-50/50 flex justify-between items-center">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.confirmation')}</button>
                   <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.voucher')}</button>
                   <button onClick={() => setPrintingInvoice(resObj)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.invoice')}</button>
+                  {isEmailConfigured && (() => {
+                    const client = agents.find(a => a.id === resObj.clientId);
+                    const hotel = hotels.find(h => h.id === resObj.hotelId);
+                    const totals = getReservationTotals(resObj);
+                    return (
+                      <>
+                        {client?.email && (
+                          <button onClick={async () => {
+                            const { totalSell } = totals;
+                            const result = await sendBookingConfirmation(client.email, resObj.guestName, resObj.id, hotel?.name || '', resObj.checkIn, resObj.checkOut, totalSell);
+                            if (result.success) toast.success('Confirmation email sent'); else toast.error(result.error || 'Email failed');
+                          }} className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]" title={`Send to ${client.email}`}>📧 Confirm</button>
+                        )}
+                        {client?.email && resObj.status !== 'Cancelled' && totals.totalSell > (resObj.amountPaidByClient || 0) && (
+                          <button onClick={async () => {
+                            const due = totals.totalSell - (resObj.amountPaidByClient || 0);
+                            const result = await sendPaymentReminder(client.email, client.companyName || client.name, resObj.id, resObj.guestName, due, resObj.checkIn);
+                            if (result.success) toast.success('Reminder email sent'); else toast.error(result.error || 'Email failed');
+                          }} className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]" title={`Send reminder to ${client.email}`}>📧 Remind</button>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
                 <button onClick={() => setViewingId(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-4 py-1.5 rounded-lg transition text-[10px]">{t('common.close')}</button>
               </div>

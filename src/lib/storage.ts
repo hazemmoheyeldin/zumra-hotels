@@ -746,6 +746,7 @@ export function getReservationTotals(res: Reservation) {
   });
 
   const profit = totalSell - totalBuy;
+  const markupPct = totalBuy > 0 ? ((profit / totalBuy) * 100) : 0;
   const vat = totalSell * 0.15; // 15% VAT
   const totalWithVat = totalSell + vat;
 
@@ -753,6 +754,7 @@ export function getReservationTotals(res: Reservation) {
     totalSell,
     totalBuy,
     profit,
+    markupPct,
     vat,
     totalWithVat
   };
