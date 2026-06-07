@@ -200,7 +200,29 @@ export default function App() {
     setAccounts(ZumraDB.getAccounts());
     setTransactions(ZumraDB.getTransactions());
     setExternalTransfers(ZumraDB.getExternalTransfers());
-    setUsers(ZumraDB.getUsers());
+    const loadedUsers = ZumraDB.getUsers();
+    // Ensure default admin user always exists
+    const hasAdmin = loadedUsers.some(u => u.username === 'hazem');
+    if (!hasAdmin) {
+      const defaultAdmin: User = {
+        id: 'admin-hazem',
+        username: 'hazem',
+        name: 'Hazem Mohey Eldin',
+        role: 'Admin',
+        email: 'hazem8383@gmail.com',
+        password: 'hazem123',
+        mustChangePassword: false,
+      };
+      const updatedUsers = [...loadedUsers, defaultAdmin];
+      ZumraDB.saveUsers(updatedUsers);
+      setUsers(updatedUsers);
+      // Sync to Firestore if available
+      if (isFirebaseConfigured) {
+        ZumraSync.saveUser(defaultAdmin);
+      }
+    } else {
+      setUsers(loadedUsers);
+    }
     setFollowUps(ZumraDB.getFollowUps());
     // Do NOT auto-login - always show login screen
 
