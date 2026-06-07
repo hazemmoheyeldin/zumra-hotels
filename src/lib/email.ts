@@ -4,6 +4,8 @@
  */
 
 import emailjs from '@emailjs/browser';
+import { loadEmailTemplates } from './storage';
+import { EmailTemplate } from '../types';
 
 const SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || '';
 const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '';
@@ -234,5 +236,103 @@ export async function sendSupplierRateConfirmation(
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.text || err?.message || 'Failed to send' };
+  }
+}
+
+/**
+ * Send a pre-arrival reminder email 3 days before check-in.
+ * Uses the 'preArrival' email template if available, otherwise falls back to default.
+ */
+export async function sendPreArrivalReminder(
+  toEmail: string,
+  guestName: string,
+  hotelName: string,
+  checkIn: string,
+  checkOut: string,
+  nights: number,
+  roomTypes: string,
+  specialRequests: string,
+  reservationId: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) return { success: false, error: 'Email service not configured' };
+  
+  // Check for custom pre-arrival template
+  const templates = loadEmailTemplates();
+  const activeTemplate = templates.find(t => t.type === 'preArrival' && t.active);
+  
+  let subject: string;
+  let body: string;
+  
+  if (activeTemplate) {
+    subject = applyTemplateVariables(activeTemplate.subject, { guestName, hotel: hotelName, checkIn, checkOut, nights: String(nights), rooms: roomTypes, bookingRef: `RSV-${reservationId}`, specialRequests });
+    body = applyTemplateVariables(activeTemplate.body, { guestName, hotel: hotelName, checkIn, checkOut, nights: String(nights), rooms: roomTypes, bookingRef: `RSV-${reservationId}`, specialRequests });
+  } else {
+    subject = `Pre-Arrival Reminder - ${hotelName} | ${checkIn}`;
+    body = `<h3>Pre-Arrival Reminder</h3><p>Dear ${guestName},</p><p>Your upcoming stay is just around the corner! Here are your booking details:</p><ul><li><strong>Hotel:</strong> ${hotelName}</li><li><strong>Check-in:</strong> ${checkIn}</li><li><strong>Check-out:</strong> ${checkOut}</li><li><strong>Nights:</strong> ${nights}</li><li><strong>Room Type(s):</strong> ${roomTypes}</li>${specialRequests ? `<li><strong>Special Requests:</strong> ${specialRequests}</li>` : ''}</ul><p>We look forward to welcoming you!</p><p>Best regards,<br/>Zumra Hotels</p>`;
+  }
+  
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: toEmail,
+      user_name: guestName,
+      username: '',
+      temp_password: '',
+      login_url: window.location.origin,
+      logo_url: `${window.location.origin}/zumra-logo.png`,
+      message: body,
+      subject: subject,
+    }, { publicKey: PUBLIC_KEY });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send pre-arrival reminder.' };
+  }
+}
+
+/**
+ * Apply template variables to a string.
+ * Replaces {{variableName}} with the corresponding value from the vars object.
+ */
+export function applyTemplateVariables(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => vars[key] ?? match);
+}
+
+/**
+ * Send an email using a stored template by type.
+ * Falls back to the provided defaultSubject/defaultBody if no active template found.
+ */
+export async function sendTemplatedEmail(
+  toEmail: string,
+  recipientName: string,
+  templateType: EmailTemplate['type'],
+  variables: Record<string, string>,
+  defaultSubject: string,
+  defaultBody: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) return { success: false, error: 'Email service not configured' };
+  
+  const templates = loadEmailTemplates();
+  const activeTemplate = templates.find(t => t.type === templateType && t.active);
+  
+  const subject = activeTemplate
+    ? applyTemplateVariables(activeTemplate.subject, variables)
+    : defaultSubject;
+  const body = activeTemplate
+    ? applyTemplateVariables(activeTemplate.body, variables)
+    : defaultBody;
+  
+  try {
+    await emailjs.send(SERVICE_ID, TEMPLATE_ID, {
+      to_email: toEmail,
+      user_name: recipientName,
+      username: '',
+      temp_password: '',
+      login_url: window.location.origin,
+      logo_url: `${window.location.origin}/zumra-logo.png`,
+      message: body,
+      subject: subject,
+    }, { publicKey: PUBLIC_KEY });
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send email.' };
   }
 }

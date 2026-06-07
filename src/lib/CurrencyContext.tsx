@@ -48,16 +48,12 @@ function saveCache(data: CachedRates): void {
   } catch {}
 }
 
-/** Get the most recent 9 AM Cairo time in ms (UTC+3) */
-function getLast9AMCairoMs(): number {
-  const now = new Date();
-  const cairoNow = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + 3 * 3600000);
-  const today9AM = new Date(cairoNow);
-  today9AM.setUTCHours(9, 0, 0, 0);
-  if (cairoNow.getTime() < today9AM.getTime()) {
-    today9AM.setUTCDate(today9AM.getUTCDate() - 1);
-  }
-  return today9AM.getTime() - 3 * 3600000 - now.getTimezoneOffset() * 60000;
+// Cache validity: 5 hours (extended caching for performance)
+const CACHE_VALIDITY_MS = 5 * 60 * 60 * 1000; // 5 hours
+
+function isCacheFresh(cached: CachedRates | null): boolean {
+  if (!cached) return false;
+  return (Date.now() - cached.fetchedAt) < CACHE_VALIDITY_MS;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -76,20 +72,19 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const fetchRates = async () => {
     const cached = loadCache();
-    const lastRefreshTime = getLast9AMCairoMs();
 
-    // Client-side cache: if rates were fetched after today's 9 AM Cairo, use them
-    if (cached && cached.fetchedAt >= lastRefreshTime) {
-      setFxRates(cached.rates as Record<Currency, number>);
-      setRatesTimestamp(cached.timestamp);
+    // Extended cache: if rates were fetched within 5 hours, use them
+    if (isCacheFresh(cached)) {
+      setFxRates(cached!.rates as Record<Currency, number>);
+      setRatesTimestamp(cached!.timestamp);
       setIsLiveRates(true);
-      setRatesSource(`cached (${cached.source})`);
+      setRatesSource(`cached (${cached!.source})`);
       return;
     }
 
-    // Fetch from serverless function (API key stays server-side)
+    // Fetch from serverless function with timeout and fallback
     try {
-      const res = await fetch('/api/rates', { signal: AbortSignal.timeout(15000) });
+      const res = await fetch('/api/rates', { signal: AbortSignal.timeout(10000) });
       
       if (!res.ok) {
         throw new Error(`Server returned ${res.status}`);
@@ -134,8 +129,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchRates();
-    // Check every 30 minutes if the 9 AM Cairo refresh window has arrived
-    const interval = setInterval(fetchRates, 30 * 60 * 1000);
+    // Check every 5 hours if cache has expired
+    const interval = setInterval(fetchRates, 5 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

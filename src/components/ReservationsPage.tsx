@@ -4,9 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
+import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold } from '../lib/storage';
 import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder, sendSupplierRateConfirmation } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
@@ -69,6 +69,8 @@ interface ReservationsPageProps {
   salesPersons?: SalesPerson[];
   onSaveFollowUp?: (fu: FollowUp) => void;
   followUps?: FollowUp[];
+  blackoutPeriods?: BlackoutPeriod[];
+  onSaveWaitlist?: (entry: WaitlistEntry) => void;
 }
 
 const BOOKING_SOURCES = ['Direct', 'Booking.com', 'Expedia', 'Agoda', 'Agent', 'Walk-in', 'Phone', 'Email', 'Social Media', 'Partner', 'Other'];
@@ -96,6 +98,8 @@ export default function ReservationsPage({
   salesPersons = [],
   onSaveFollowUp,
   followUps = [],
+  blackoutPeriods = [],
+  onSaveWaitlist,
 }: ReservationsPageProps) {
   
   // View states
@@ -296,6 +300,7 @@ export default function ReservationsPage({
   const [selectedTcId, setSelectedTcId] = useState('');
   const [bookingSource, setBookingSource] = useState('Direct');
   const [salesPersonId, setSalesPersonId] = useState('');
+  const [collectedBySalesPerson, setCollectedBySalesPerson] = useState(false);
   const [bookingTags, setBookingTags] = useState<string[]>([]);
   const [supplierDueDate, setSupplierDueDate] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
@@ -521,6 +526,7 @@ export default function ReservationsPage({
     setSelectedTcId(res.tcId || '');
     setBookingSource(res.bookingSource || 'Direct');
     setSalesPersonId(res.salesPersonId || '');
+    setCollectedBySalesPerson(res.collectedBySalesPerson || false);
     setBookingTags(res.tags || []);
     setSupplierDueDate(res.supplierDueDate || '');
     setSpecialRequests(res.specialRequests || '');
@@ -680,6 +686,18 @@ export default function ReservationsPage({
       tcId: selectedTcId || undefined,
       bookingSource: bookingSource || undefined,
       salesPersonId: salesPersonId || undefined,
+      salesPersonCommissionAmount: salesPersonId ? (() => {
+        const sp = salesPersons.find(s => s.id === salesPersonId);
+        if (!sp || !sp.commission) return 0;
+        const totalSellCalc = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
+        return Math.round((totalSellCalc * sp.commission) / 100);
+      })() : undefined,
+      commissionPaidToSalesPerson: editingId ? (reservations.find(r => r.id.toString() === editingId)?.commissionPaidToSalesPerson || false) : false,
+      commissionPaidDate: editingId ? (reservations.find(r => r.id.toString() === editingId)?.commissionPaidDate) : undefined,
+      collectedBySalesPerson: collectedBySalesPerson || undefined,
+      collectedDate: collectedBySalesPerson ? new Date().toISOString().split('T')[0] : undefined,
+      remittedToCompany: editingId ? (reservations.find(r => r.id.toString() === editingId)?.remittedToCompany || false) : false,
+      remittedDate: editingId ? (reservations.find(r => r.id.toString() === editingId)?.remittedDate) : undefined,
       tags: bookingTags.length > 0 ? bookingTags : undefined,
       supplierDueDate: supplierDueDate || undefined,
       specialRequests: specialRequests || undefined,
@@ -891,6 +909,7 @@ export default function ReservationsPage({
     setSelectedTcId('');
     setBookingSource('Direct');
     setSalesPersonId('');
+    setCollectedBySalesPerson(false);
     setBookingTags([]);
     setSupplierDueDate('');
     setSpecialRequests('');
@@ -1537,8 +1556,7 @@ export default function ReservationsPage({
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.statusLabel')}</label>
                 <div className="inline-flex gap-0.5 bg-slate-100 p-0.5 rounded-lg">
                   {(['Tentative', 'Confirmed', 'Cancelled'] as const).map(s => {
-                    const abbr = s === 'Tentative' ? 'TNT' : s === 'Confirmed' ? 'CNF' : 'CNL';
-                    const fullText = s === 'Tentative' ? 'Tentative' : s === 'Confirmed' ? 'Confirmed' : 'Cancelled';
+                    const abbr = s === 'Tentative' ? 'Tent' : s === 'Confirmed' ? 'Def' : 'Cncl';
                     return (
                     <button key={s} type="button" onClick={() => {
                       const applyStatus = () => {
@@ -1565,10 +1583,9 @@ export default function ReservationsPage({
                         }
                       }
                       applyStatus();
-                    }} className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
-                      <span className="text-[10px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>
-                      <span className="hidden md:inline">{fullText}</span>
-                      <span className="md:hidden">{abbr}</span>
+                    }} className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
+                      <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>
+                      <span>{abbr}</span>
                     </button>
                   );
                   })}
@@ -1593,14 +1610,97 @@ export default function ReservationsPage({
                 const totalRooms = rooms.reduce((s, rm) => s + rm.qty, 0);
                 const totalBuy = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
                 const totalSell = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
+                const selectedSP = salesPersonId ? salesPersons.find(sp => sp.id === salesPersonId) : null;
+                const commissionAmount = selectedSP && selectedSP.commission ? Math.round((totalSell * selectedSP.commission) / 100) : 0;
                 const totalProfit = totalSell - totalBuy;
+                const netProfit = totalProfit - commissionAmount;
+                const marginPercent = totalSell > 0 ? ((netProfit) / totalSell * 100) : 0;
+                const marginThreshold = loadMarginThreshold();
+                const marginColor = marginPercent >= marginThreshold ? 'text-emerald-600' : marginPercent >= 5 ? 'text-amber-600' : 'text-rose-600';
+                
+                // Check for blackout periods
+                const activeBlackout = blackoutPeriods.find(bp => 
+                  checkIn && checkOut && bp.startDate <= checkOut && bp.endDate >= checkIn &&
+                  (!bp.affectedHotels || bp.affectedHotels.length === 0 || bp.affectedHotels.includes(hotelId))
+                );
+                
+                // Check overbooking
+                const roomTypes = [...new Set(rooms.map(rm => rm.roomType))];
+                const overbookingWarnings = roomTypes.map(rt => {
+                  if (!hotelId || !checkIn || !checkOut) return null;
+                  return checkAllotmentCapacity(hotelId, rt, checkIn, checkOut, allotments, reservations, editingId ? parseInt(editingId) : undefined);
+                }).filter(w => w && !w.available && w.remaining !== -1);
+                
+                // Check credit limit
+                const selectedAgent = agents.find(a => a.id === clientId);
+                const creditWarning = selectedAgent?.creditLimit && selectedAgent.creditLimit > 0
+                  ? { balance: Math.abs(selectedAgent.balance) + totalSell, limit: selectedAgent.creditLimit }
+                  : null;
+                
                 return (
-                  <div className="flex flex-wrap gap-3 mb-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl p-3 border border-slate-200 text-[10px] font-bold">
-                    <span className="text-slate-600">Rooms: <span className="text-slate-900">{totalRooms}</span></span>
-                    <span className="text-red-500">Buy: <span className="font-mono">{totalBuy.toLocaleString()}</span></span>
-                    <span className="text-emerald-600">Sell: <span className="font-mono">{totalSell.toLocaleString()}</span></span>
-                    <span className={totalProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}>Profit: <span className="font-mono font-extrabold">{totalProfit.toLocaleString()}</span></span>
-                  </div>
+                  <>
+                    <div className="flex flex-wrap gap-3 mb-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl p-3 border border-slate-200 text-[10px] font-bold">
+                      <span className="text-slate-600">Rooms: <span className="text-slate-900">{totalRooms}</span></span>
+                      <span className="text-red-500">Buy: <span className="font-mono">{totalBuy.toLocaleString()}</span></span>
+                      <span className="text-emerald-600">Sell: <span className="font-mono">{totalSell.toLocaleString()}</span></span>
+                      <span className={totalProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}>Gross: <span className="font-mono font-extrabold">{totalProfit.toLocaleString()}</span></span>
+                      {commissionAmount > 0 && (
+                        <>
+                          <span className="text-purple-600">Commission ({selectedSP?.commission}%): <span className="font-mono font-bold">-{commissionAmount.toLocaleString()}</span></span>
+                          <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}>Net Profit: <span className="font-mono font-black">{netProfit.toLocaleString()}</span></span>
+                        </>
+                      )}
+                      <span className={marginColor}>Margin: <span className="font-mono font-extrabold">{marginPercent.toFixed(1)}%</span></span>
+                    </div>
+                    
+                    {/* Profit Margin Warning */}
+                    {totalSell > 0 && marginPercent < marginThreshold && (
+                      <div className={`mb-3 p-3 rounded-xl border text-xs font-bold ${marginPercent < 5 ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                        {marginPercent < 5 ? `\u26A0\uFE0F Critical margin: ${marginPercent.toFixed(1)}% - Review pricing` : `\u26A0\uFE0F Low profit margin: ${marginPercent.toFixed(1)}% (threshold: ${marginThreshold}%)`}
+                      </div>
+                    )}
+                    
+                    {/* Blackout Period Warning */}
+                    {activeBlackout && (
+                      <div className={`mb-3 p-3 rounded-xl border text-xs font-bold ${activeBlackout.blockBookings ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-purple-50 border-purple-200 text-purple-800'}`}>
+                        {activeBlackout.blockBookings
+                          ? `\uD83D\uDEAB Bookings are BLOCKED: ${activeBlackout.name} (${activeBlackout.startDate} to ${activeBlackout.endDate})`
+                          : `\u26A0\uFE0F Blackout period: ${activeBlackout.name} - Rate multiplier: ${activeBlackout.rateMultiplier}x`
+                        }
+                      </div>
+                    )}
+                    
+                    {/* Overbooking Warning */}
+                    {overbookingWarnings.length > 0 && (
+                      <div className="mb-3 p-3 rounded-xl border bg-orange-50 border-orange-200 text-orange-800 text-xs font-bold">
+                        \u26A0\uFE0F Overbooking risk: {overbookingWarnings.map(w => w!.message).join('. ')}
+                        {onSaveWaitlist && (
+                          <button type="button" onClick={() => {
+                            const entry: WaitlistEntry = {
+                              id: `wl_${Date.now()}`,
+                              hotelId, roomType: rooms[0]?.roomType || '',
+                              checkIn, checkOut, guestName, clientId,
+                              status: 'Waiting',
+                              createdAt: getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
+                              createdBy: currentUser
+                            };
+                            onSaveWaitlist(entry);
+                            toast.success('Added to waitlist');
+                          }} className="ml-2 px-2 py-0.5 bg-orange-200 hover:bg-orange-300 rounded text-[10px] font-bold text-orange-900">Add to Waitlist</button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Credit Limit Warning */}
+                    {creditWarning && creditWarning.balance > creditWarning.limit * 0.8 && (
+                      <div className={`mb-3 p-3 rounded-xl border text-xs font-bold ${creditWarning.balance > creditWarning.limit ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                        {creditWarning.balance > creditWarning.limit
+                          ? `\uD83D\uDEA8 Client credit limit EXCEEDED: ${creditWarning.balance.toLocaleString()} / ${creditWarning.limit.toLocaleString()} SAR`
+                          : `\u26A0\uFE0F Client approaching credit limit: ${creditWarning.balance.toLocaleString()} / ${creditWarning.limit.toLocaleString()} SAR`
+                        }
+                      </div>
+                    )}
+                  </>
                 );
               })()}
 
@@ -1875,8 +1975,48 @@ export default function ReservationsPage({
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Sales Person</label>
                 <select value={salesPersonId} onChange={(e) => setSalesPersonId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
                   <option value="">— None —</option>
-                  {salesPersons.filter(sp => sp.active).map(sp => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
+                  {salesPersons.filter(sp => sp.active).map(sp => <option key={sp.id} value={sp.id}>{sp.name} ({sp.commission}%)</option>)}
                 </select>
+                {salesPersonId && (() => {
+                  const sp = salesPersons.find(s => s.id === salesPersonId);
+                  if (!sp) return null;
+                  const spSellTotal = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
+                  const spCommission = Math.round((spSellTotal * sp.commission) / 100);
+                  const spNights = calculateNightsCount();
+                  const perNight = spNights > 0 ? Math.round(spCommission / spNights) : 0;
+                  const amountToRemit = spSellTotal - spCommission; // What sales person should send to company
+                  return (
+                    <div className="mt-1 space-y-1">
+                      <div className="px-2 py-1 bg-purple-50 border border-purple-200 rounded-lg text-[9px] font-bold text-purple-800">
+                        💼 Commission: <span className="font-mono">{spCommission.toLocaleString()} SAR</span> ({sp.commission}% of sell)
+                        {spNights > 0 && <span className="text-purple-600 ml-1">• {perNight.toLocaleString()}/night</span>}
+                      </div>
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={collectedBySalesPerson}
+                          onChange={(e) => setCollectedBySalesPerson(e.target.checked)}
+                          className="w-3.5 h-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-[9px] font-bold text-amber-800">
+                          🇸🇦 Collected by Sales Person in KSA
+                        </span>
+                      </label>
+                      {collectedBySalesPerson && (
+                        <div className="px-2 py-1.5 bg-orange-50 border border-orange-200 rounded-lg text-[9px]">
+                          <div className="flex justify-between text-orange-800">
+                            <span>Sales Person Keeps (Commission):</span>
+                            <span className="font-mono font-bold">{spCommission.toLocaleString()} SAR</span>
+                          </div>
+                          <div className="flex justify-between text-orange-900 border-t border-orange-200 pt-1 mt-1">
+                            <span>⚠️ Must Remit to Company:</span>
+                            <span className="font-mono font-bold">{amountToRemit.toLocaleString()} SAR</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier Due Date</label>
@@ -2070,8 +2210,18 @@ export default function ReservationsPage({
 
         {/* Bulk Actions Toolbar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-sm">
             <span className="font-bold text-indigo-700">{selectedIds.size} selected</span>
+            <button
+              onClick={() => {
+                if (!confirm(`Confirm ${selectedIds.size} reservation(s)?`)) return;
+                const toConfirm = reservations.filter(r => selectedIds.has(r.id) && r.status !== 'Confirmed');
+                toConfirm.forEach(r => onSaveReservation({ ...r, status: 'Confirmed' as const }));
+                setSelectedIds(new Set());
+                toast.success(`${toConfirm.length} reservation(s) confirmed`);
+              }}
+              className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-200 transition border border-emerald-200"
+            >Bulk Confirm</button>
             <button
               onClick={() => {
                 if (!confirm(`Cancel ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;
@@ -2082,6 +2232,71 @@ export default function ReservationsPage({
               }}
               className="px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg font-bold text-xs hover:bg-rose-200 transition border border-rose-200"
             >Bulk Cancel</button>
+            <select
+              onChange={e => {
+                const newStatus = e.target.value;
+                if (!newStatus) return;
+                if (!confirm(`Change status of ${selectedIds.size} reservation(s) to ${newStatus}?`)) return;
+                const toChange = reservations.filter(r => selectedIds.has(r.id));
+                toChange.forEach(r => onSaveReservation({ ...r, status: newStatus as any }));
+                setSelectedIds(new Set());
+                toast.success(`${toChange.length} reservation(s) changed to ${newStatus}`);
+                e.target.value = '';
+              }}
+              className="px-2 py-1.5 border border-indigo-200 rounded-lg text-xs font-bold bg-white text-indigo-700"
+              defaultValue=""
+            >
+              <option value="" disabled>Change Status...</option>
+              <option value="Tentative">Tentative</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+            <select
+              onChange={e => {
+                const tag = e.target.value;
+                if (!tag) return;
+                const toTag = reservations.filter(r => selectedIds.has(r.id));
+                toTag.forEach(r => {
+                  const existingTags = r.tags || [];
+                  if (!existingTags.includes(tag)) {
+                    onSaveReservation({ ...r, tags: [...existingTags, tag] });
+                  }
+                });
+                setSelectedIds(new Set());
+                toast.success(`Tag "${tag}" added to ${toTag.length} reservation(s)`);
+                e.target.value = '';
+              }}
+              className="px-2 py-1.5 border border-indigo-200 rounded-lg text-xs font-bold bg-white text-indigo-700"
+              defaultValue=""
+            >
+              <option value="" disabled>Add Tag...</option>
+              {TAG_OPTIONS.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+            </select>
+            <button
+              onClick={() => {
+                const selected = reservations.filter(r => selectedIds.has(r.id));
+                const csvRows = selected.map(r => {
+                  const totals = getReservationTotals(r);
+                  return {
+                    'RSV#': r.id,
+                    'Guest': r.guestName,
+                    'Hotel': hotels.find(h => h.id === r.hotelId)?.name || '',
+                    'Check-In': r.checkIn,
+                    'Check-Out': r.checkOut,
+                    'Nights': r.nights,
+                    'Status': r.status,
+                    'Source': r.bookingSource || '',
+                    'Tags': (r.tags || []).join(', '),
+                    'Sell Total': totals.totalSell,
+                    'Buy Total': totals.totalBuy,
+                    'Profit': totals.totalSell - totals.totalBuy
+                  };
+                });
+                exportToCSV(`selected_reservations_${new Date().toISOString().split('T')[0]}.csv`, csvRows);
+                toast.success(`${selected.length} reservation(s) exported`);
+              }}
+              className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg font-bold text-xs hover:bg-blue-200 transition border border-blue-200"
+            >Export CSV</button>
             <button
               onClick={() => {
                 if (!confirm(`Delete ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;

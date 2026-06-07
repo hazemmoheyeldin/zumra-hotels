@@ -25,11 +25,12 @@ interface ReportsPageProps {
   salesPersons?: SalesPerson[];
   initialTab?: ReportTab;
   onNavigate?: (page: string) => void;
+  onSaveReservation?: (res: Reservation) => void;
 }
 
-type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'commission' | 'seasonAnalytics' | 'supplierPayments';
+type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'commission' | 'seasonAnalytics' | 'supplierPayments' | 'cancellationAnalysis' | 'supplierScorecard' | 'accountingExport' | 'clientLifetimeValue';
 
-export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate }: ReportsPageProps) {
+export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate, onSaveReservation }: ReportsPageProps) {
   const { t, lang } = useLang();
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab || 'arrival');
 
@@ -297,6 +298,42 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               }`}
             >
               🏛️ Supplier Payments
+            </button>
+          </div>
+          {/* Analysis & Insights */}
+          <div className="flex items-center gap-0.5 pl-2 border-l border-slate-200 ml-1">
+            <span className="text-[8px] uppercase font-bold text-slate-400 -rotate-90 whitespace-nowrap mr-1 hidden md:block">Insights</span>
+            <button
+              onClick={() => setActiveReportTab('cancellationAnalysis')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'cancellationAnalysis' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📉 Cancellation Analysis
+            </button>
+            <button
+              onClick={() => setActiveReportTab('supplierScorecard')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'supplierScorecard' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🏆 Supplier Scorecard
+            </button>
+            <button
+              onClick={() => setActiveReportTab('accountingExport')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'accountingExport' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              📤 Accounting Export
+            </button>
+            <button
+              onClick={() => setActiveReportTab('clientLifetimeValue')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'clientLifetimeValue' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              👑 Client Lifetime Value
             </button>
           </div>
         </div>
@@ -1178,67 +1215,211 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
       {/* ==================== COMMISSION REPORT ==================== */}
       {activeReportTab === 'commission' && (() => {
         const activeReservations = reservations.filter(r => r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
+        const [expandedSP, setExpandedSP] = React.useState<string | null>(null);
         const commissionData = salesPersons.filter(sp => sp.active).map(sp => {
           const spBookings = activeReservations.filter(r => r.salesPersonId === sp.id);
           const totalRevenue = spBookings.reduce((sum, r) => sum + getReservationTotals(r).totalSell, 0);
           const totalCost = spBookings.reduce((sum, r) => sum + getReservationTotals(r).totalBuy, 0);
           const totalProfit = totalRevenue - totalCost;
-          const commissionAmount = (totalRevenue * sp.commission) / 100;
-          return { sp, bookings: spBookings.length, totalRevenue, totalCost, totalProfit, commissionAmount };
+          const totalCommission = spBookings.reduce((sum, r) => sum + (r.salesPersonCommissionAmount || 0), 0);
+          const totalPaid = spBookings.filter(r => r.commissionPaidToSalesPerson).reduce((sum, r) => sum + (r.salesPersonCommissionAmount || 0), 0);
+          const totalUnpaid = totalCommission - totalPaid;
+          const totalNights = spBookings.reduce((sum, r) => sum + r.nights, 0);
+          // KSA Collection tracking
+          const ksaCollected = spBookings.filter(r => r.collectedBySalesPerson).reduce((sum, r) => sum + getReservationTotals(r).totalSell, 0);
+          const ksaCommissionKept = spBookings.filter(r => r.collectedBySalesPerson).reduce((sum, r) => sum + (r.salesPersonCommissionAmount || 0), 0);
+          const ksaRemitted = spBookings.filter(r => r.collectedBySalesPerson && r.remittedToCompany).reduce((sum, r) => sum + (getReservationTotals(r).totalSell - (r.salesPersonCommissionAmount || 0)), 0);
+          const ksaPendingRemittance = spBookings.filter(r => r.collectedBySalesPerson && !r.remittedToCompany).reduce((sum, r) => sum + (getReservationTotals(r).totalSell - (r.salesPersonCommissionAmount || 0)), 0);
+          return { sp, bookings: spBookings, count: spBookings.length, totalRevenue, totalCost, totalProfit, totalCommission, totalPaid, totalUnpaid, totalNights, ksaCollected, ksaCommissionKept, ksaRemitted, ksaPendingRemittance };
         });
-        const grandTotalCommission = commissionData.reduce((s, d) => s + d.commissionAmount, 0);
+        const grandTotalCommission = commissionData.reduce((s, d) => s + d.totalCommission, 0);
+        const grandTotalUnpaid = commissionData.reduce((s, d) => s + d.totalUnpaid, 0);
+        const grandTotalPaid = commissionData.reduce((s, d) => s + d.totalPaid, 0);
+        const grandKsaCollected = commissionData.reduce((s, d) => s + d.ksaCollected, 0);
+        const grandKsaPending = commissionData.reduce((s, d) => s + d.ksaPendingRemittance, 0);
         return (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-800">Sales Person Commission Report</h3>
+              <h3 className="text-lg font-bold text-slate-800">💼 Commission & KSA Collection Tracker</h3>
               <button onClick={() => {
-                const rows = commissionData.map(d => ({
-                  'Sales Person': d.sp.name, 'Commission %': `${d.sp.commission}%`, 'Bookings': d.bookings,
-                  'Revenue': d.totalRevenue, 'Cost': d.totalCost, 'Profit': d.totalProfit, 'Commission': d.commissionAmount
-                }));
-                exportToCSV('commission-report.csv', rows);
+                const rows: any[] = [];
+                commissionData.forEach(d => {
+                  d.bookings.forEach(r => {
+                    const totals = getReservationTotals(r);
+                    rows.push({
+                      'Sales Person': d.sp.name, 'RSV#': r.id, 'Guest': r.guestName, 'Hotel': hotels.find(h => h.id === r.hotelId)?.name || '',
+                      'Check-In': r.checkIn, 'Check-Out': r.checkOut, 'Nights': r.nights,
+                      'Sell Total': totals.totalSell, 'Commission %': d.sp.commission,
+                      'Commission Amount': r.salesPersonCommissionAmount || 0,
+                      'Commission Paid': r.commissionPaidToSalesPerson ? 'Yes' : 'No',
+                      'Commission Paid Date': r.commissionPaidDate || '',
+                      'Collected in KSA': r.collectedBySalesPerson ? 'Yes' : 'No',
+                      'Collected Date': r.collectedDate || '',
+                      'Remitted to Company': r.remittedToCompany ? 'Yes' : 'No',
+                      'Remitted Date': r.remittedDate || '',
+                      'Amount to Remit': r.collectedBySalesPerson ? (totals.totalSell - (r.salesPersonCommissionAmount || 0)) : 0
+                    });
+                  });
+                });
+                exportToCSV('commission-ksa-collection.csv', rows);
               }} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">Export CSV</button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
               <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-center">
                 <div className="text-lg font-bold text-indigo-800">{salesPersons.filter(sp => sp.active).length}</div>
                 <div className="text-[10px] text-indigo-600">Active Sales Persons</div>
               </div>
               <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                <div className="text-lg font-bold text-emerald-800">{commissionData.reduce((s, d) => s + d.bookings, 0)}</div>
+                <div className="text-lg font-bold text-emerald-800">{commissionData.reduce((s, d) => s + d.count, 0)}</div>
                 <div className="text-[10px] text-emerald-600">Total Bookings</div>
               </div>
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-center">
                 <div className="text-lg font-bold text-amber-800">{grandTotalCommission.toLocaleString()}</div>
-                <div className="text-[10px] text-amber-600">Total Commission (SAR)</div>
+                <div className="text-[10px] text-amber-600">Total Commission</div>
+              </div>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-emerald-700">{grandTotalPaid.toLocaleString()}</div>
+                <div className="text-[10px] text-emerald-600">✅ Commission Paid</div>
+              </div>
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-rose-700">{grandTotalUnpaid.toLocaleString()}</div>
+                <div className="text-[10px] text-rose-600">⚠️ Commission Owed</div>
+              </div>
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-orange-800">{grandKsaCollected.toLocaleString()}</div>
+                <div className="text-[10px] text-orange-600">🇸🇦 KSA Collected</div>
+              </div>
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-red-700">{grandKsaPending.toLocaleString()}</div>
+                <div className="text-[10px] text-red-600">🔄 Pending Remittance</div>
               </div>
             </div>
+
+            {/* Summary Table */}
             <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 border-b">
                   <tr>
-                    <th className="text-left px-3 py-2 font-semibold text-slate-600">Sales Person</th>
-                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Commission %</th>
-                    <th className="text-center px-3 py-2 font-semibold text-slate-600">Bookings</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Revenue</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Profit</th>
-                    <th className="text-right px-3 py-2 font-semibold text-slate-600">Commission</th>
+                    <th className="text-left px-2 py-2 font-semibold text-slate-600"></th>
+                    <th className="text-left px-2 py-2 font-semibold text-slate-600">Sales Person</th>
+                    <th className="text-center px-2 py-2 font-semibold text-slate-600">%</th>
+                    <th className="text-center px-2 py-2 font-semibold text-slate-600">Bookings</th>
+                    <th className="text-right px-2 py-2 font-semibold text-slate-600">Commission</th>
+                    <th className="text-right px-2 py-2 font-semibold text-slate-600">Paid</th>
+                    <th className="text-right px-2 py-2 font-semibold text-slate-600">Owed</th>
+                    <th className="text-right px-2 py-2 font-semibold text-orange-700 bg-orange-50">🇸🇦 KSA Collected</th>
+                    <th className="text-right px-2 py-2 font-semibold text-orange-700 bg-orange-50">Kept as Comm</th>
+                    <th className="text-right px-2 py-2 font-semibold text-emerald-700 bg-emerald-50">Remitted</th>
+                    <th className="text-right px-2 py-2 font-semibold text-red-700 bg-red-50">⚠️ Pending</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {commissionData.map(d => (
-                    <tr key={d.sp.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 font-medium">{d.sp.name}</td>
-                      <td className="px-3 py-2 text-center font-mono">{d.sp.commission}%</td>
-                      <td className="px-3 py-2 text-center">{d.bookings}</td>
-                      <td className="px-3 py-2 text-right font-mono">{d.totalRevenue.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-mono text-emerald-700">{d.totalProfit.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-right font-mono font-bold text-amber-700">{d.commissionAmount.toLocaleString()}</td>
-                    </tr>
+                    <React.Fragment key={d.sp.id}>
+                      <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedSP(expandedSP === d.sp.id ? null : d.sp.id)}>
+                        <td className="px-2 py-2 text-slate-400">{expandedSP === d.sp.id ? '▼' : '▶'}</td>
+                        <td className="px-2 py-2 font-medium">{d.sp.name}</td>
+                        <td className="px-2 py-2 text-center font-mono">{d.sp.commission}%</td>
+                        <td className="px-2 py-2 text-center">{d.count}</td>
+                        <td className="px-2 py-2 text-right font-mono font-bold text-amber-700">{d.totalCommission.toLocaleString()}</td>
+                        <td className="px-2 py-2 text-right font-mono text-emerald-600">{d.totalPaid.toLocaleString()}</td>
+                        <td className={`px-2 py-2 text-right font-mono font-bold ${d.totalUnpaid > 0 ? 'text-rose-700' : 'text-slate-400'}`}>{d.totalUnpaid.toLocaleString()}</td>
+                        <td className={`px-2 py-2 text-right font-mono bg-orange-50/50 ${d.ksaCollected > 0 ? 'text-orange-700 font-bold' : 'text-slate-400'}`}>{d.ksaCollected.toLocaleString()}</td>
+                        <td className="px-2 py-2 text-right font-mono bg-orange-50/50 text-purple-700">{d.ksaCommissionKept.toLocaleString()}</td>
+                        <td className="px-2 py-2 text-right font-mono bg-emerald-50/50 text-emerald-700">{d.ksaRemitted.toLocaleString()}</td>
+                        <td className={`px-2 py-2 text-right font-mono font-bold bg-red-50/50 ${d.ksaPendingRemittance > 0 ? 'text-red-700' : 'text-slate-400'}`}>{d.ksaPendingRemittance.toLocaleString()}</td>
+                      </tr>
+                      {/* Expanded booking details */}
+                      {expandedSP === d.sp.id && d.bookings.map(r => {
+                        const totals = getReservationTotals(r);
+                        const commAmt = r.salesPersonCommissionAmount || 0;
+                        const isPaid = r.commissionPaidToSalesPerson;
+                        const isCollected = r.collectedBySalesPerson;
+                        const isRemitted = r.remittedToCompany;
+                        const netBookingProfit = (totals.totalSell - totals.totalBuy) - commAmt;
+                        const amountToRemit = totals.totalSell - commAmt;
+                        return (
+                          <tr key={r.id} className={`bg-slate-50/50 hover:bg-purple-50/30 ${isCollected ? 'border-l-4 border-l-orange-400' : ''}`}>
+                            <td className="px-2 py-1.5"></td>
+                            <td className="px-2 py-1.5" colSpan={2}>
+                              <span className="font-mono text-[9px] bg-amber-50 px-1.5 py-0.5 rounded text-amber-700 font-bold">RSV-{r.id}</span>
+                              <span className="ml-1 text-[10px] text-slate-600">{r.guestName} • {r.checkIn}→{r.checkOut}</span>
+                              {isCollected && <span className="ml-1 text-[8px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded-full font-bold">🇸🇦 KSA</span>}
+                            </td>
+                            <td className="px-2 py-1.5 text-center text-[10px]">{r.nights}N</td>
+                            <td className="px-2 py-1.5 text-right font-mono text-[10px] font-bold text-purple-700">{commAmt.toLocaleString()}</td>
+                            <td className="px-2 py-1.5 text-right">
+                              {isPaid ? (
+                                <span className="px-1 py-0.5 rounded-full text-[8px] font-bold bg-emerald-100 text-emerald-700">✅ {r.commissionPaidDate || ''}</span>
+                              ) : (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onSaveReservation) {
+                                      onSaveReservation({ ...r, commissionPaidToSalesPerson: true, commissionPaidDate: new Date().toISOString().split('T')[0] });
+                                      showToast(`Commission marked as paid for RSV-${r.id}`);
+                                    }
+                                  }}
+                                  className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 hover:bg-rose-200 cursor-pointer border border-rose-200"
+                                >⚠️ Pay</button>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5"></td>
+                            {/* KSA Collection columns */}
+                            <td className="px-2 py-1.5 text-right bg-orange-50/30">
+                              {isCollected ? (
+                                <span className="font-mono text-[10px] text-orange-700 font-bold">{totals.totalSell.toLocaleString()}</span>
+                              ) : (
+                                <span className="text-[8px] text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5 text-right bg-orange-50/30">
+                              {isCollected && <span className="font-mono text-[10px] text-purple-700">{commAmt.toLocaleString()}</span>}
+                            </td>
+                            <td className="px-2 py-1.5 text-right bg-emerald-50/30">
+                              {isCollected ? (
+                                isRemitted ? (
+                                  <span className="px-1 py-0.5 rounded-full text-[8px] font-bold bg-emerald-100 text-emerald-700">✅ {r.remittedDate || ''}</span>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (onSaveReservation) {
+                                        onSaveReservation({ ...r, remittedToCompany: true, remittedDate: new Date().toISOString().split('T')[0] });
+                                        showToast(`Remittance of ${amountToRemit.toLocaleString()} SAR marked as received for RSV-${r.id}`);
+                                      }
+                                    }}
+                                    className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-orange-100 text-orange-700 hover:bg-orange-200 cursor-pointer border border-orange-200"
+                                  >🔄 Mark Remitted</button>
+                                )
+                              ) : (
+                                <span className="text-[8px] text-slate-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-1.5 text-right bg-red-50/30">
+                              {isCollected && !isRemitted ? (
+                                <span className="font-mono text-[10px] text-red-700 font-bold">{amountToRemit.toLocaleString()}</span>
+                              ) : (
+                                <span className="text-[8px] text-slate-400">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
                   ))}
-                  {commissionData.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No sales persons configured</td></tr>}
+                  {commissionData.length === 0 && <tr><td colSpan={11} className="text-center py-8 text-slate-400">No sales persons configured</td></tr>}
                 </tbody>
               </table>
+              </div>
+            </div>
+            {/* Legend */}
+            <div className="flex flex-wrap gap-4 text-[10px] text-slate-600 bg-slate-50 p-3 rounded-lg">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-orange-100 border border-orange-300 rounded"></span>🇸🇦 KSA Collected = Sales person collected full sell amount from client</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span>Kept = Commission kept by sales person from collection</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-100 border border-red-300 rounded"></span>⚠️ Pending = Amount sales person still owes to company</span>
             </div>
           </div>
         );
@@ -1393,6 +1574,430 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 </tbody>
               </table>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== CANCELLATION ANALYSIS TAB ==================== */}
+      {activeReportTab === 'cancellationAnalysis' && (() => {
+        const cancelled = reservations.filter(r => r.status === 'Cancelled');
+        const totalRes = reservations.length || 1;
+        const cancelRate = ((cancelled.length / totalRes) * 100).toFixed(1);
+
+        // Cancellation rate by agent
+        const agentCancelMap: Record<string, { total: number; cancelled: number }> = {};
+        reservations.forEach(r => {
+          if (!agentCancelMap[r.clientId]) agentCancelMap[r.clientId] = { total: 0, cancelled: 0 };
+          agentCancelMap[r.clientId].total++;
+          if (r.status === 'Cancelled') agentCancelMap[r.clientId].cancelled++;
+        });
+        const agentCancelData = Object.entries(agentCancelMap)
+          .map(([id, d]) => ({
+            agent: agents.find(a => a.id === id)?.companyName || agents.find(a => a.id === id)?.name || 'Unknown',
+            total: d.total,
+            cancelled: d.cancelled,
+            rate: d.total > 0 ? ((d.cancelled / d.total) * 100).toFixed(1) : '0',
+          }))
+          .sort((a, b) => b.cancelled - a.cancelled);
+
+        // Reasons breakdown
+        const reasonMap: Record<string, number> = {};
+        cancelled.forEach(r => {
+          const reason = r.cancellationReason || 'No reason given';
+          reasonMap[reason] = (reasonMap[reason] || 0) + 1;
+        });
+        const reasonData = Object.entries(reasonMap).sort((a, b) => b[1] - a[1]);
+
+        // Timing analysis (days before check-in)
+        const timingBuckets: Record<string, number> = { '0-3 days': 0, '4-7 days': 0, '8-14 days': 0, '15-30 days': 0, '30+ days': 0 };
+        cancelled.forEach(r => {
+          const created = new Date(r.createdAt);
+          const checkIn = new Date(r.checkIn);
+          const daysBefore = Math.max(0, Math.round((checkIn.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)));
+          if (daysBefore <= 3) timingBuckets['0-3 days']++;
+          else if (daysBefore <= 7) timingBuckets['4-7 days']++;
+          else if (daysBefore <= 14) timingBuckets['8-14 days']++;
+          else if (daysBefore <= 30) timingBuckets['15-30 days']++;
+          else timingBuckets['30+ days']++;
+        });
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Total Cancellations</div>
+                <div className="text-2xl font-black text-rose-700">{cancelled.length}</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Cancellation Rate</div>
+                <div className="text-2xl font-black text-amber-700">{cancelRate}%</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Total Cancel Fees</div>
+                <div className="text-2xl font-black text-emerald-700">{cancelled.reduce((s, r) => s + (r.cancellationFee || 0), 0).toLocaleString()} SAR</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Reasons Tracked</div>
+                <div className="text-2xl font-black text-indigo-700">{reasonData.length}</div>
+              </div>
+            </div>
+
+            {/* Cancellation by Agent */}
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b font-bold text-slate-700">Cancellation Rate by Agent</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Agent</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Total Bookings</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Cancelled</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {agentCancelData.slice(0, 15).map((d, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium">{d.agent}</td>
+                        <td className="px-3 py-2 text-center">{d.total}</td>
+                        <td className="px-3 py-2 text-center text-rose-700 font-bold">{d.cancelled}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`px-2 py-0.5 rounded-full font-bold ${Number(d.rate) > 30 ? 'bg-rose-100 text-rose-700' : Number(d.rate) > 15 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{d.rate}%</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Reasons Breakdown */}
+              <div className="bg-white border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b font-bold text-slate-700">Cancellation Reasons</div>
+                <div className="divide-y">
+                  {reasonData.map(([reason, count], i) => (
+                    <div key={i} className="px-4 py-2 flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-700 flex-1 truncate mr-2">{reason}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-100 rounded-full h-2">
+                          <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${(count / cancelled.length) * 100}%` }} />
+                        </div>
+                        <span className="font-bold text-rose-700 w-8 text-right">{count}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {reasonData.length === 0 && <div className="px-4 py-8 text-center text-slate-400">No cancellation data</div>}
+                </div>
+              </div>
+
+              {/* Timing Analysis */}
+              <div className="bg-white border rounded-xl overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b font-bold text-slate-700">Timing Analysis (Days Before Check-In)</div>
+                <div className="divide-y">
+                  {Object.entries(timingBuckets).map(([bucket, count]) => (
+                    <div key={bucket} className="px-4 py-2 flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-700">{bucket}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-100 rounded-full h-2">
+                          <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${cancelled.length > 0 ? (count / cancelled.length) * 100 : 0}%` }} />
+                        </div>
+                        <span className="font-bold text-amber-700 w-8 text-right">{count}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button onClick={() => {
+              const data = cancelled.map(r => ({
+                'RSV#': r.id, 'Guest': r.guestName, 'Agent': agents.find(a => a.id === r.clientId)?.companyName || '',
+                'Check-In': r.checkIn, 'Cancelled At': r.createdAt, 'Reason': r.cancellationReason || '',
+                'Fee': r.cancellationFee || 0
+              }));
+              exportToCSV('cancellation-analysis.csv', data);
+              showToast('Cancellation analysis exported');
+            }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+              📥 Export Analysis CSV
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* ==================== SUPPLIER SCORECARD TAB ==================== */}
+      {activeReportTab === 'supplierScorecard' && (() => {
+        const suppliers = agents.filter(a => a.type === 'Supplier' || a.type === 'Both');
+        const scorecardData = suppliers.map(sup => {
+          const supRes = reservations.filter(r => r.supplierId === sup.id);
+          const confirmed = supRes.filter(r => r.status === 'Confirmed').length;
+          const cancelled = supRes.filter(r => r.status === 'Cancelled').length;
+          const totalSell = supRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+          const totalBuy = supRes.reduce((s, r) => s + getReservationTotals(r).totalBuy, 0);
+          const markup = totalBuy > 0 ? ((totalSell - totalBuy) / totalBuy * 100) : 0;
+          const confirmRate = supRes.length > 0 ? (confirmed / supRes.length * 100) : 0;
+          const cancelRate = supRes.length > 0 ? (cancelled / supRes.length * 100) : 0;
+          const outstanding = totalBuy - (supRes.reduce((s, r) => s + (r.amountPaidToSupplier || 0), 0));
+          const score = Math.round(
+            (confirmRate * 0.3) +
+            ((100 - cancelRate) * 0.2) +
+            (markup > 0 ? Math.min(markup, 30) * 1.5 : 0) +
+            (supRes.length > 0 ? Math.min(supRes.length, 20) * 1 : 0)
+          );
+          return {
+            id: sup.id, name: sup.companyName || sup.name,
+            bookings: supRes.length, confirmed, cancelled,
+            markup: markup.toFixed(1), confirmRate: confirmRate.toFixed(1),
+            cancelRate: cancelRate.toFixed(1), totalBuy, outstanding, score
+          };
+        }).sort((a, b) => b.score - a.score);
+
+        return (
+          <div className="space-y-4">
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-amber-100 border-b font-bold text-amber-800 flex items-center gap-2">
+                🏆 Supplier Performance Scorecard
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">#</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Supplier</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Score</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Bookings</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Confirm %</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Cancel %</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Markup %</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Total Buy</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Outstanding</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {scorecardData.map((d, i) => (
+                      <tr key={d.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-bold text-amber-600">{i + 1}</td>
+                        <td className="px-3 py-2 font-medium">{d.name}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`px-2 py-1 rounded-full font-black ${d.score >= 60 ? 'bg-emerald-100 text-emerald-800' : d.score >= 30 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                            {d.score}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-center">{d.bookings}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`font-bold ${Number(d.confirmRate) >= 80 ? 'text-emerald-700' : 'text-amber-700'}`}>{d.confirmRate}%</span>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`font-bold ${Number(d.cancelRate) <= 10 ? 'text-emerald-700' : 'text-rose-700'}`}>{d.cancelRate}%</span>
+                        </td>
+                        <td className="px-3 py-2 text-center font-mono">{d.markup}%</td>
+                        <td className="px-3 py-2 text-right font-mono">{d.totalBuy.toLocaleString()}</td>
+                        <td className={`px-3 py-2 text-right font-mono font-bold ${d.outstanding > 0 ? 'text-rose-700' : 'text-slate-500'}`}>{d.outstanding.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {scorecardData.length === 0 && <tr><td colSpan={9} className="text-center py-8 text-slate-400">No supplier data</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <button onClick={() => {
+              exportToCSV('supplier-scorecard.csv', scorecardData.map(d => ({
+                'Rank': scorecardData.indexOf(d) + 1, 'Supplier': d.name, 'Score': d.score,
+                'Bookings': d.bookings, 'Confirm Rate %': d.confirmRate, 'Cancel Rate %': d.cancelRate,
+                'Markup %': d.markup, 'Total Buy': d.totalBuy, 'Outstanding': d.outstanding
+              })));
+              showToast('Supplier scorecard exported');
+            }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+              📥 Export Scorecard CSV
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* ==================== ACCOUNTING EXPORT TAB ==================== */}
+      {activeReportTab === 'accountingExport' && (() => {
+        const filteredTxns = transactions.filter(tx => tx.date >= fromDate && tx.date <= toDate);
+        const exportRows = filteredTxns.map(tx => {
+          const agent = agents.find(a => a.id === tx.agentId);
+          let type = 'Journal';
+          let account = 'General';
+          if (tx.type === 'ClientPayment') { type = 'Receipt'; account = 'Accounts Receivable'; }
+          else if (tx.type === 'SupplierPayment') { type = 'Bill Payment'; account = 'Accounts Payable'; }
+          else if (tx.type === 'ClientRefund') { type = 'Refund'; account = 'Accounts Receivable'; }
+          else if (tx.type === 'SupplierRefund') { type = 'Refund'; account = 'Accounts Payable'; }
+          else if (tx.type === 'Transfer') { type = 'Transfer'; account = 'Bank'; }
+          return {
+            'Date': tx.date,
+            'Type': type,
+            'Description': tx.description || `${tx.type} - ${agent?.companyName || agent?.name || ''}`,
+            'Amount': tx.amount,
+            'Account': account,
+            'Reference': tx.voucherNo || tx.docNo,
+            'Currency': tx.originalCurrency || 'SAR',
+            'Payment Method': tx.paymentMethod,
+          };
+        });
+        const totalAmount = filteredTxns.reduce((s, tx) => s + tx.amount, 0);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Transactions</div>
+                <div className="text-2xl font-black text-slate-800">{filteredTxns.length}</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Total Amount</div>
+                <div className="text-2xl font-black text-emerald-700">{totalAmount.toLocaleString()} SAR</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Period</div>
+                <div className="text-xs font-mono text-slate-700 mt-1">{fromDate} to {toDate}</div>
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-slate-50 border-b font-bold text-slate-700 flex items-center justify-between">
+                <span>Transaction Preview (QuickBooks/Xero Compatible)</span>
+                <span className="text-[10px] text-slate-400">{exportRows.length} rows</span>
+              </div>
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Date</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Type</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Description</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Amount</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Account</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Reference</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Currency</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {exportRows.slice(0, 50).map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-3 py-2">{row['Date']}</td>
+                        <td className="px-3 py-2"><span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[9px]">{row['Type']}</span></td>
+                        <td className="px-3 py-2 max-w-xs truncate">{row['Description']}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold">{Number(row['Amount']).toLocaleString()}</td>
+                        <td className="px-3 py-2">{row['Account']}</td>
+                        <td className="px-3 py-2 font-mono text-[10px]">{row['Reference']}</td>
+                        <td className="px-3 py-2">{row['Currency']}</td>
+                      </tr>
+                    ))}
+                    {exportRows.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-slate-400">No transactions in this period</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+              {exportRows.length > 50 && <div className="px-4 py-2 bg-amber-50 text-amber-700 text-[10px] font-bold">Showing first 50 of {exportRows.length} rows. Export to see all.</div>}
+            </div>
+
+            <button onClick={() => {
+              exportToCSV(`accounting-export-${fromDate}-to-${toDate}.csv`, exportRows);
+              showToast('Accounting export downloaded');
+            }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700">
+              📥 Export to QuickBooks/Xero CSV
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* ==================== CLIENT LIFETIME VALUE TAB ==================== */}
+      {activeReportTab === 'clientLifetimeValue' && (() => {
+        const clients = agents.filter(a => a.type === 'Customer' || a.type === 'Both');
+        const clvData = clients.map(client => {
+          const clientRes = reservations.filter(r => r.clientId === client.id);
+          const confirmed = clientRes.filter(r => r.status === 'Confirmed').length;
+          const cancelled = clientRes.filter(r => r.status === 'Cancelled').length;
+          const totalRevenue = clientRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+          const totalProfit = clientRes.reduce((s, r) => { const t = getReservationTotals(r); return s + (t.totalSell - t.totalBuy); }, 0);
+          const avgBookingValue = confirmed > 0 ? totalRevenue / confirmed : 0;
+          const lastBooking = clientRes.length > 0 ? clientRes.reduce((latest, r) => r.createdAt > latest.createdAt ? r : latest, clientRes[0]).createdAt : '';
+          const outstanding = getAgentActualBalance(client, reservations, transactions);
+          return {
+            id: client.id, name: client.companyName || client.name,
+            totalBookings: clientRes.length, confirmed, cancelled,
+            totalRevenue, totalProfit, avgBookingValue,
+            lastBookingDate: lastBooking.split('T')[0],
+            outstanding: Math.abs(outstanding),
+            confirmRatio: clientRes.length > 0 ? (confirmed / clientRes.length * 100).toFixed(0) : '0',
+          };
+        }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Total Clients</div>
+                <div className="text-2xl font-black text-indigo-700">{clvData.length}</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">All-Time Revenue</div>
+                <div className="text-2xl font-black text-emerald-700">{clvData.reduce((s, d) => s + d.totalRevenue, 0).toLocaleString()}</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">All-Time Profit</div>
+                <div className="text-2xl font-black text-amber-700">{clvData.reduce((s, d) => s + d.totalProfit, 0).toLocaleString()}</div>
+              </div>
+              <div className="bg-white rounded-xl border p-4 shadow-sm">
+                <div className="text-[10px] uppercase font-bold text-slate-400">Total Outstanding</div>
+                <div className="text-2xl font-black text-rose-700">{clvData.reduce((s, d) => s + d.outstanding, 0).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-gradient-to-r from-indigo-50 to-indigo-100 border-b font-bold text-indigo-800 flex items-center gap-2">
+                👑 Client Lifetime Value (Sorted by Revenue)
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">#</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Client</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Bookings</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Confirmed</th>
+                      <th className="text-center px-3 py-2 font-semibold text-gray-600">Cancelled</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Total Revenue</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Avg Booking</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Total Profit</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-600">Last Booking</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600">Outstanding</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {clvData.map((d, i) => (
+                      <tr key={d.id} className={`hover:bg-gray-50 ${i < 3 ? 'bg-amber-50/50' : ''}`}>
+                        <td className="px-3 py-2 font-bold text-amber-600">{i < 3 ? ['🥇','🥈','🥉'][i] : i + 1}</td>
+                        <td className="px-3 py-2 font-medium">{d.name}</td>
+                        <td className="px-3 py-2 text-center">{d.totalBookings}</td>
+                        <td className="px-3 py-2 text-center text-emerald-700 font-bold">{d.confirmed}</td>
+                        <td className="px-3 py-2 text-center text-rose-700">{d.cancelled}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-emerald-700">{d.totalRevenue.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-mono">{Math.round(d.avgBookingValue).toLocaleString()}</td>
+                        <td className={`px-3 py-2 text-right font-mono font-bold ${d.totalProfit >= 0 ? 'text-amber-700' : 'text-rose-700'}`}>{d.totalProfit.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-slate-500">{d.lastBookingDate || '-'}</td>
+                        <td className={`px-3 py-2 text-right font-mono font-bold ${d.outstanding > 0 ? 'text-rose-700' : 'text-slate-500'}`}>{d.outstanding.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                    {clvData.length === 0 && <tr><td colSpan={10} className="text-center py-8 text-slate-400">No client data</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <button onClick={() => {
+              exportToCSV('client-lifetime-value.csv', clvData.map((d, i) => ({
+                'Rank': i + 1, 'Client': d.name, 'Total Bookings': d.totalBookings,
+                'Confirmed': d.confirmed, 'Cancelled': d.cancelled,
+                'Total Revenue': d.totalRevenue, 'Avg Booking Value': Math.round(d.avgBookingValue),
+                'Total Profit': d.totalProfit, 'Last Booking': d.lastBookingDate, 'Outstanding': d.outstanding
+              })));
+              showToast('Client LTV report exported');
+            }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+              📥 Export Client LTV CSV
+            </button>
           </div>
         );
       })()}

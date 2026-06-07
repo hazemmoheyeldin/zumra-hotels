@@ -182,6 +182,14 @@ export interface Reservation {
   visaExpiry?: string; // Guest visa expiry date
   bookingSource?: string; // Channel: Direct, Booking.com, Expedia, Agent, Walk-in, etc.
   salesPersonId?: string; // Linked sales person for commission tracking
+  salesPersonCommissionAmount?: number; // Calculated commission amount for this booking
+  commissionPaidToSalesPerson?: boolean; // Whether commission has been paid to salesperson
+  commissionPaidDate?: string; // When commission was paid
+  // Sales person direct collection tracking (KSA collections)
+  collectedBySalesPerson?: boolean; // Sales person collected full sell amount from client directly
+  collectedDate?: string; // When sales person collected the amount
+  remittedToCompany?: boolean; // Sales person has remitted remaining amount (sell - commission) to company
+  remittedDate?: string; // When sales person remitted the amount to company
   tags?: string[]; // Custom labels: VIP, Honeymoon, Corporate, etc.
   supplierDueDate?: string; // When supplier payment is due
   specialRequests?: string; // Guest special requests/preferences for this booking
@@ -437,4 +445,47 @@ export interface StampSettings {
   enabled: boolean;
   position: StampPosition;
   opacity: number;
+}
+
+// Blackout Period Management
+export interface BlackoutPeriod {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  rateMultiplier: number;
+  blockBookings: boolean;
+  affectedHotels?: string[];
+  notes?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
+// Waitlist Management
+export interface WaitlistEntry {
+  id: string;
+  hotelId: string;
+  roomType: string;
+  checkIn: string;
+  checkOut: string;
+  guestName: string;
+  clientId: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  status: 'Waiting' | 'Notified' | 'Booked' | 'Expired';
+  createdAt: string;
+  notes?: string;
+  createdBy?: string;
+}
+
+// Email Template System
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  body: string;
+  type: 'confirmation' | 'reminder' | 'payment' | 'cancellation' | 'preArrival' | 'custom';
+  active: boolean;
+  createdBy?: string;
+  createdAt?: string;
 }

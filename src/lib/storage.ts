@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from '../types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 
@@ -1282,5 +1282,154 @@ export function generateSeedData(): {
     transactions: sampleTransactions,
     followUps: sampleFollowUps
   };
+}
+
+// Blackout Periods
+const BLACKOUT_KEY = 'zumra_blackout_periods';
+export function loadBlackoutPeriods(): BlackoutPeriod[] {
+  try { return JSON.parse(localStorage.getItem(BLACKOUT_KEY) || '[]'); } catch { return []; }
+}
+export function saveBlackoutPeriods(periods: BlackoutPeriod[]): void {
+  localStorage.setItem(BLACKOUT_KEY, JSON.stringify(periods));
+}
+
+// Waitlist
+const WAITLIST_KEY = 'zumra_waitlist';
+export function loadWaitlist(): WaitlistEntry[] {
+  try { return JSON.parse(localStorage.getItem(WAITLIST_KEY) || '[]'); } catch { return []; }
+}
+export function saveWaitlist(entries: WaitlistEntry[]): void {
+  localStorage.setItem(WAITLIST_KEY, JSON.stringify(entries));
+}
+
+// Email Templates
+const EMAIL_TEMPLATES_KEY = 'zumra_email_templates';
+export function loadEmailTemplates(): EmailTemplate[] {
+  try { return JSON.parse(localStorage.getItem(EMAIL_TEMPLATES_KEY) || '[]'); } catch { return []; }
+}
+export function saveEmailTemplates(templates: EmailTemplate[]): void {
+  localStorage.setItem(EMAIL_TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+// Margin Alert Threshold
+const MARGIN_THRESHOLD_KEY = 'zumra_margin_threshold';
+export function loadMarginThreshold(): number {
+  try { return parseFloat(localStorage.getItem(MARGIN_THRESHOLD_KEY) || '15'); } catch { return 15; }
+}
+export function saveMarginThreshold(threshold: number): void {
+  localStorage.setItem(MARGIN_THRESHOLD_KEY, threshold.toString());
+}
+
+// Pre-arrival reminder tracking
+const REMINDERS_SENT_KEY = 'zumra_reminders_sent';
+export function loadSentReminders(): string[] {
+  try { return JSON.parse(localStorage.getItem(REMINDERS_SENT_KEY) || '[]'); } catch { return []; }
+}
+export function saveSentReminders(ids: string[]): void {
+  localStorage.setItem(REMINDERS_SENT_KEY, JSON.stringify(ids));
+}
+
+// Allotment capacity checker
+export function checkAllotmentCapacity(
+  hotelId: string,
+  roomType: string,
+  checkIn: string,
+  checkOut: string,
+  allotments: Allotment[],
+  reservations: Reservation[],
+  excludeResId?: number
+): { available: boolean; remaining: number; total: number; booked: number; message: string } {
+  const matchingAllotments = allotments.filter(a =>
+    a.hotelId === hotelId && a.roomType === roomType &&
+    a.startDate <= checkIn && a.endDate >= checkOut
+  );
+  
+  if (matchingAllotments.length === 0) {
+    return { available: true, remaining: -1, total: 0, booked: 0, message: 'No allotment found for this hotel/room type' };
+  }
+  
+  const totalRooms = matchingAllotments.reduce((sum, a) => sum + a.totalRooms, 0);
+  
+  // Count booked rooms for the same hotel/roomType/date range (excluding current reservation)
+  const bookedRooms = reservations
+    .filter(r =>
+      r.hotelId === hotelId &&
+      r.status !== 'Cancelled' &&
+      r.id !== excludeResId &&
+      r.checkIn < checkOut && r.checkOut > checkIn
+    )
+    .reduce((sum, r) => {
+      const matchingRooms = r.rooms.filter(rm => rm.roomType === roomType);
+      return sum + matchingRooms.reduce((s, rm) => s + rm.qty, 0);
+    }, 0);
+  
+  const remaining = totalRooms - bookedRooms;
+  return {
+    available: remaining > 0,
+    remaining,
+    total: totalRooms,
+    booked: bookedRooms,
+    message: remaining > 0
+      ? `${remaining} room(s) remaining out of ${totalRooms} allotment`
+      : `No rooms available! ${bookedRooms}/${totalRooms} rooms already booked`
+  };
+}
+
+/**
+ * Seed test data (clients, suppliers, sales persons, reservations) for testing reports.
+ * Only runs if no agents exist yet.
+ */
+export function seedTestDataIfEmpty(): void {
+  const existingAgents = ZumraDB.getAgents();
+  if (existingAgents.length > 0) return;
+  
+  const hotels = ZumraDB.getHotels();
+  if (hotels.length === 0) return;
+  
+  const hotel1 = hotels[0];
+  const hotel2 = hotels.length > 1 ? hotels[1] : hotels[0];
+  const now = getEgyptTime().toISOString().replace('T', ' ').substring(0, 19);
+  
+  // Test Clients
+  const testClients: Agent[] = [
+    { id: 'test_client_1', agentNumber: 1, name: 'Ahmed Hassan', companyName: 'Al-Noor Travel', country: 'Saudi Arabia', type: 'Customer', phone: '+966501234567', email: 'ahmed@alnoortravel.com', address: 'Riyadh', balance: 0, auditLogs: [] },
+    { id: 'test_client_2', agentNumber: 2, name: 'Mohammed Ali', companyName: 'Golden Gate Tours', country: 'UAE', type: 'Customer', phone: '+971501234567', email: 'mohammed@goldengate.ae', address: 'Dubai', balance: 0, auditLogs: [] },
+    { id: 'test_client_3', agentNumber: 3, name: 'Fatima Zahra', companyName: 'Atlas Voyages', country: 'Morocco', type: 'Customer', phone: '+212601234567', email: 'fatima@atlasvoyages.ma', address: 'Casablanca', balance: 0, auditLogs: [] },
+    { id: 'test_client_4', agentNumber: 4, name: 'Omar Khalid', companyName: 'Desert Star Tourism', country: 'Egypt', type: 'Customer', phone: '+201012345678', email: 'omar@desertstar.eg', address: 'Cairo', balance: 0, auditLogs: [] },
+  ];
+  
+  // Test Suppliers
+  const testSuppliers: Agent[] = [
+    { id: 'test_supplier_1', agentNumber: 5, name: 'Hassan Ibrahim', companyName: 'Makkah Hotels Group', country: 'Saudi Arabia', type: 'Supplier', phone: '+966509876543', email: 'hassan@makkahhotels.sa', address: 'Makkah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_2', agentNumber: 6, name: 'Yusuf Ahmed', companyName: 'Madinah Hospitality', country: 'Saudi Arabia', type: 'Supplier', phone: '+966508765432', email: 'yusuf@madinahhospitality.sa', address: 'Madinah', balance: 0, auditLogs: [] },
+  ];
+  
+  // Test Sales Persons
+  const testSalesPersons: SalesPerson[] = [
+    { id: 'test_sp_1', name: 'Khaled Mostafa', phone: '+966551112222', email: 'khaled@zumra.com', commission: 5, active: true },
+    { id: 'test_sp_2', name: 'Nour Eldin', phone: '+966553334444', email: 'nour@zumra.com', commission: 8, active: true },
+  ];
+  
+  // Test Reservations
+  const roomTypes = hotel1.roomTypes.length > 0 ? hotel1.roomTypes : ['Standard', 'Deluxe'];
+  const testReservations: Reservation[] = [
+    // Confirmed bookings
+    { id: 1, checkIn: '2025-02-10', checkOut: '2025-02-14', nights: 4, clientId: 'test_client_1', hotelId: hotel1.id, guestName: 'Abdullah Al-Rashid', guestNationality: 'Saudi', supplierId: 'test_supplier_1', rooms: [{ id: 'r1', roomType: roomTypes[0], qty: 2, nightlyRates: { '2025-02-10': 800, '2025-02-11': 800, '2025-02-12': 800, '2025-02-13': 800 }, buyRate: { '2025-02-10': 550, '2025-02-11': 550, '2025-02-12': 550, '2025-02-13': 550 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'City' }], status: 'Confirmed', amountPaidByClient: 6400, amountPaidToSupplier: 4400, createdBy: 'Hazem', createdAt: '2025-01-15 10:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 320, commissionPaidToSalesPerson: true, commissionPaidDate: '2025-02-15', tags: ['VIP'] },
+    { id: 2, checkIn: '2025-03-01', checkOut: '2025-03-05', nights: 4, clientId: 'test_client_2', hotelId: hotel1.id, guestName: 'Sara Williams', guestNationality: 'British', supplierId: 'test_supplier_1', rooms: [{ id: 'r2', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-03-01': 900, '2025-03-02': 900, '2025-03-03': 900, '2025-03-04': 900 }, buyRate: { '2025-03-01': 600, '2025-03-02': 600, '2025-03-03': 600, '2025-03-04': 600 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Sea' }], status: 'Confirmed', amountPaidByClient: 3600, amountPaidToSupplier: 2400, createdBy: 'Hazem', createdAt: '2025-02-10 14:30:00', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 288, commissionPaidToSalesPerson: false },
+    { id: 3, checkIn: '2025-03-15', checkOut: '2025-03-20', nights: 5, clientId: 'test_client_1', hotelId: hotel2.id, guestName: 'Ibrahim Noor', guestNationality: 'Saudi', supplierId: 'test_supplier_2', rooms: [{ id: 'r3', roomType: roomTypes.length > 1 ? roomTypes[1] : roomTypes[0], qty: 3, nightlyRates: { '2025-03-15': 1200, '2025-03-16': 1200, '2025-03-17': 1200, '2025-03-18': 1200, '2025-03-19': 1200 }, buyRate: { '2025-03-15': 800, '2025-03-16': 800, '2025-03-17': 800, '2025-03-18': 800, '2025-03-19': 800 }, mealPlan: 'FB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Haram' }], status: 'Confirmed', amountPaidByClient: 18000, amountPaidToSupplier: 12000, createdBy: 'Hazem', createdAt: '2025-02-20 09:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 900, commissionPaidToSalesPerson: false },
+    { id: 4, checkIn: '2025-04-01', checkOut: '2025-04-03', nights: 2, clientId: 'test_client_3', hotelId: hotel1.id, guestName: 'Youssef Bennani', guestNationality: 'Moroccan', supplierId: 'test_supplier_1', rooms: [{ id: 'r4', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-04-01': 750, '2025-04-02': 750 }, buyRate: { '2025-04-01': 500, '2025-04-02': 500 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 1, view: 'City' }], status: 'Tentative', amountPaidByClient: 0, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-03-10 11:00:00', clientOptionDate: '2025-03-20', supplierOptionDate: '2025-03-18', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 120, commissionPaidToSalesPerson: false },
+    { id: 5, checkIn: '2025-04-10', checkOut: '2025-04-17', nights: 7, clientId: 'test_client_4', hotelId: hotel2.id, guestName: 'Hana Mahmoud', guestNationality: 'Egyptian', supplierId: 'test_supplier_2', rooms: [{ id: 'r5', roomType: roomTypes[0], qty: 2, nightlyRates: { '2025-04-10': 650, '2025-04-11': 650, '2025-04-12': 650, '2025-04-13': 650, '2025-04-14': 650, '2025-04-15': 650, '2025-04-16': 650 }, buyRate: { '2025-04-10': 420, '2025-04-11': 420, '2025-04-12': 420, '2025-04-13': 420, '2025-04-14': 420, '2025-04-15': 420, '2025-04-16': 420 }, mealPlan: 'HB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Garden' }], status: 'Confirmed', amountPaidByClient: 9100, amountPaidToSupplier: 5880, createdBy: 'Hazem', createdAt: '2025-03-15 16:00:00', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 455, commissionPaidToSalesPerson: true, commissionPaidDate: '2025-04-20', tags: ['Honeymoon'] },
+    // Cancelled booking
+    { id: 6, checkIn: '2025-03-20', checkOut: '2025-03-23', nights: 3, clientId: 'test_client_2', hotelId: hotel1.id, guestName: 'James Wilson', guestNationality: 'British', supplierId: 'test_supplier_1', rooms: [{ id: 'r6', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-03-20': 850, '2025-03-21': 850, '2025-03-22': 850 }, buyRate: { '2025-03-20': 580, '2025-03-21': 580, '2025-03-22': 580 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'City' }], status: 'Cancelled', amountPaidByClient: 500, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-02-28 10:00:00', cancellationFee: 500, cancellationReason: 'Guest changed travel plans', salesPersonId: 'test_sp_2', salesPersonCommissionAmount: 0, commissionPaidToSalesPerson: false },
+    // More confirmed for variety
+    { id: 7, checkIn: '2025-05-01', checkOut: '2025-05-04', nights: 3, clientId: 'test_client_3', hotelId: hotel2.id, guestName: 'Amina El Fassi', guestNationality: 'Moroccan', supplierId: 'test_supplier_2', rooms: [{ id: 'r7', roomType: roomTypes.length > 1 ? roomTypes[1] : roomTypes[0], qty: 2, nightlyRates: { '2025-05-01': 1100, '2025-05-02': 1100, '2025-05-03': 1100 }, buyRate: { '2025-05-01': 750, '2025-05-02': 750, '2025-05-03': 750 }, mealPlan: 'FB', hasSeparateMealRate: false, mealRate: 0, pax: 2, view: 'Haram' }], status: 'Tentative', amountPaidByClient: 0, amountPaidToSupplier: 0, createdBy: 'Hazem', createdAt: '2025-04-01 08:00:00', clientOptionDate: '2025-04-15', supplierOptionDate: '2025-04-12', salesPersonId: 'test_sp_1', salesPersonCommissionAmount: 330, commissionPaidToSalesPerson: false },
+    { id: 8, checkIn: '2025-05-10', checkOut: '2025-05-13', nights: 3, clientId: 'test_client_4', hotelId: hotel1.id, guestName: 'Tarek Soliman', guestNationality: 'Egyptian', supplierId: 'test_supplier_1', rooms: [{ id: 'r8', roomType: roomTypes[0], qty: 1, nightlyRates: { '2025-05-10': 700, '2025-05-11': 700, '2025-05-12': 700 }, buyRate: { '2025-05-10': 450, '2025-05-11': 450, '2025-05-12': 450 }, mealPlan: 'BB', hasSeparateMealRate: false, mealRate: 0, pax: 1, view: 'City' }], status: 'Confirmed', amountPaidByClient: 2100, amountPaidToSupplier: 1350, createdBy: 'Hazem', createdAt: '2025-04-15 13:00:00', tags: ['Corporate'] },
+  ];
+  
+  const allAgents = [...testClients, ...testSuppliers];
+  ZumraDB.saveAgents(allAgents);
+  ZumraDB.saveReservations(testReservations);
+  ZumraDB.saveSalesPersons(testSalesPersons);
+  console.log(`[TestSeed] Seeded ${allAgents.length} agents, ${testReservations.length} reservations, ${testSalesPersons.length} sales persons`);
 }
 

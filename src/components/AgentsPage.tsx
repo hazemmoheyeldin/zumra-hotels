@@ -399,6 +399,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 <th className="py-3 px-3 text-center">Type</th>
                 <th className="py-3 px-3 font-mono">Phone / Email</th>
                 <th className="py-3 px-3 text-right">Actual Balance (SAR)</th>
+                <th className="py-3 px-3 text-center">Credit Limit</th>
                 <th className="py-3 px-3 text-center">Actions</th>
               </tr>
             </thead>
@@ -440,6 +441,22 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                   </td>
                   <td className={`py-3 px-3 text-right font-mono font-bold ${getAgentActualBalance(agent, reservations, transactions) < 0 ? 'text-red-600' : 'text-slate-600'}`}>
                     {getAgentActualBalance(agent, reservations, transactions) < 0 ? `(${Math.abs(getAgentActualBalance(agent, reservations, transactions)).toLocaleString()})` : getAgentActualBalance(agent, reservations, transactions).toLocaleString()}
+                  </td>
+                  <td className="py-3 px-3 text-center">
+                    {agent.creditLimit && agent.creditLimit > 0 ? (() => {
+                      const actualBal = Math.abs(getAgentActualBalance(agent, reservations, transactions));
+                      const pct = Math.min(100, (actualBal / agent.creditLimit) * 100);
+                      const color = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+                      return (
+                        <div className="w-20 mx-auto">
+                          <div className="text-[9px] font-bold text-slate-500 mb-0.5">{actualBal.toLocaleString()} / {agent.creditLimit.toLocaleString()}</div>
+                          <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div className={`${color} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <div className={`text-[8px] font-bold ${pct >= 100 ? 'text-rose-600' : pct >= 80 ? 'text-amber-600' : 'text-emerald-600'}`}>{pct.toFixed(0)}%</div>
+                        </div>
+                      );
+                    })() : <span className="text-[10px] text-slate-400">—</span>}
                   </td>
                   <td className="py-3 px-3 text-center relative">
                     <div className="flex justify-center gap-1.5">

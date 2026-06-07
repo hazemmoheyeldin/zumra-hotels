@@ -909,6 +909,63 @@ export const translations: Record<string, TranslationEntry> = {
   'crpdf.totalsRow': { en: 'TOTALS:', ar: 'الإجماليات:' },
   'crpdf.notSpecified': { en: 'Not specified', ar: 'غير محدد' },
   'crpdf.preparedBy': { en: 'Prepared by: Zumra Hotels', ar: 'أُعِد بواسطة: فنادق زمرة' },
+
+  // ===== BULK ACTIONS =====
+  'bulk.confirm': { en: 'Bulk Confirm', ar: 'تأكيد جماعي' },
+  'bulk.changeStatus': { en: 'Change Status', ar: 'تغيير الحالة' },
+  'bulk.addTags': { en: 'Add Tags', ar: 'إضافة علامات' },
+  'bulk.exportCSV': { en: 'Export Selected', ar: 'تصدير المحدد' },
+  'bulk.statusChanged': { en: '{count} reservation(s) status changed to {status}', ar: 'تم تغيير حالة {count} حجز(ات) إلى {status}' },
+  'bulk.tagsAdded': { en: 'Tags added to {count} reservation(s)', ar: 'تم إضافة العلامات إلى {count} حجز(ات)' },
+  'bulk.exported': { en: '{count} reservation(s) exported to CSV', ar: 'تم تصدير {count} حجز(ات) إلى CSV' },
+
+  // ===== BLACKOUT PERIODS =====
+  'blackout.title': { en: 'Blackout Periods', ar: 'فترات الحظر' },
+  'blackout.addNew': { en: 'Add Blackout Period', ar: 'إضافة فترة حظر' },
+  'blackout.name': { en: 'Period Name', ar: 'اسم الفترة' },
+  'blackout.rateMultiplier': { en: 'Rate Multiplier', ar: 'مضاعف السعر' },
+  'blackout.blockBookings': { en: 'Block Bookings', ar: 'حظر الحجوزات' },
+  'blackout.warning': { en: 'Blackout period active: {name}. Rate multiplier: {multiplier}x', ar: 'فترة حظر نشطة: {name}. مضاعف السعر: {multiplier}x' },
+  'blackout.blocked': { en: 'Bookings are blocked during this period: {name}', ar: 'الحجوزات محظورة خلال هذه الفترة: {name}' },
+
+  // ===== PROFIT MARGIN =====
+  'margin.warning': { en: 'Low profit margin: {margin}%', ar: 'هامش ربح منخفض: {margin}%' },
+  'margin.critical': { en: 'Critical margin: {margin}% - Review pricing', ar: 'هامش حرج: {margin}% - راجع التسعير' },
+  'margin.threshold': { en: 'Margin Alert Threshold (%)', ar: 'حد تنبيه الهامش (%)' },
+
+  // ===== OVERBOOKING =====
+  'overbooking.warning': { en: 'Overbooking risk: {message}', ar: 'خطر حجز زائد: {message}' },
+  'overbooking.capacity': { en: 'Capacity: {booked}/{total} rooms booked', ar: 'السعة: {booked}/{total} غرفة محجوزة' },
+
+  // ===== WAITLIST =====
+  'waitlist.title': { en: 'Waitlist', ar: 'قائمة الانتظار' },
+  'waitlist.addToWaitlist': { en: 'Add to Waitlist', ar: 'إضافة لقائمة الانتظار' },
+  'waitlist.added': { en: 'Added to waitlist successfully', ar: 'تمت الإضافة لقائمة الانتظار بنجاح' },
+  'waitlist.status': { en: 'Status', ar: 'الحالة' },
+
+  // ===== CREDIT LIMIT =====
+  'credit.warning': { en: 'Client credit limit exceeded: {balance}/{limit} SAR', ar: 'تم تجاوز حد الائتمان: {balance}/{limit} ر.س' },
+  'credit.approaching': { en: 'Client approaching credit limit: {balance}/{limit} SAR', ar: 'العميل يقترب من حد الائتمان: {balance}/{limit} ر.س' },
+
+  // ===== EMAIL TEMPLATES =====
+  'emailTemplates.title': { en: 'Email Templates', ar: 'قوالب البريد الإلكتروني' },
+  'emailTemplates.addNew': { en: 'Add Template', ar: 'إضافة قالب' },
+  'emailTemplates.variables': { en: 'Available Variables', ar: 'المتغيرات المتاحة' },
+  'emailTemplates.preview': { en: 'Preview', ar: 'معاينة' },
+
+  // ===== REPORTS NEW TABS =====
+  'reports.cancellationAnalysis': { en: 'Cancellation Analysis', ar: 'تحليل الإلغاءات' },
+  'reports.supplierScorecard': { en: 'Supplier Scorecard', ar: 'تقييم الموردين' },
+  'reports.accountingExport': { en: 'Accounting Export', ar: 'تصدير محاسبي' },
+  'reports.clientLifetimeValue': { en: 'Client Lifetime Value', ar: 'قيمة العميل' },
+  'reports.cancelRate': { en: 'Cancellation Rate', ar: 'معدل الإلغاء' },
+  'reports.avgDaysBefore': { en: 'Avg Days Before Check-in', ar: 'متوسط الأيام قبل الوصول' },
+  'reports.reliabilityScore': { en: 'Reliability Score', ar: 'درجة الموثوقية' },
+  'reports.responseTime': { en: 'Avg Response Time (days)', ar: 'متوسط وقت الاستجابة (أيام)' },
+  'reports.totalBookings': { en: 'Total Bookings', ar: 'إجمالي الحجوزات' },
+  'reports.avgBookingValue': { en: 'Avg Booking Value', ar: 'متوسط قيمة الحجز' },
+  'reports.lastBooking': { en: 'Last Booking', ar: 'آخر حجز' },
+  'reports.outstandingBalance': { en: 'Outstanding Balance', ar: 'الرصيد المستحق' },
 };
 
 export type TranslationKey = keyof typeof translations;

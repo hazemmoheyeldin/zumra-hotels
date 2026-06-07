@@ -5,8 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from './types';
-import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo } from './lib/storage';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
+import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -42,6 +42,9 @@ import EditApprovalModal from './components/EditApprovalModal';
 import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
 import { seedHotelsIfEmpty } from './lib/hotelSeed';
+import { sendPreArrivalReminder } from './lib/email';
+import ApiWarningBanner from './components/ApiWarningBanner';
+import { downloadBackup, getDataSummary } from './lib/dataBackup';
 
 const THEMES = [
   {
@@ -177,7 +180,11 @@ export default function App() {
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [consolidatedInvoices, setConsolidatedInvoices] = useState<ConsolidatedInvoice[]>([]);
   const [showEditApprovalModal, setShowEditApprovalModal] = useState(false);
+  // New feature states
+  const [blackoutPeriods, setBlackoutPeriods] = useState<BlackoutPeriod[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   // Restore session from localStorage if user was previously logged in
+  const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('zumra_current_user');
@@ -331,12 +338,23 @@ export default function App() {
     setExpenses(ZumraDB.getExpenses());
     setExpenseCategories(ZumraDB.getExpenseCategories());
     setConsolidatedInvoices(ZumraDB.getConsolidatedInvoices());
+    // Load new feature data
+    setBlackoutPeriods(loadBlackoutPeriods());
+    setWaitlist(loadWaitlist());
     // Seed hotels if empty (first run or force reset)
     const seededHotels = seedHotelsIfEmpty(false);
     if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
       setHotels(seededHotels);
     }
+    // Seed test data (clients, suppliers, reservations) if no agents exist
+    seedTestDataIfEmpty();
+    // Reload agents/reservations in case test data was seeded
+    setAgents(ZumraDB.getAgents());
+    setReservations(ZumraDB.getReservations());
+    setSalesPersons(ZumraDB.getSalesPersons());
     // Session is restored from localStorage via useState initializer above
+    // Auth verification complete - dismiss loading screen
+    setAuthLoading(false);
 
     if (isFirebaseConfigured) {
       console.log('[Firebase] Cloud sync enabled - attaching real-time listeners');
@@ -903,6 +921,57 @@ export default function App() {
     );
   };
 
+  // Waitlist save handler
+  const handleSaveWaitlist = (entry: WaitlistEntry) => {
+    const updated = [...waitlist.filter(w => w.id !== entry.id), entry];
+    setWaitlist(updated);
+    saveWaitlist(updated);
+  };
+
+  // Auto pre-arrival reminder effect (3 days before check-in)
+  useEffect(() => {
+    if (!reservations.length || !hotels.length) return;
+    const sentReminders = loadSentReminders();
+    const today = new Date();
+    const threeDaysLater = new Date(today);
+    threeDaysLater.setDate(today.getDate() + 3);
+    const targetDate = threeDaysLater.toISOString().split('T')[0];
+    
+    const upcomingReservations = reservations.filter(r => {
+      if (r.status !== 'Confirmed') return false;
+      if (r.checkIn !== targetDate) return false;
+      const reminderKey = `reminder_${r.id}_${r.checkIn}`;
+      if (sentReminders.includes(reminderKey)) return false;
+      return true;
+    });
+    
+    upcomingReservations.forEach(async (r) => {
+      const hotel = hotels.find(h => h.id === r.hotelId);
+      const client = agents.find(a => a.id === r.clientId);
+      if (!client?.email || !hotel) return;
+      
+      const roomTypes = r.rooms.map(rm => rm.roomType).join(', ');
+      const result = await sendPreArrivalReminder(
+        client.email,
+        r.guestName,
+        hotel.name,
+        r.checkIn,
+        r.checkOut,
+        r.nights,
+        roomTypes,
+        r.specialRequests || '',
+        r.id
+      );
+      
+      if (result.success) {
+        const reminderKey = `reminder_${r.id}_${r.checkIn}`;
+        const updatedReminders = [...loadSentReminders(), reminderKey];
+        saveSentReminders(updatedReminders);
+        console.log(`[Auto-Reminder] Sent pre-arrival reminder for RSV-${r.id} to ${client.email}`);
+      }
+    });
+  }, [reservations, hotels]);
+
   const doSaveAccount = (acc: Account) => {
     const updated = accounts.map(item => item.id === acc.id ? acc : item);
     if (!accounts.some(item => item.id === acc.id)) updated.push(acc);
@@ -1382,6 +1451,8 @@ export default function App() {
             salesPersons={salesPersons}
             followUps={followUps}
             onSaveFollowUp={handleSaveFollowUp}
+            blackoutPeriods={blackoutPeriods}
+            onSaveWaitlist={handleSaveWaitlist}
           />
           </ErrorBoundary>
         );
@@ -1483,6 +1554,7 @@ export default function App() {
             salesPersons={salesPersons}
             initialTab={activeFilters?.reportTab}
             onNavigate={handleNavigate}
+            onSaveReservation={doSaveReservation}
           />
           </ErrorBoundary>
         );
@@ -1540,6 +1612,7 @@ export default function App() {
             setCancellationReasons={setCancellationReasons}
             termsAndConditions={termsAndConditions}
             setTermsAndConditions={setTermsAndConditions}
+            hotels={hotels}
             onLogAudit={handleLogAuditSimple}
           />
           </ErrorBoundary>
@@ -1660,6 +1733,17 @@ export default function App() {
     { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData' },
     { name: 'Client Portal', icon: '🚪', group: 'Settings', key: 'clientPortal' },
   ];
+
+  // Auth loading screen - prevents flash of login page during session verification
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-medium text-slate-600">Verifying session...</p>
+        <p className="text-[10px] text-slate-400 mt-1">Zumra Hotels RMS</p>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     // Check for client portal URL
@@ -2084,6 +2168,20 @@ export default function App() {
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         {t('users.userSettings')}
                       </button>
+                      <button
+                        onClick={() => { setIsUserMenuOpen(false); downloadBackup(); toast.success('Backup downloaded successfully'); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                        Download Data Backup
+                      </button>
+                      <button
+                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Dashboard'); }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                        Dashboard
+                      </button>
                       <div className="border-t border-slate-100 my-1"></div>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); handleSetCurrentUser(null as any); }}
@@ -2253,6 +2351,9 @@ export default function App() {
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+
+      {/* API Warning Banner - non-intrusive alerts when external services are down */}
+      <ApiWarningBanner />
     </div>
   );
 }

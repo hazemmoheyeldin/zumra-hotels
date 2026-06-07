@@ -152,6 +152,26 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     }
   });
 
+  // Strip overflow-related classes from ALL descendant elements to prevent
+  // table content truncation in multi-page PDF output (e.g. Arrival Report).
+  const overflowClasses = ['overflow-hidden', 'overflow-x-auto', 'overflow-y-auto', 'overflow-auto', 'overflow-scroll'];
+  clone.querySelectorAll('*').forEach(el => {
+    if (!(el instanceof HTMLElement)) return;
+    const elClasses = Array.from(el.classList);
+    let hadOverflow = false;
+    elClasses.forEach(cls => {
+      if (overflowClasses.includes(cls) || cls.startsWith('print:') || cls.includes('max-h-[')) {
+        el.classList.remove(cls);
+        if (overflowClasses.includes(cls)) hadOverflow = true;
+      }
+    });
+    if (hadOverflow) {
+      el.style.overflow = 'visible';
+      el.style.overflowX = 'visible';
+      el.style.overflowY = 'visible';
+    }
+  });
+
   // Swap images to pre-compressed versions for smaller PDF file size
   // compressImagesForPrint() stores JPEG data URLs as data-compressed-src
   clone.querySelectorAll('img').forEach(img => {
