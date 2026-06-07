@@ -519,6 +519,7 @@ const generatePDFBlob = async (
   const hiddenElements: { el: HTMLElement; origDisplay: string }[] = [];
   let origMaxHeight = '', origOverflow = '', origOverflowX = '';
   let origWidth = '', origMinWidth = '';
+  let origHeight = '', origBoxSizing = '';
   let scrollModified: ReturnType<typeof stripAllScrollConstraints> = [];
   let desktopModified: ReturnType<typeof forceDesktopLayout> = [];
 
@@ -552,12 +553,28 @@ const generatePDFBlob = async (
     // Force desktop grid/flex layouts (fixes md:grid-cols-N not activating on mobile viewport)
     desktopModified = forceDesktopLayout(element);
 
+    // CRITICAL: Force element to its full scrollable dimensions.
+    // This prevents html-to-image from clipping content that was previously
+    // hidden behind scrollbars (e.g., wide tables in arrival reports).
+    origHeight = element.style.height;
+    origBoxSizing = element.style.boxSizing;
+    const fullWidth = captureWidth || Math.max(element.scrollWidth, element.offsetWidth);
+    const fullHeight = element.scrollHeight;
+    element.style.width = `${fullWidth}px`;
+    element.style.minWidth = `${fullWidth}px`;
+    element.style.height = `${fullHeight}px`;
+    element.style.boxSizing = 'border-box';
+
+    // Force reflow so all style changes are applied before capture
+    void element.offsetHeight;
+
     // Capture as PNG (html-to-image uses SVG foreignObject — native text rendering)
     const dataUrl = await toPng(element, {
       pixelRatio: scale,
       backgroundColor: '#ffffff',
       cacheBust: false,
-      width: captureWidth || undefined,
+      width: fullWidth,
+      height: fullHeight,
       filter: (node: Node) => {
         if (node instanceof HTMLElement) return !node.classList.contains('no-print');
         return true;
@@ -569,9 +586,14 @@ const generatePDFBlob = async (
     element.style.maxHeight = origMaxHeight;
     element.style.overflow = origOverflow;
     element.style.overflowX = origOverflowX;
+    element.style.height = origHeight;
+    element.style.boxSizing = origBoxSizing;
     if (captureWidth) {
       element.style.width = origWidth;
       element.style.minWidth = origMinWidth;
+    } else {
+      element.style.removeProperty('width');
+      element.style.removeProperty('min-width');
     }
     restoreScrollConstraints(scrollModified);
     hiddenElements.forEach(({ el, origDisplay }) => { el.style.display = origDisplay; });
@@ -638,9 +660,14 @@ const generatePDFBlob = async (
     element.style.maxHeight = origMaxHeight;
     element.style.overflow = origOverflow;
     element.style.overflowX = origOverflowX;
+    element.style.height = origHeight;
+    element.style.boxSizing = origBoxSizing;
     if (captureWidth) {
       element.style.width = origWidth;
       element.style.minWidth = origMinWidth;
+    } else {
+      element.style.removeProperty('width');
+      element.style.removeProperty('min-width');
     }
     restoreScrollConstraints(scrollModified);
     hiddenElements.forEach(({ el, origDisplay }) => { el.style.display = origDisplay; });

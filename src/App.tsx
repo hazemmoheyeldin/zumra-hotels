@@ -1492,6 +1492,15 @@ export default function App() {
 
   // Profile image upload
   const profileImageRef = useRef<HTMLInputElement>(null);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+
+  // Scroll content area to top whenever active tab changes
+  useEffect(() => {
+    if (contentAreaRef.current) {
+      contentAreaRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
+
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser) return;
@@ -2358,7 +2367,7 @@ export default function App() {
         </header>
 
         {/* Scrollable central content area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={activeTab}>
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={activeTab}>
           {/* Pending Refund Alerts Banner */}
           {(() => {
             const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
