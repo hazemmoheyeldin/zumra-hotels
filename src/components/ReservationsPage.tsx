@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
 import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder } from '../lib/email';
@@ -65,6 +65,7 @@ interface ReservationsPageProps {
   currentUserRole?: string;
   onRequestEditApproval?: (request: import('../types').EditApprovalRequest) => void;
   onNavigate?: (page: string, filters?: any) => void;
+  termsAndConditions?: TermsAndConditions[];
 }
 
 export default function ReservationsPage({
@@ -85,6 +86,7 @@ export default function ReservationsPage({
   currentUserRole,
   onRequestEditApproval,
   onNavigate,
+  termsAndConditions = [],
 }: ReservationsPageProps) {
   
   // View states
@@ -282,6 +284,7 @@ export default function ReservationsPage({
   const [groupRef, setGroupRef] = useState('');
   const [passportExpiry, setPassportExpiry] = useState('');
   const [visaExpiry, setVisaExpiry] = useState('');
+  const [selectedTcId, setSelectedTcId] = useState('');
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -500,6 +503,7 @@ export default function ReservationsPage({
     setHotelConfirmationNo(res.hotelConfirmationNo || '');
     setBankAccountId(res.bankAccountId || '');
     setAgreementNo(res.agreementNo || '');
+    setSelectedTcId(res.tcId || '');
     setSupplierVoucher(res.supplierVoucher || '');
     setCancellationFee(res.cancellationFee || 0);
     setCancellationReason(res.cancellationReason || '');
@@ -653,6 +657,7 @@ export default function ReservationsPage({
       hotelConfirmationNo: status === 'Confirmed' ? hotelConfirmationNo : undefined,
       bankAccountId: bankAccountId || undefined,
       agreementNo,
+      tcId: selectedTcId || undefined,
       supplierVoucher,
       allotmentId: selectedAllotmentId || undefined,
       nonRefundable: nonRefundable || undefined,
@@ -837,6 +842,7 @@ export default function ReservationsPage({
     setGroupRef('');
     setPassportExpiry('');
     setVisaExpiry('');
+    setSelectedTcId('');
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
     setShowForm(false);
   };
@@ -1787,6 +1793,15 @@ export default function ReservationsPage({
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.agreementNo')}</label>
                 <input type="text" value={agreementNo} onChange={(e) => setAgreementNo(e.target.value)} placeholder="Contract No" className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm font-mono focus:bg-white" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Terms & Conditions</label>
+                <select value={selectedTcId} onChange={(e) => setSelectedTcId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
+                  <option value="">Default (Standard Terms)</option>
+                  {termsAndConditions.filter(tc => tc.active).map(tc => (
+                    <option key={tc.id} value={tc.id}>{tc.isDefault ? '★ ' : ''}{tc.title}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplierVoucher')}</label>
@@ -2851,6 +2866,7 @@ export default function ReservationsPage({
           creatorName={printingDoc.res.createdBy || currentUser}
           users={users}
           accounts={accounts}
+          termsAndConditionsList={termsAndConditions}
         />
       )}
 

@@ -1376,6 +1376,7 @@ export default function App() {
             currentUserRole={currentUser.role}
             onRequestEditApproval={handleRequestEditApproval}
             onNavigate={handleNavigate}
+            termsAndConditions={termsAndConditions}
           />
           </ErrorBoundary>
         );

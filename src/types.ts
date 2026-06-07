@@ -152,6 +152,7 @@ export interface Reservation {
   guestNationality: string;
   clientOptionDate?: string;
   termsAndConditions?: string;
+  tcId?: string; // Selected T&C template ID
   supplierId: string;
   supplierVoucher?: string;
   supplierOptionDate?: string;
@@ -294,6 +295,7 @@ export interface TermsAndConditions {
   title: string;
   content: string;
   active: boolean;
+  isDefault?: boolean;
 }
 
 // ==================== Other Services ====================

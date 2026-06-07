@@ -209,6 +209,15 @@ export default function GeneralDataPage({
     showToast('T&C deleted');
   };
 
+  const handleSetDefaultTC = (tc: TermsAndConditions) => {
+    const updated = termsAndConditions.map(t => ({ ...t, isDefault: t.id === tc.id }));
+    setTermsAndConditions(updated);
+    ZumraDB.saveTermsAndConditions(updated);
+    ZumraSync.saveTermsAndConditions({ ...tc, isDefault: true });
+    onLogAudit('Update', 'GeneralData', tc.id, `Set "${tc.title}" as default T&C`);
+    showToast(`"${tc.title}" set as default`);
+  };
+
   const resetTCForm = () => {
     setTcForm({});
     setTcEditingId(null);
@@ -441,12 +450,13 @@ export default function GeneralDataPage({
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Title</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Preview</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Default</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredTC.length === 0 ? (
-                  <tr><td colSpan={4} className="text-center py-8 text-gray-400">No T&C found</td></tr>
+                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">No T&C found</td></tr>
                 ) : (
                   filteredTC.map(tc => (
                     <tr key={tc.id} className="hover:bg-gray-50">
@@ -456,6 +466,13 @@ export default function GeneralDataPage({
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tc.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                           {tc.active ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {tc.isDefault ? (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">★ Default</span>
+                        ) : (
+                          <button onClick={() => handleSetDefaultTC(tc)} className="text-xs text-gray-400 hover:text-amber-600 font-medium">Set Default</button>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <button onClick={() => setViewingTc(tc)} className="text-emerald-600 hover:text-emerald-800 font-medium">View</button>

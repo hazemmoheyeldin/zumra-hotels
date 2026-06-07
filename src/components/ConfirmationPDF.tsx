@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, User, Account, StampPosition } from '../types';
+import { Reservation, Agent, Hotel, User, Account, StampPosition, TermsAndConditions } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
 import ZumraLogo from './ZumraLogo';
 import StampOverlay, { getStampSettings } from './StampOverlay';
@@ -21,9 +21,10 @@ interface ConfirmationPDFProps {
   creatorName: string;
   users?: User[];
   accounts?: Account[];
+  termsAndConditionsList?: TermsAndConditions[];
 }
 
-export default function ConfirmationPDF({ reservation, client, hotel, type, onClose, creatorName, users = [], accounts = [] }: ConfirmationPDFProps) {
+export default function ConfirmationPDF({ reservation, client, hotel, type, onClose, creatorName, users = [], accounts = [], termsAndConditionsList = [] }: ConfirmationPDFProps) {
   const { PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
   const stampDefaults = getStampSettings();
@@ -471,18 +472,42 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
               <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] font-sans">
                 <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">{t('pdf.termsConditions')}:</h3>
                 <div className="text-[9px] text-slate-650 space-y-0 font-medium leading-snug max-w-2xl text-left">
-                  <p>{t('cpdf.termsRateSAR')}</p>
-                  <p>{t('cpdf.termsAvailability')}</p>
-                  <p>{t('cpdf.termsCheckInOut')}</p>
-                  <p>{t('cpdf.termsConfirmation')}</p>
-                  <p>{t('cpdf.termsCancel30')}</p>
-                  <p>{t('cpdf.termsCancel15')}</p>
-                  <p>{t('cpdf.termsNoShow')}</p>
-                  <p>{t('cpdf.termsAmend25')}</p>
-                  <p>{t('cpdf.termsAmend15')}</p>
-                  {reservation.termsAndConditions && (
-                    <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-150">{t('cpdf.customClause')} {reservation.termsAndConditions}</p>
-                  )}
+                  {(() => {
+                    // Find explicitly selected T&C by tcId
+                    const selectedTc = reservation.tcId ? termsAndConditionsList.find(tc => tc.id === reservation.tcId) : null;
+                    // Find default T&C (marked as default)
+                    const defaultTc = !selectedTc ? termsAndConditionsList.find(tc => tc.isDefault && tc.active) : null;
+                    const activeTc = selectedTc || defaultTc;
+                    if (activeTc) {
+                      return (
+                        <>
+                          {activeTc.content.split('\n').map((line, i) => (
+                            <p key={i}>{line}</p>
+                          ))}
+                          {reservation.termsAndConditions && (
+                            <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-150">{t('cpdf.customClause')} {reservation.termsAndConditions}</p>
+                          )}
+                        </>
+                      );
+                    }
+                    // Fallback: hardcoded default terms
+                    return (
+                      <>
+                        <p>{t('cpdf.termsRateSAR')}</p>
+                        <p>{t('cpdf.termsAvailability')}</p>
+                        <p>{t('cpdf.termsCheckInOut')}</p>
+                        <p>{t('cpdf.termsConfirmation')}</p>
+                        <p>{t('cpdf.termsCancel30')}</p>
+                        <p>{t('cpdf.termsCancel15')}</p>
+                        <p>{t('cpdf.termsNoShow')}</p>
+                        <p>{t('cpdf.termsAmend25')}</p>
+                        <p>{t('cpdf.termsAmend15')}</p>
+                        {reservation.termsAndConditions && (
+                          <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-150">{t('cpdf.customClause')} {reservation.termsAndConditions}</p>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
