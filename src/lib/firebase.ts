@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, disableNetwork, enableNetwork } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHkLzahkk0ZKckDqmS0AZNnoLqgRFEQ4A",
@@ -30,6 +30,12 @@ if (isFirebaseConfigured) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     console.log('[Firebase] Initialized successfully');
+    // Test connectivity with a simple read
+    getDocs(query(collection(db, 'users'))).then(snap => {
+      console.log(`[Firebase] Connectivity check: ${snap.size} users found`);
+    }).catch(err => {
+      console.warn('[Firebase] Connectivity check failed:', err?.message || err);
+    });
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
     db = null;
@@ -71,11 +77,20 @@ export const COLLECTIONS = {
  * Helper: Save a single document to Firestore
  */
 export async function firestoreSave(collectionName: string, id: string, data: any): Promise<void> {
-  if (!db) return;
+  if (!db) {
+    console.warn(`[Firebase] firestoreSave: db is null, skipping ${collectionName}/${id}`);
+    return;
+  }
   try {
-    await setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
-  } catch (error) {
-    console.error(`[Firebase] Error saving ${collectionName}/${id}:`, error);
+    const timeoutMs = 10000;
+    const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+    );
+    await Promise.race([savePromise, timeoutPromise]);
+  } catch (error: any) {
+    console.error(`[Firebase] Error saving ${collectionName}/${id}:`, error?.message || error);
+    throw error; // Re-throw so caller can handle/queue
   }
 }
 

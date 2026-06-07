@@ -1307,7 +1307,12 @@ export default function App() {
       : [...users, user];
     setUsers(updated);
     ZumraDB.saveUsers(updated);
-    ZumraSync.saveUser(user);
+    console.log(`[doAddUser] Saving user ${user.username} (id=${user.id}), calling sync...`);
+    ZumraSync.saveUser(user).then(() => {
+      console.log(`[doAddUser] Sync completed for ${user.username}`);
+    }).catch(err => {
+      console.error(`[doAddUser] Sync failed for ${user.username}:`, err);
+    });
     toast.success(`User "${user.name}" saved`);
   };
   const handleAddUser = (user: User) => {
