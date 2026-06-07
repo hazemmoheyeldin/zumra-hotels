@@ -1416,6 +1416,22 @@ export default function App() {
 
   const doAddUser = async (user: User) => {
     const existing = users.find(u => u.id === user.id);
+
+    // ===== Admin Protection Guard =====
+    // Prevent demoting the last Admin to a non-Admin role
+    if (existing && existing.role === 'Admin' && user.role !== 'Admin') {
+      const adminCount = users.filter(u => u.role === 'Admin').length;
+      if (adminCount <= 1) {
+        toast.error('Cannot demote the last Admin. Promote another user to Admin first.');
+        return;
+      }
+    }
+    // Prevent changing the primary admin's email (hazem8383@gmail.com)
+    if (existing && existing.email === 'hazem8383@gmail.com' && user.email !== 'hazem8383@gmail.com') {
+      toast.error('The primary admin email cannot be changed.');
+      return;
+    }
+
     const updated = existing
       ? users.map(u => u.id === user.id ? user : u)
       : [...users, user];
@@ -1452,6 +1468,11 @@ export default function App() {
     // Guard: prevent deleting self
     if (currentUser && userId === currentUser.id) {
       toast.error('You cannot delete your own account.');
+      return;
+    }
+    // Guard: prevent deleting the primary admin account
+    if (targetUser?.email === 'hazem8383@gmail.com') {
+      toast.error('The primary admin account cannot be deleted.');
       return;
     }
     // Guard: prevent deleting last admin
