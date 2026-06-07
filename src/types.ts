@@ -36,12 +36,14 @@ export interface AmendmentEntry {
   newValue: string;
 }
 
+export type EntityType = 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login' | 'OtherService' | 'PaymentGateway' | 'GeneralData' | 'EditApproval';
+
 export interface GlobalAuditEntry {
   id: string;
   timestamp: string;
   user: string;
   action: string;
-  entityType: 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login';
+  entityType: EntityType;
   entityId: string;
   detail: string;
 }
@@ -60,6 +62,7 @@ export interface Agent {
   walletBalance?: number; // Available credit balance from cancellations
   pendingRefunds?: RefundAlert[];
   creditLimit?: number; // Optional credit limit for clients
+  clientStatus?: 'Active' | 'Suspended' | 'Blacklisted'; // Client status flag
   auditLogs: AuditLogEntry[];
 }
 
@@ -209,7 +212,7 @@ export interface User {
   username: string;
   name: string;
   jobTitle?: string;
-  role: 'Admin' | 'Sales' | 'Finance' | 'Reservationist';
+  role: 'Admin' | 'Sales' | 'Finance' | 'Reservationist' | 'ReservationsManager';
   email: string;
   password?: string;
   mustChangePassword?: boolean; // Force password change on next login
@@ -261,4 +264,105 @@ export interface ExternalTransfer {
   totalAmountPaidEGP?: number; 
   amountRemainingEGP?: number; 
   status: 'Pending' | 'Done';
+}
+
+// ==================== General Data ====================
+
+export interface SalesPerson {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  commission: number; // Commission percentage
+  active: boolean;
+}
+
+export interface CancellationReason {
+  id: string;
+  reason: string;
+  active: boolean;
+}
+
+export interface TermsAndConditions {
+  id: string;
+  title: string;
+  content: string;
+  active: boolean;
+}
+
+// ==================== Other Services ====================
+
+export type ServiceType = 'OutboundHotel' | 'Flight' | 'Visa' | 'Transportation';
+
+export interface OtherService {
+  id: string;
+  serviceType: ServiceType;
+  clientId: string;
+  description: string;
+  quantity: number;
+  sellPrice: number;
+  buyPrice: number;
+  taxRate: number;
+  date: string;
+  status: 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
+  invoiceNo?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  // Type-specific fields stored as key-value
+  details?: Record<string, string>;
+}
+
+// ==================== Payment Gateways ====================
+
+export interface PaymentGateway {
+  id: string;
+  name: string;
+  type: 'Bank' | 'Visa' | 'Mada' | 'ApplePay';
+  merchantId?: string;
+  apiKey?: string;
+  secretKey?: string;
+  webhookUrl?: string;
+  active: boolean;
+}
+
+export interface PayByLink {
+  id: string;
+  gatewayId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  reservationId?: string;
+  status: 'Draft' | 'Sent' | 'Paid' | 'Expired' | 'Cancelled';
+  expiresAt: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+// ==================== Edit Approval ====================
+
+export interface EditApprovalRequest {
+  id: string;
+  reservationId: number;
+  requestedBy: string;
+  requestedAt: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  changes: { field: string; oldValue: string; newValue: string }[];
+  originalSnapshot: Partial<Reservation>;
+  newSnapshot: Partial<Reservation>;
+}
+
+// ==================== Tax Settings ====================
+
+export interface TaxSettings {
+  id: string;
+  name: string;
+  rate: number;
+  appliesTo: ServiceType[];
+  active: boolean;
 }

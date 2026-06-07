@@ -60,6 +60,8 @@ interface ReservationsPageProps {
   allotments?: Allotment[];
   onSaveAllotment?: (allotment: Allotment) => void;
   onLogAudit?: (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>) => void;
+  currentUserRole?: string;
+  onRequestEditApproval?: (request: import('../types').EditApprovalRequest) => void;
 }
 
 export default function ReservationsPage({
@@ -76,7 +78,9 @@ export default function ReservationsPage({
   transactions = [],
   allotments = [],
   onSaveAllotment,
-  onLogAudit
+  onLogAudit,
+  currentUserRole,
+  onRequestEditApproval
 }: ReservationsPageProps) {
   
   // View states
@@ -687,6 +691,48 @@ export default function ReservationsPage({
         entityId: String(nextId),
         detail: `${reservationToSave.guestName} @ ${hotels.find(h => h.id === reservationToSave.hotelId)?.name || ''} | ${checkIn} to ${checkOut} | ${status}`
       });
+    }
+
+    // Approval workflow: non-admin/reservation manager edits require approval
+    if (editingId && onRequestEditApproval && currentUserRole !== 'Admin' && currentUserRole !== 'ReservationsManager') {
+      const oldRes = reservations.find(r => r.id.toString() === editingId);
+      if (oldRes) {
+        const changes: { field: string; oldValue: string; newValue: string }[] = [];
+        if (oldRes.status !== status) changes.push({ field: 'Status', oldValue: oldRes.status, newValue: status });
+        if (oldRes.checkIn !== checkIn) changes.push({ field: 'Check-In', oldValue: oldRes.checkIn, newValue: checkIn });
+        if (oldRes.checkOut !== checkOut) changes.push({ field: 'Check-Out', oldValue: oldRes.checkOut, newValue: checkOut });
+        if (oldRes.guestName !== guestName) changes.push({ field: 'Guest Name', oldValue: oldRes.guestName, newValue: guestName });
+        if (oldRes.clientId !== clientId) changes.push({ field: 'Client', oldValue: agents.find(a => a.id === oldRes.clientId)?.name || oldRes.clientId, newValue: agents.find(a => a.id === clientId)?.name || clientId });
+        if (oldRes.hotelId !== hotelId) changes.push({ field: 'Hotel', oldValue: hotels.find(h => h.id === oldRes.hotelId)?.name || oldRes.hotelId, newValue: hotels.find(h => h.id === hotelId)?.name || hotelId });
+        if (oldRes.amountPaidByClient !== amountPaidByClient) changes.push({ field: 'Client Paid', oldValue: String(oldRes.amountPaidByClient), newValue: String(amountPaidByClient) });
+        if (oldRes.amountPaidToSupplier !== amountPaidToSupplier) changes.push({ field: 'Supplier Paid', oldValue: String(oldRes.amountPaidToSupplier), newValue: String(amountPaidToSupplier) });
+
+        if (changes.length > 0) {
+          const approvalReq: import('../types').EditApprovalRequest = {
+            id: `appr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            reservationId: oldRes.id,
+            requestedBy: currentUser,
+            requestedAt: new Date().toISOString(),
+            status: 'Pending',
+            changes,
+            originalSnapshot: oldRes,
+            newSnapshot: reservationToSave,
+          };
+          onRequestEditApproval(approvalReq);
+          if (onLogAudit) {
+            onLogAudit({
+              user: currentUser,
+              action: 'Edit Approval Requested',
+              entityType: 'EditApproval',
+              entityId: approvalReq.id,
+              detail: `RSV-${oldRes.id} edit by ${currentUser}`,
+            });
+          }
+          toast.info('Your changes have been submitted for admin approval.');
+          resetForm();
+          return;
+        }
+      }
     }
 
     onSaveReservation(reservationToSave);
@@ -1308,6 +1354,16 @@ export default function ReservationsPage({
                     <option key={a.id} value={a.id}>{a.companyName || a.name}</option>
                   ))}
                 </select>
+                {clientId && (() => {
+                  const selectedClient = agents.find(a => a.id === clientId);
+                  if (selectedClient?.clientStatus === 'Suspended') {
+                    return <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded mt-1">⚠️ This client is Suspended - proceed with caution</p>;
+                  }
+                  if (selectedClient?.clientStatus === 'Blacklisted') {
+                    return <p className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-1 rounded mt-1">⛔ This client is Blacklisted - booking not recommended</p>;
+                  }
+                  return null;
+                })()}
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{t('res.supplier')}</label>

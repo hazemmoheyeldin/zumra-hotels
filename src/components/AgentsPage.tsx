@@ -36,6 +36,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   const [address, setAddress] = useState('');
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [creditLimit, setCreditLimit] = useState<number | undefined>(undefined);
+  const [clientStatus, setClientStatus] = useState<'Active' | 'Suspended' | 'Blacklisted'>('Active');
 
   const [showForm, setShowForm] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setAddress(agent.address);
     setOpeningBalance(agent.balance);
     setCreditLimit(agent.creditLimit);
+    setClientStatus(agent.clientStatus || 'Active');
     setShowForm(true);
     setActiveMenuId(null);
   };
@@ -127,6 +129,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
       address,
       balance: openingBalance,
       creditLimit,
+      clientStatus,
       auditLogs: [newLog, ...pastLogs]
     };
 
@@ -145,6 +148,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setAddress('');
     setOpeningBalance(0);
     setCreditLimit(undefined);
+    setClientStatus('Active');
     setShowForm(false);
   };
 
@@ -300,6 +304,23 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
               />
             </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Client Status</label>
+              <select
+                value={clientStatus}
+                onChange={(e) => setClientStatus(e.target.value as any)}
+                className={`w-full px-3 py-1.5 border rounded-lg text-xs font-semibold focus:outline-none ${
+                  clientStatus === 'Suspended' ? 'border-amber-400 bg-amber-50' :
+                  clientStatus === 'Blacklisted' ? 'border-red-400 bg-red-50' :
+                  'border-slate-200'
+                }`}
+              >
+                <option value="Active">Active</option>
+                <option value="Suspended">Suspended</option>
+                <option value="Blacklisted">Blacklisted</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -392,7 +413,16 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                   <td className="py-3 px-3 font-bold font-mono text-slate-900 bg-amber-50/15">
                     {agent.agentNumber}
                   </td>
-                  <td className="py-3 px-3 font-semibold text-slate-900">{agent.name}</td>
+                  <td className="py-3 px-3 font-semibold text-slate-900">
+                    {agent.name}
+                    {agent.clientStatus && agent.clientStatus !== 'Active' && (
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                        agent.clientStatus === 'Suspended' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {agent.clientStatus}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-3 px-3">{agent.companyName || '-'}</td>
                   <td className="py-3 px-3 font-medium">{agent.country}</td>
                   <td className="py-3 px-3 text-center">

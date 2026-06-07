@@ -38,7 +38,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [jobTitle, setJobTitle] = useState('');
-  const [role, setRole] = useState<'Admin' | 'Sales' | 'Finance' | 'Reservationist'>('Sales');
+  const [role, setRole] = useState<'Admin' | 'Sales' | 'Finance' | 'Reservationist' | 'ReservationsManager'>('Sales');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -368,6 +368,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                 <option value="Sales">Sales Operator</option>
                 <option value="Finance">Finance Controller</option>
                 <option value="Reservationist">Reservationist</option>
+                                <option value="ReservationsManager">Reservations Manager</option>
               </select>
             </FormField>
 

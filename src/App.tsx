@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
@@ -31,6 +31,11 @@ import AuditLogPage from './components/AuditLogPage';
 import InvoicePDF from './components/InvoicePDF';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmDialog from './components/ConfirmDialog';
+import GeneralDataPage from './components/GeneralDataPage';
+import OtherServicesPage from './components/OtherServicesPage';
+import PaymentGatewaysPage from './components/PaymentGatewaysPage';
+import EditApprovalModal from './components/EditApprovalModal';
+import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
 
 const THEMES = [
@@ -136,6 +141,16 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [auditLog, setAuditLog] = useState<GlobalAuditEntry[]>([]);
+  // New collection states
+  const [salesPersons, setSalesPersons] = useState<SalesPerson[]>([]);
+  const [cancellationReasons, setCancellationReasons] = useState<CancellationReason[]>([]);
+  const [termsAndConditions, setTermsAndConditions] = useState<TermsAndConditions[]>([]);
+  const [otherServices, setOtherServices] = useState<OtherService[]>([]);
+  const [paymentGateways, setPaymentGateways] = useState<PaymentGateway[]>([]);
+  const [payByLinks, setPayByLinks] = useState<PayByLink[]>([]);
+  const [editApprovals, setEditApprovals] = useState<EditApprovalRequest[]>([]);
+  const [taxSettings, setTaxSettings] = useState<TaxSettings[]>([]);
+  const [showEditApprovalModal, setShowEditApprovalModal] = useState(false);
   // Restore session from localStorage if user was previously logged in
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -236,6 +251,15 @@ export default function App() {
     }
     setFollowUps(ZumraDB.getFollowUps());
     setAuditLog(ZumraDB.getAuditLog());
+    // Load new collections
+    setSalesPersons(ZumraDB.getSalesPersons());
+    setCancellationReasons(ZumraDB.getCancellationReasons());
+    setTermsAndConditions(ZumraDB.getTermsAndConditions());
+    setOtherServices(ZumraDB.getOtherServices());
+    setPaymentGateways(ZumraDB.getPaymentGateways());
+    setPayByLinks(ZumraDB.getPayByLinks());
+    setEditApprovals(ZumraDB.getEditApprovals());
+    setTaxSettings(ZumraDB.getTaxSettings());
     // Session is restored from localStorage via useState initializer above
 
     if (isFirebaseConfigured) {
@@ -254,6 +278,14 @@ export default function App() {
             { name: COLLECTIONS.EXTERNAL_TRANSFERS, key: 'zumra_external_transfers', setter: setExternalTransfers, loader: ZumraDB.getExternalTransfers },
             { name: COLLECTIONS.USERS, key: 'zumra_users', setter: setUsers, loader: ZumraDB.getUsers },
             { name: COLLECTIONS.FOLLOW_UPS, key: 'zumra_follow_ups', setter: setFollowUps, loader: ZumraDB.getFollowUps },
+            { name: COLLECTIONS.SALES_PERSONS, key: 'zumra_sales_persons', setter: setSalesPersons, loader: ZumraDB.getSalesPersons },
+            { name: COLLECTIONS.CANCELLATION_REASONS, key: 'zumra_cancellation_reasons', setter: setCancellationReasons, loader: ZumraDB.getCancellationReasons },
+            { name: COLLECTIONS.TERMS_CONDITIONS, key: 'zumra_terms_conditions', setter: setTermsAndConditions, loader: ZumraDB.getTermsAndConditions },
+            { name: COLLECTIONS.OTHER_SERVICES, key: 'zumra_other_services', setter: setOtherServices, loader: ZumraDB.getOtherServices },
+            { name: COLLECTIONS.PAYMENT_GATEWAYS, key: 'zumra_payment_gateways', setter: setPaymentGateways, loader: ZumraDB.getPaymentGateways },
+            { name: COLLECTIONS.PAY_BY_LINKS, key: 'zumra_pay_by_links', setter: setPayByLinks, loader: ZumraDB.getPayByLinks },
+            { name: COLLECTIONS.EDIT_APPROVALS, key: 'zumra_edit_approvals', setter: setEditApprovals, loader: ZumraDB.getEditApprovals },
+            { name: COLLECTIONS.TAX_SETTINGS, key: 'zumra_tax_settings', setter: setTaxSettings, loader: ZumraDB.getTaxSettings },
           ];
 
           for (const col of collections) {
@@ -335,6 +367,54 @@ export default function App() {
             setFollowUps(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
           }
         }),
+        firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_sales_persons', JSON.stringify(data));
+            setSalesPersons(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_cancellation_reasons', JSON.stringify(data));
+            setCancellationReasons(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_terms_conditions', JSON.stringify(data));
+            setTermsAndConditions(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_other_services', JSON.stringify(data));
+            setOtherServices(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_payment_gateways', JSON.stringify(data));
+            setPaymentGateways(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_pay_by_links', JSON.stringify(data));
+            setPayByLinks(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_edit_approvals', JSON.stringify(data));
+            setEditApprovals(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
+        firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
+          if (data.length > 0 && !isRecentLocalWrite()) {
+            localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
+            setTaxSettings(prev => JSON.stringify(prev) !== JSON.stringify(data) ? data : prev);
+          }
+        }),
       ];
 
       // Also listen for cross-tab localStorage changes (for theme etc.)
@@ -405,6 +485,71 @@ export default function App() {
       };
     }
   }, []);
+
+  // Session timeout - auto logout after 30 minutes of inactivity
+  useEffect(() => {
+    if (!currentUser) return;
+    const session = new SessionTimeout(30 * 60 * 1000, () => {
+      handleSetCurrentUser(null as any);
+      toast.warning('Session expired due to inactivity. Please log in again.');
+    });
+    session.start();
+    return () => session.stop();
+  }, [currentUser]);
+
+  // Edit Approval handlers
+  const handleRequestEditApproval = (request: EditApprovalRequest) => {
+    const updated = [...editApprovals, request];
+    setEditApprovals(updated);
+    ZumraDB.saveEditApprovals(updated);
+    ZumraSync.saveEditApproval(request);
+    toast.success('Edit request submitted for approval');
+  };
+
+  const handleApproveEdit = (id: string) => {
+    const approval = editApprovals.find(a => a.id === id);
+    if (!approval) return;
+    // Apply the changes to the reservation
+    const updatedReservations = reservations.map(r => {
+      if (r.id === approval.reservationId) {
+        return { ...r, ...approval.newSnapshot };
+      }
+      return r;
+    });
+    setReservations(updatedReservations);
+    ZumraDB.saveReservations(updatedReservations);
+    const updatedRes = updatedReservations.find(r => r.id === approval.reservationId);
+    if (updatedRes) ZumraSync.saveReservation(updatedRes);
+    // Update approval status
+    const updatedApprovals = editApprovals.map(a =>
+      a.id === id ? { ...a, status: 'Approved' as const, approvedBy: currentUser?.name, approvedAt: new Date().toISOString() } : a
+    );
+    setEditApprovals(updatedApprovals);
+    ZumraDB.saveEditApprovals(updatedApprovals);
+    ZumraSync.saveEditApproval(updatedApprovals.find(a => a.id === id)!);
+    toast.success('Edit approved and applied');
+  };
+
+  const handleRejectEdit = (id: string, reason: string) => {
+    const updatedApprovals = editApprovals.map(a =>
+      a.id === id ? { ...a, status: 'Rejected' as const, approvedBy: currentUser?.name, approvedAt: new Date().toISOString() } : a
+    );
+    setEditApprovals(updatedApprovals);
+    ZumraDB.saveEditApprovals(updatedApprovals);
+    ZumraSync.saveEditApproval(updatedApprovals.find(a => a.id === id)!);
+    toast.success(`Edit rejected${reason ? `: ${reason}` : ''}`);
+  };
+
+  // Wrapper for onLogAudit that matches the 4-param signature used by new components
+  const handleLogAuditSimple = (action: string, entityType: string, entityId: string, detail: string) => {
+    handleLogAudit({
+      action,
+      entityType: entityType as any,
+      entityId,
+      detail,
+      user: currentUser?.name || 'unknown',
+    });
+  };
 
   // Sync savers (internal — called after confirmation)
   const doSaveHotel = (h: Hotel) => {
@@ -1015,6 +1160,8 @@ export default function App() {
             allotments={allotments}
             onSaveAllotment={handleSaveAllotment}
             onLogAudit={handleLogAudit}
+            currentUserRole={currentUser.role}
+            onRequestEditApproval={handleRequestEditApproval}
           />
           </ErrorBoundary>
         );
@@ -1145,6 +1292,46 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'General Data':
+        return (
+          <ErrorBoundary fallbackLabel="General Data page failed to load.">
+          <GeneralDataPage
+            salesPersons={salesPersons}
+            setSalesPersons={setSalesPersons}
+            cancellationReasons={cancellationReasons}
+            setCancellationReasons={setCancellationReasons}
+            termsAndConditions={termsAndConditions}
+            setTermsAndConditions={setTermsAndConditions}
+            onLogAudit={handleLogAuditSimple}
+          />
+          </ErrorBoundary>
+        );
+      case 'Other Services':
+        return (
+          <ErrorBoundary fallbackLabel="Other Services page failed to load.">
+          <OtherServicesPage
+            otherServices={otherServices}
+            setOtherServices={setOtherServices}
+            agents={agents}
+            taxSettings={taxSettings}
+            currentUser={currentUser}
+            onLogAudit={handleLogAuditSimple}
+          />
+          </ErrorBoundary>
+        );
+      case 'Payment Gateways':
+        return (
+          <ErrorBoundary fallbackLabel="Payment Gateways page failed to load.">
+          <PaymentGatewaysPage
+            gateways={paymentGateways}
+            setGateways={setPaymentGateways}
+            payByLinks={payByLinks}
+            setPayByLinks={setPayByLinks}
+            currentUser={currentUser}
+            onLogAudit={handleLogAuditSimple}
+          />
+          </ErrorBoundary>
+        );
       default:
         return <div>Pane Not Found.</div>;
     }
@@ -1163,12 +1350,15 @@ export default function App() {
     { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels' },
     { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents' },
     { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments' },
+    { name: 'Other Services', icon: '🌐', group: 'Operations', key: 'otherServices' },
     { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions' },
     { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers' },
     { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes' },
     { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports' },
+    { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways' },
     { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog' },
     { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
+    { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData' },
   ];
 
   if (!currentUser) {
@@ -1177,11 +1367,17 @@ export default function App() {
 
   // Get permitted nav items based on user's specific role
   const permittedNavItems = navItems.filter((item) => {
-    if (currentUser.role === 'Reservationist' || currentUser.role === 'Sales') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments'].includes(item.name);
+    if (currentUser.role === 'Reservationist') {
+      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'General Data'].includes(item.name);
+    }
+    if (currentUser.role === 'Sales') {
+      return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Allotments', 'Other Services'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
-      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services'].includes(item.name);
+    }
+    if (currentUser.role === 'ReservationsManager') {
+      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data'].includes(item.name);
     }
     return true; // Admin gets everything
   });
@@ -1378,6 +1574,21 @@ export default function App() {
 
           {/* Right: actions */}
           <div className="flex items-center gap-1">
+            {/* Edit Approvals - visible for Admin/ReservationsManager */}
+            {(currentUser.role === 'Admin' || currentUser.role === 'ReservationsManager') && (
+              <button
+                className="relative p-2 hover:bg-slate-100 rounded-lg transition"
+                onClick={() => setShowEditApprovalModal(true)}
+                title="Edit Approvals"
+              >
+                <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+                {editApprovals.filter(a => a.status === 'Pending').length > 0 && (
+                  <span className="absolute top-1 right-1 bg-amber-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
+                    {editApprovals.filter(a => a.status === 'Pending').length}
+                  </span>
+                )}
+              </button>
+            )}
             {/* Inbox */}
             <button
               className="relative p-2 hover:bg-slate-100 rounded-lg transition"
@@ -1624,6 +1835,17 @@ export default function App() {
           currentUser={currentUser} 
           users={users} 
           onClose={() => setIsInboxOpen(false)} 
+        />
+      )}
+
+      {/* Edit Approval Modal */}
+      {showEditApprovalModal && currentUser && (
+        <EditApprovalModal
+          approvals={editApprovals}
+          currentUser={currentUser}
+          onApprove={handleApproveEdit}
+          onReject={handleRejectEdit}
+          onClose={() => setShowEditApprovalModal(false)}
         />
       )}
 

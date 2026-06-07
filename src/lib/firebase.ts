@@ -54,6 +54,14 @@ export const COLLECTIONS = {
   EXTERNAL_TRANSFERS: 'external_transfers',
   SETTINGS: 'settings',
   AUDIT_LOG: 'audit_log',
+  SALES_PERSONS: 'sales_persons',
+  CANCELLATION_REASONS: 'cancellation_reasons',
+  TERMS_CONDITIONS: 'terms_conditions',
+  OTHER_SERVICES: 'other_services',
+  PAYMENT_GATEWAYS: 'payment_gateways',
+  PAY_BY_LINKS: 'pay_by_links',
+  EDIT_APPROVALS: 'edit_approvals',
+  TAX_SETTINGS: 'tax_settings',
 } as const;
 
 /**

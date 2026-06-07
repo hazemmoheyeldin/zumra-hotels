@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry } from '../types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 
 // Egypt Time helper: UTC + 3 hours
@@ -511,10 +511,73 @@ export class ZumraDB {
     };
     const log = this.getAuditLog();
     log.unshift(full); // newest first
-    // Keep max 5000 entries to avoid localStorage bloat
     if (log.length > 5000) log.length = 5000;
     this.saveAuditLog(log);
     return full;
+  }
+
+  // ==================== Sales Persons ====================
+  static getSalesPersons(): SalesPerson[] {
+    return getSavedData('sales_persons', [] as SalesPerson[]);
+  }
+  static saveSalesPersons(list: SalesPerson[]): void {
+    saveGlobalData('sales_persons', list);
+  }
+
+  // ==================== Cancellation Reasons ====================
+  static getCancellationReasons(): CancellationReason[] {
+    return getSavedData('cancellation_reasons', [] as CancellationReason[]);
+  }
+  static saveCancellationReasons(list: CancellationReason[]): void {
+    saveGlobalData('cancellation_reasons', list);
+  }
+
+  // ==================== Terms & Conditions ====================
+  static getTermsAndConditions(): TermsAndConditions[] {
+    return getSavedData('terms_conditions', [] as TermsAndConditions[]);
+  }
+  static saveTermsAndConditions(list: TermsAndConditions[]): void {
+    saveGlobalData('terms_conditions', list);
+  }
+
+  // ==================== Other Services ====================
+  static getOtherServices(): OtherService[] {
+    return getSavedData('other_services', [] as OtherService[]);
+  }
+  static saveOtherServices(list: OtherService[]): void {
+    saveGlobalData('other_services', list);
+  }
+
+  // ==================== Payment Gateways ====================
+  static getPaymentGateways(): PaymentGateway[] {
+    return getSavedData('payment_gateways', [] as PaymentGateway[]);
+  }
+  static savePaymentGateways(list: PaymentGateway[]): void {
+    saveGlobalData('payment_gateways', list);
+  }
+
+  // ==================== Pay By Links ====================
+  static getPayByLinks(): PayByLink[] {
+    return getSavedData('pay_by_links', [] as PayByLink[]);
+  }
+  static savePayByLinks(list: PayByLink[]): void {
+    saveGlobalData('pay_by_links', list);
+  }
+
+  // ==================== Edit Approvals ====================
+  static getEditApprovals(): EditApprovalRequest[] {
+    return getSavedData('edit_approvals', [] as EditApprovalRequest[]);
+  }
+  static saveEditApprovals(list: EditApprovalRequest[]): void {
+    saveGlobalData('edit_approvals', list);
+  }
+
+  // ==================== Tax Settings ====================
+  static getTaxSettings(): TaxSettings[] {
+    return getSavedData('tax_settings', [{ id: 'default_vat', name: 'VAT', rate: 15, appliesTo: ['OutboundHotel', 'Flight', 'Visa', 'Transportation'], active: true }] as TaxSettings[]);
+  }
+  static saveTaxSettings(list: TaxSettings[]): void {
+    saveGlobalData('tax_settings', list);
   }
 }
 
@@ -818,6 +881,14 @@ export const ZumraSync = {
   saveFollowUp: (f: FollowUp) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f); },
   saveExternalTransfer: (t: ExternalTransfer) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t); },
   saveAuditEntry: (e: GlobalAuditEntry) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.AUDIT_LOG, e); },
+  saveSalesPerson: (s: SalesPerson) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.SALES_PERSONS, s); },
+  saveCancellationReason: (c: CancellationReason) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.CANCELLATION_REASONS, c); },
+  saveTermsAndConditions: (t: TermsAndConditions) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TERMS_CONDITIONS, t); },
+  saveOtherService: (s: OtherService) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.OTHER_SERVICES, s); },
+  savePaymentGateway: (p: PaymentGateway) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, p); },
+  savePayByLink: (p: PayByLink) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.PAY_BY_LINKS, p); },
+  saveEditApproval: (e: EditApprovalRequest) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EDIT_APPROVALS, e); },
+  saveTaxSettings: (t: TaxSettings) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TAX_SETTINGS, t); },
   deleteHotel: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
   deleteAgent: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
   deleteAllotment: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
@@ -827,6 +898,13 @@ export const ZumraSync = {
   deleteUser: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.USERS, id); },
   deleteFollowUp: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id); },
   deleteExternalTransfer: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id); },
+  deleteSalesPerson: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.SALES_PERSONS, id); },
+  deleteCancellationReason: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.CANCELLATION_REASONS, id); },
+  deleteTermsAndConditions: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.TERMS_CONDITIONS, id); },
+  deleteOtherService: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.OTHER_SERVICES, id); },
+  deletePaymentGateway: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, id); },
+  deletePayByLink: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAY_BY_LINKS, id); },
+  deleteEditApproval: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EDIT_APPROVALS, id); },
   bulkSyncAll: () => {
     if (!isFirebaseConfigured) return;
     syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));
@@ -839,6 +917,14 @@ export const ZumraSync = {
     syncCollectionToFirestore(COLLECTIONS.FOLLOW_UPS, JSON.parse(localStorage.getItem('zumra_follow_ups') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, JSON.parse(localStorage.getItem('zumra_external_transfers') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.AUDIT_LOG, JSON.parse(localStorage.getItem('zumra_audit_log') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.SALES_PERSONS, JSON.parse(localStorage.getItem('zumra_sales_persons') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.CANCELLATION_REASONS, JSON.parse(localStorage.getItem('zumra_cancellation_reasons') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.TERMS_CONDITIONS, JSON.parse(localStorage.getItem('zumra_terms_conditions') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.OTHER_SERVICES, JSON.parse(localStorage.getItem('zumra_other_services') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, JSON.parse(localStorage.getItem('zumra_payment_gateways') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.PAY_BY_LINKS, JSON.parse(localStorage.getItem('zumra_pay_by_links') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.EDIT_APPROVALS, JSON.parse(localStorage.getItem('zumra_edit_approvals') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.TAX_SETTINGS, JSON.parse(localStorage.getItem('zumra_tax_settings') || '[]'));
   }
 };
 
