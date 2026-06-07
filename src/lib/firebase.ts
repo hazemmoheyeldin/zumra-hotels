@@ -6,7 +6,13 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch } from 'firebase/firestore';
+import {
+  getAuth, Auth, browserLocalPersistence, setPersistence,
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut as fbSignOut, onAuthStateChanged as fbOnAuthStateChanged,
+  User as FBUser
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHkLzahkk0ZKckDqmS0AZNnoLqgRFEQ4A",
@@ -24,29 +30,119 @@ export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.p
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
+let auth: Auth | null = null;
 
 if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    console.log('[Firebase] Initialized successfully');
-    // Test connectivity with a simple read
-    getDocs(query(collection(db, 'users'))).then(snap => {
-      console.log(`[Firebase] Connectivity check: ${snap.size} users found`);
+    auth = getAuth(app);
+    // Set persistence to LOCAL (survives browser close/refresh)
+    setPersistence(auth, browserLocalPersistence).then(() => {
+      console.log('[Firebase Auth] Persistence set to LOCAL');
     }).catch(err => {
-      console.warn('[Firebase] Connectivity check failed:', err?.message || err);
+      console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
     });
+    console.log('[Firebase] Initialized successfully');
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
     db = null;
+    auth = null;
   }
 }
 
-export { db };
+export { db, auth };
 export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch };
+export type { FBUser };
+
+// ===== Firebase Auth Helpers =====
 
 /**
- * Firestore collection names (mirror localStorage keys)
+ * Create a Firebase Auth user (called when admin creates a new user in the app).
+ * Uses email + password so Firestore rules (request.auth != null) work.
+ */
+export async function firebaseCreateUser(email: string, password: string): Promise<{ uid: string } | null> {
+  if (!auth) return null;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    console.log(`[Firebase Auth] Created user: ${cred.user.uid} (${email})`);
+    return { uid: cred.user.uid };
+  } catch (err: any) {
+    // If user already exists, that's fine
+    if (err?.code === 'auth/email-already-in-use') {
+      console.log(`[Firebase Auth] User ${email} already exists`);
+      return { uid: 'existing' };
+    }
+    console.warn(`[Firebase Auth] Create user failed for ${email}:`, err?.code || err?.message || err);
+    return null;
+  }
+}
+
+/**
+ * Sign in to Firebase Auth (called when user logs in to the app).
+ * This populates request.auth for Firestore security rules.
+ */
+export async function firebaseSignIn(email: string, password: string): Promise<boolean> {
+  if (!auth) return false;
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    console.log(`[Firebase Auth] Signed in: ${cred.user.uid}`);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Firebase Auth] Sign in failed for ${email}:`, err?.code || err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Sign out from Firebase Auth.
+ */
+export async function firebaseSignOut(): Promise<void> {
+  if (!auth) return;
+  try {
+    await fbSignOut(auth);
+    console.log('[Firebase Auth] Signed out');
+  } catch (err: any) {
+    console.warn('[Firebase Auth] Sign out failed:', err?.message);
+  }
+}
+
+/**
+ * Listen to Firebase Auth state changes.
+ * Returns a cleanup function.
+ */
+export function onFirebaseAuthStateChanged(callback: (user: FBUser | null) => void): () => void {
+  if (!auth) {
+    callback(null);
+    return () => {};
+  }
+  return fbOnAuthStateChanged(auth, callback);
+}
+
+/**
+ * Check if a Firebase Auth user is currently signed in.
+ */
+export function isFirebaseAuthSignedIn(): boolean {
+  return !!auth?.currentUser;
+}
+
+/**
+ * Ensure Firebase Auth is signed in (for page refresh persistence).
+ * If no user is signed in but we have a remembered user, try to sign them in.
+ */
+export async function ensureFirebaseAuthSession(userEmail?: string, userPassword?: string): Promise<boolean> {
+  if (!auth) return false;
+  // Already signed in
+  if (auth.currentUser) return true;
+  // Try to sign in with provided credentials
+  if (userEmail && userPassword) {
+    return firebaseSignIn(userEmail, userPassword);
+  }
+  return false;
+}
+
+/**
+ * Firebase collection names (mirror localStorage keys)
  */
 export const COLLECTIONS = {
   HOTELS: 'hotels',
@@ -55,11 +151,10 @@ export const COLLECTIONS = {
   RESERVATIONS: 'reservations',
   ACCOUNTS: 'accounts',
   TRANSACTIONS: 'transactions',
+  EXTERNAL_TRANSFERS: 'external_transfers',
   USERS: 'users',
   FOLLOW_UPS: 'follow_ups',
-  EXTERNAL_TRANSFERS: 'external_transfers',
   SETTINGS: 'settings',
-  AUDIT_LOG: 'audit_log',
   SALES_PERSONS: 'sales_persons',
   CANCELLATION_REASONS: 'cancellation_reasons',
   TERMS_CONDITIONS: 'terms_conditions',
@@ -71,7 +166,22 @@ export const COLLECTIONS = {
   EXPENSES: 'expenses',
   EXPENSE_CATEGORIES: 'expense_categories',
   CONSOLIDATED_INVOICES: 'consolidated_invoices',
-} as const;
+  AUDIT_LOG: 'audit_log',
+};
+
+/**
+ * Helper: Load all documents from a Firestore collection
+ */
+export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> {
+  if (!db) return [];
+  try {
+    const snapshot = await getDocs(collection(db, collectionName));
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+  } catch (error) {
+    console.error(`[Firebase] Error loading ${collectionName}:`, error);
+    return [];
+  }
+}
 
 /**
  * Helper: Save a single document to Firestore
@@ -103,20 +213,6 @@ export async function firestoreDelete(collectionName: string, id: string): Promi
     await deleteDoc(doc(db, collectionName, id));
   } catch (error) {
     console.error(`[Firebase] Error deleting ${collectionName}/${id}:`, error);
-  }
-}
-
-/**
- * Helper: Load all documents from a Firestore collection
- */
-export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> {
-  if (!db) return [];
-  try {
-    const snapshot = await getDocs(collection(db, collectionName));
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
-  } catch (error) {
-    console.error(`[Firebase] Error loading ${collectionName}:`, error);
-    return [];
   }
 }
 

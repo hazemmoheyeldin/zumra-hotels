@@ -9,7 +9,7 @@ import ZumraLogo from './ZumraLogo';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
-import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured } from '../lib/firebase';
+import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -54,8 +54,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     setLoading(true);
 
     // Helper to validate credentials against a matched user
-    const validateLogin = (matchedUser: User, allUsers: User[]) => {
-      setLoading(false);
+    const validateLogin = async (matchedUser: User, allUsers: User[]) => {
       const allowedPwd = matchedUser.password || (
                          matchedUser.username === 'hazem' ? 'hazem123' :
                          matchedUser.username === 'zaki' ? 'zaki123' :
@@ -73,12 +72,26 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           localStorage.removeItem('zumra_remembered_user');
           localStorage.removeItem('zumra_trusted_device');
         }
+
+        // Sign in to Firebase Auth (required for Firestore security rules)
+        if (isFirebaseConfigured && matchedUser.email) {
+          const fbPwd = matchedUser.password || `${matchedUser.username}123`;
+          const fbOk = await firebaseSignIn(matchedUser.email, fbPwd);
+          if (!fbOk) {
+            // Try creating the Firebase Auth user first, then sign in
+            await firebaseCreateUser(matchedUser.email, fbPwd);
+            await firebaseSignIn(matchedUser.email, fbPwd);
+          }
+        }
+
+        setLoading(false);
         if (matchedUser.mustChangePassword && !isMasterAdmin) {
           setForcePwdUser(matchedUser);
           return;
         }
         onLoginSuccess(matchedUser);
       } else {
+        setLoading(false);
         setErrorMsg('Invalid password. Access denied.');
       }
     };

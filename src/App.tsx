@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
 
@@ -374,14 +374,12 @@ export default function App() {
     setAgents(ZumraDB.getAgents());
     setReservations(ZumraDB.getReservations());
     setSalesPersons(ZumraDB.getSalesPersons());
-    // Session is restored from localStorage via useState initializer above
-    // Auth verification complete - dismiss loading screen
-    setAuthLoading(false);
 
+    // Restore Firebase Auth session and run migration
     if (isFirebaseConfigured) {
       console.log('[Firebase] Cloud sync enabled');
 
-      // 2. Initial Firestore data migration (runs once)
+      // 2. Initial Firestore data migration (runs once, AFTER auth is confirmed)
       const migrateData = async () => {
         try {
           const collections: Array<{name: string; key: string; setter: (d: any[]) => void; loader: () => any[]}> = [
@@ -456,7 +454,63 @@ export default function App() {
           console.warn('[Firebase] Migration error, using localStorage:', err);
         }
       };
-      migrateData();
+
+      // Wait for Firebase Auth to be ready, then migrate
+      const waitForAuthAndMigrate = async () => {
+        // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
+        await new Promise<void>((resolve) => {
+          const unsub = onFirebaseAuthStateChanged((fbUser) => {
+            unsub();
+            resolve();
+          });
+          // Safety timeout: don't wait forever
+          setTimeout(() => { unsub(); resolve(); }, 5000);
+        });
+
+        // Check if already authenticated
+        let isAuthed = !!auth?.currentUser;
+        console.log(`[Firebase Auth] Initial state: authenticated=${isAuthed}`);
+
+        // If not authenticated, try to sign in with stored user credentials
+        if (!isAuthed && currentUser?.email) {
+          const fbPwd = currentUser.password || `${currentUser.username}123`;
+          isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
+          if (!isAuthed) {
+            // Firebase Auth user doesn't exist yet — create it
+            console.log(`[Firebase Auth] Creating auth user for ${currentUser.email}`);
+            await firebaseCreateUser(currentUser.email, fbPwd);
+            isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
+          }
+          if (isAuthed) {
+            console.log(`[Firebase Auth] Session restored for ${currentUser.username}`);
+          } else {
+            console.warn(`[Firebase Auth] Could not authenticate ${currentUser.email}`);
+          }
+        }
+
+        // Ensure ALL local users have Firebase Auth accounts (for multi-device login)
+        const allUsers = ZumraDB.getUsers();
+        for (const u of allUsers) {
+          if (u.email) {
+            const pwd = u.password || `${u.username}123`;
+            // Try sign-in; if it fails, create the auth user
+            const ok = await firebaseSignIn(u.email, pwd).catch(() => false);
+            if (!ok) {
+              await firebaseCreateUser(u.email, pwd).catch(() => {});
+            }
+          }
+        }
+        // Re-authenticate as current user after bulk creation
+        if (currentUser?.email) {
+          const fbPwd = currentUser.password || `${currentUser.username}123`;
+          await firebaseSignIn(currentUser.email, fbPwd).catch(() => {});
+        }
+
+        // Now run migration (auth should be confirmed)
+        await migrateData();
+        setAuthLoading(false);
+      };
+      waitForAuthAndMigrate();
 
       // 3. Attach real-time Firestore listeners for cross-device sync
       // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
@@ -1300,14 +1354,23 @@ export default function App() {
     }
   };
 
-  const doAddUser = (user: User) => {
+  const doAddUser = async (user: User) => {
     const existing = users.find(u => u.id === user.id);
     const updated = existing
       ? users.map(u => u.id === user.id ? user : u)
       : [...users, user];
     setUsers(updated);
     ZumraDB.saveUsers(updated);
-    console.log(`[doAddUser] Saving user ${user.username} (id=${user.id}), calling sync...`);
+    // Create Firebase Auth user (required for Firestore security rules)
+    if (isFirebaseConfigured && user.email) {
+      const fbPwd = user.password || `${user.username}123`;
+      await firebaseCreateUser(user.email, fbPwd);
+      // Re-authenticate as current admin (firebaseCreateUser signs in as the new user)
+      if (currentUser?.email && currentUser.email !== user.email) {
+        const adminPwd = currentUser.password || `${currentUser.username}123`;
+        await firebaseSignIn(currentUser.email, adminPwd);
+      }
+    }
     ZumraSync.saveUser(user).then(() => {
       console.log(`[doAddUser] Sync completed for ${user.username}`);
     }).catch(err => {
@@ -1355,6 +1418,10 @@ export default function App() {
       ZumraDB.setCurrentUser(user);
     } else {
       localStorage.removeItem('zumra_current_user');
+      // Sign out from Firebase Auth (required to clear request.auth for security rules)
+      if (isFirebaseConfigured) {
+        fbSignOut().catch(() => {});
+      }
     }
   };
 
