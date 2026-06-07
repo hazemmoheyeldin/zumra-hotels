@@ -336,6 +336,26 @@ export function saveGlobalData<T>(key: string, data: T): void {
   }
 }
 
+/** Generate next sequential voucher number for a given prefix (e.g. 'PAY', 'CRED', 'XFER', 'REF') */
+export function getNextVoucherNo(prefix: string, transactions: Array<{ voucherNo?: string }>): string {
+  const regex = new RegExp(`^${prefix}-(\\d+)$`);
+  const maxNum = transactions.reduce((max, tr) => {
+    const match = (tr.voucherNo || '').match(regex);
+    return match ? Math.max(max, parseInt(match[1])) : max;
+  }, 0);
+  return `${prefix}-${String(maxNum + 1).padStart(3, '0')}`;
+}
+
+/** Generate next sequential doc number */
+export function getNextDocNo(prefix: string, transactions: Array<{ docNo?: string }>): string {
+  const regex = new RegExp(`^${prefix}-(\\d+)$`);
+  const maxNum = transactions.reduce((max, tr) => {
+    const match = (tr.docNo || '').match(regex);
+    return match ? Math.max(max, parseInt(match[1])) : max;
+  }, 0);
+  return `${prefix}-${String(maxNum + 1).padStart(3, '0')}`;
+}
+
 // Global Core DB wrapper
 export class ZumraDB {
   static getHotels(): Hotel[] {

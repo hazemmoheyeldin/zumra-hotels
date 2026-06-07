@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice } from './types';
-import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
+import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -736,7 +736,7 @@ export default function App() {
           updatedAgents = updatedAgents.map(a => a.id === res.clientId ? { ...a, walletBalance: (a.walletBalance || 0) + clientPaid } : a);
           newTransactions.push({
             id: `tr_cancel_client_${res.id}_${Date.now()}`,
-            docNo: `CRED-C-${res.id}`,
+            docNo: getNextDocNo('CRED-C', [...transactions, ...newTransactions]),
             date: now.split('T')[0],
             type: 'CreditApplied',
             amount: clientPaid,
@@ -744,7 +744,7 @@ export default function App() {
             reservationId: res.id.toString(),
             description: `Credit from cancellation of RSV-${res.id} (${res.guestName})`,
             paymentMethod: 'Bank Transfer',
-            voucherNo: `CRED-${Date.now()}`,
+            voucherNo: getNextVoucherNo('CRED', [...transactions, ...newTransactions]),
             createdBy: currentUser.name,
           });
         } else if (res.clientCreditDisposition === 'Refunded' && clientPaid > 0) {
@@ -766,7 +766,7 @@ export default function App() {
           updatedAgents = updatedAgents.map(a => a.id === res.supplierId ? { ...a, walletBalance: (a.walletBalance || 0) + supplierPaid } : a);
           newTransactions.push({
             id: `tr_cancel_supp_${res.id}_${Date.now()}`,
-            docNo: `CRED-S-${res.id}`,
+            docNo: getNextDocNo('CRED-S', [...transactions, ...newTransactions]),
             date: now.split('T')[0],
             type: 'CreditApplied',
             amount: supplierPaid,
@@ -774,7 +774,7 @@ export default function App() {
             reservationId: res.id.toString(),
             description: `Credit from cancellation of RSV-${res.id} (${res.guestName})`,
             paymentMethod: 'Bank Transfer',
-            voucherNo: `CRED-${Date.now() + 1}`,
+            voucherNo: getNextVoucherNo('CRED', [...transactions, ...newTransactions]),
             createdBy: currentUser.name,
           });
         } else if (res.supplierCreditDisposition === 'Refunded' && supplierPaid > 0) {
@@ -1102,7 +1102,7 @@ export default function App() {
       toAccountId: toId,
       description: `Internal balanced allocation transfer from ${accounts.find(a => a.id === fromId)?.name} to ${accounts.find(a => a.id === toId)?.name}`,
       paymentMethod: 'Bank Transfer',
-      voucherNo: `XFER-${Date.now()}`,
+      voucherNo: getNextVoucherNo('XFER', transactions),
       createdBy: currentUser?.name || 'Admin System'
     };
 
@@ -1983,7 +1983,7 @@ export default function App() {
                           const now = new Date().toISOString();
                           const newTr: Transaction = {
                             id: `tr_refund_${rf.id}_${Date.now()}`,
-                            docNo: `REF-${rf.party}-${rf.bookingId}`,
+                            docNo: getNextDocNo('REF', transactions),
                             date: now.split('T')[0],
                             type: 'RefundProcessed',
                             amount: rf.amount,
@@ -1991,7 +1991,7 @@ export default function App() {
                             reservationId: rf.bookingId.toString(),
                             description: `Refund processed for ${a?.name || rf.partyId} (RSV-${rf.bookingId})`,
                             paymentMethod: 'Bank Transfer',
-                            voucherNo: `REF-${Date.now()}`,
+                            voucherNo: getNextVoucherNo('REF', transactions),
                             createdBy: currentUser.name,
                           };
                           const allTx = [...transactions, newTr];

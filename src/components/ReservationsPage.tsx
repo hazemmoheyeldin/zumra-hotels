@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage';
+import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
@@ -203,7 +203,7 @@ export default function ReservationsPage({
         if (accounts && accounts.length > 0) {
           setPayAccountId(accounts[0].id);
         }
-        setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
+        setPayVoucher(getNextVoucherNo('PAY', transactions || []));
       }
     }
   }, [viewingId, reservations, accounts]);
@@ -890,7 +890,7 @@ export default function ReservationsPage({
       const trDate = new Date().toISOString().split('T')[0];
       const newTr: Transaction = {
         id: `tr_${trType.toLowerCase()}_rsv_${resObj.id}_${Date.now()}`,
-        docNo: (Date.now() % 10000000).toString(),
+        docNo: getNextDocNo('DOC', transactions || []),
         date: trDate,
         type: trType,
         amount: computedAmount,
@@ -900,7 +900,7 @@ export default function ReservationsPage({
           ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
           : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,
         paymentMethod: payMethod,
-        voucherNo: payVoucher || `VOP-${Date.now().toString().slice(-6)}`,
+        voucherNo: payVoucher || getNextVoucherNo('PAY', transactions || []),
         originalCurrency: payCurrency,
         originalAmount: payCurrency === 'EGP' ? payOriginalAmount : undefined,
         exchangeRate: payCurrency === 'EGP' ? payExchangeRate : undefined,
@@ -920,7 +920,7 @@ export default function ReservationsPage({
       if (onSaveTransaction) { onSaveTransaction(newTr); }
       onSaveReservation(updatedRes);
       toast.success(`${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} saved!`);
-      setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
+      setPayVoucher(getNextVoucherNo('PAY', transactions || []));
     };
 
     if (isOverpayment) {
@@ -2387,7 +2387,7 @@ export default function ReservationsPage({
                         onClick={() => {
                           setPayAmount(clientRemaining);
                           setPayAccountId('');
-                          setPayVoucher(`REC-${Date.now().toString().slice(-5)}`);
+                          setPayVoucher(getNextVoucherNo('REC', transactions || []));
                         }}
                         className={`p-4 rounded-xl border-2 transition-all text-left ${
                           clientRemaining > 0 ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
@@ -2410,7 +2410,7 @@ export default function ReservationsPage({
                         onClick={() => {
                           setPayAmount(supplierRemaining);
                           setPayAccountId('');
-                          setPayVoucher(`PAY-${Date.now().toString().slice(-5)}`);
+                          setPayVoucher(getNextVoucherNo('PAY', transactions || []));
                         }}
                         className={`p-4 rounded-xl border-2 transition-all text-left ${
                           supplierRemaining > 0 ? 'border-blue-200 bg-blue-50 hover:border-blue-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
