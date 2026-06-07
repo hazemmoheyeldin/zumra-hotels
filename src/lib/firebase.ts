@@ -53,6 +53,7 @@ export const COLLECTIONS = {
   FOLLOW_UPS: 'follow_ups',
   EXTERNAL_TRANSFERS: 'external_transfers',
   SETTINGS: 'settings',
+  AUDIT_LOG: 'audit_log',
 } as const;
 
 /**

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer } from '../types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 
 // Egypt Time helper: UTC + 3 hours
@@ -494,6 +494,28 @@ export class ZumraDB {
   static saveMessages(list: any[]): void {
     saveGlobalData('messages', list);
   }
+
+  static getAuditLog(): GlobalAuditEntry[] {
+    return getSavedData('audit_log', [] as GlobalAuditEntry[]);
+  }
+
+  static saveAuditLog(log: GlobalAuditEntry[]): void {
+    saveGlobalData('audit_log', log);
+  }
+
+  static logAuditEntry(entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>): GlobalAuditEntry {
+    const full: GlobalAuditEntry = {
+      ...entry,
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: new Date().toISOString(),
+    };
+    const log = this.getAuditLog();
+    log.unshift(full); // newest first
+    // Keep max 5000 entries to avoid localStorage bloat
+    if (log.length > 5000) log.length = 5000;
+    this.saveAuditLog(log);
+    return full;
+  }
 }
 
 export function getAgentActualBalance(agent: Agent, reservations: Reservation[], transactions: Transaction[]): number {
@@ -795,6 +817,7 @@ export const ZumraSync = {
   saveUser: (u: User) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.USERS, u); },
   saveFollowUp: (f: FollowUp) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f); },
   saveExternalTransfer: (t: ExternalTransfer) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t); },
+  saveAuditEntry: (e: GlobalAuditEntry) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.AUDIT_LOG, e); },
   deleteHotel: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
   deleteAgent: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
   deleteAllotment: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
@@ -815,6 +838,7 @@ export const ZumraSync = {
     syncCollectionToFirestore(COLLECTIONS.USERS, JSON.parse(localStorage.getItem('zumra_users') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.FOLLOW_UPS, JSON.parse(localStorage.getItem('zumra_follow_ups') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, JSON.parse(localStorage.getItem('zumra_external_transfers') || '[]'));
+    syncCollectionToFirestore(COLLECTIONS.AUDIT_LOG, JSON.parse(localStorage.getItem('zumra_audit_log') || '[]'));
   }
 };
 

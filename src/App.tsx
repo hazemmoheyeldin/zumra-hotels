@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ZumraDB, ZumraSync, isRecentLocalWrite } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
@@ -27,6 +27,7 @@ import LoginPage from './components/LoginPage';
 import InboxModal from './components/InboxModal';
 import CalendarView from './components/CalendarView';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import AuditLogPage from './components/AuditLogPage';
 import InvoicePDF from './components/InvoicePDF';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmDialog from './components/ConfirmDialog';
@@ -134,6 +135,7 @@ export default function App() {
   const [externalTransfers, setExternalTransfers] = useState<ExternalTransfer[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [auditLog, setAuditLog] = useState<GlobalAuditEntry[]>([]);
   // Restore session from localStorage if user was previously logged in
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -201,11 +203,6 @@ export default function App() {
 
   // Initial DB loading, Firestore migration, and real-time sync
   useEffect(() => {
-    // TEMP: Clear all data except hotels and users for fresh testing
-    const keysToKeep = ['zumra_hotels', 'zumra_users', 'current_user'];
-    const allKeys = ['zumra_agents', 'zumra_allotments', 'zumra_reservations', 'zumra_accounts', 'zumra_transactions', 'zumra_external_transfers', 'zumra_follow_ups'];
-    allKeys.forEach(k => { if (!keysToKeep.includes(k)) localStorage.setItem(k, '[]'); });
-
     // 1. Instant UI load from localStorage
     setHotels(ZumraDB.getHotels());
     setAgents(ZumraDB.getAgents());
@@ -238,6 +235,7 @@ export default function App() {
       setUsers(loadedUsers);
     }
     setFollowUps(ZumraDB.getFollowUps());
+    setAuditLog(ZumraDB.getAuditLog());
     // Session is restored from localStorage via useState initializer above
 
     if (isFirebaseConfigured) {
@@ -915,6 +913,12 @@ export default function App() {
     showConfirm('Delete User', `Are you sure you want to delete user "${u?.name || userId}"? This cannot be undone.`, () => doDeleteUser(userId), 'destructive');
   };
 
+  const handleLogAudit = (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>): void => {
+    const saved = ZumraDB.logAuditEntry(entry);
+    setAuditLog(prev => [saved, ...prev]);
+    ZumraSync.saveAuditEntry(saved);
+  };
+
   const handleSetCurrentUser = (user: User) => {
     setCurrentUser(user);
     if (user) {
@@ -959,6 +963,8 @@ export default function App() {
             hotels={hotels}
             users={users}
             followUps={followUps}
+            allotments={allotments}
+            transactions={transactions}
             onNavigate={handleNavigate}
             onQuickReservation={() => {
               setActiveFilters({ showNewForm: true });
@@ -1008,6 +1014,7 @@ export default function App() {
             transactions={transactions}
             allotments={allotments}
             onSaveAllotment={handleSaveAllotment}
+            onLogAudit={handleLogAudit}
           />
           </ErrorBoundary>
         );
@@ -1129,6 +1136,15 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Audit Log':
+        return (
+          <ErrorBoundary fallbackLabel="Audit Log page failed to load.">
+          <AuditLogPage
+            auditLog={auditLog}
+            currentUser={currentUser}
+          />
+          </ErrorBoundary>
+        );
       default:
         return <div>Pane Not Found.</div>;
     }
@@ -1151,6 +1167,7 @@ export default function App() {
     { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers' },
     { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes' },
     { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports' },
+    { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog' },
     { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
   ];
 

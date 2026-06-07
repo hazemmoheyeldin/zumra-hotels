@@ -27,6 +27,25 @@ export interface AuditLogEntry {
   action: string;
 }
 
+export interface AmendmentEntry {
+  id: string;
+  timestamp: string;
+  user: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+}
+
+export interface GlobalAuditEntry {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+  entityType: 'Reservation' | 'Transaction' | 'Agent' | 'User' | 'Hotel' | 'Allotment' | 'Login';
+  entityId: string;
+  detail: string;
+}
+
 export interface Agent {
   id: string;
   agentNumber: number; // For Agent # column (sequential auto-incrementing)
@@ -40,6 +59,7 @@ export interface Agent {
   balance: number;
   walletBalance?: number; // Available credit balance from cancellations
   pendingRefunds?: RefundAlert[];
+  creditLimit?: number; // Optional credit limit for clients
   auditLogs: AuditLogEntry[];
 }
 
@@ -81,6 +101,9 @@ export interface Allotment {
   bookedRooms: number;
   dailyAvailability?: { [date: string]: AllotmentDay };
   ratePeriods?: AllotmentRatePeriod[];
+  rateSheetDataUrl?: string; // Base64 data URL for uploaded rate sheet
+  rateSheetName?: string; // Original filename of rate sheet
+  rateSheetUploadedAt?: string; // Upload timestamp
 }
 
 export interface RoomLine {
@@ -147,6 +170,7 @@ export interface Reservation {
   roomingList?: string;
   allotmentId?: string; // Linked allotment ID if booked through allotment
   nonRefundable?: boolean; // Non-refundable booking flag
+  amendmentHistory?: AmendmentEntry[]; // Track changes to this reservation
 }
 
 export interface Account {

@@ -35,6 +35,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [openingBalance, setOpeningBalance] = useState<number>(0);
+  const [creditLimit, setCreditLimit] = useState<number | undefined>(undefined);
 
   const [showForm, setShowForm] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setEmail(agent.email);
     setAddress(agent.address);
     setOpeningBalance(agent.balance);
+    setCreditLimit(agent.creditLimit);
     setShowForm(true);
     setActiveMenuId(null);
   };
@@ -124,6 +126,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
       email,
       address,
       balance: openingBalance,
+      creditLimit,
       auditLogs: [newLog, ...pastLogs]
     };
 
@@ -141,6 +144,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setEmail('');
     setAddress('');
     setOpeningBalance(0);
+    setCreditLimit(undefined);
     setShowForm(false);
   };
 
@@ -282,6 +286,17 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 type="number"
                 value={openingBalance || ''}
                 onChange={(e) => setOpeningBalance(Number(e.target.value))}
+                className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Credit Limit (SAR) <span className="text-slate-400 font-normal">Optional</span></label>
+              <input
+                type="number"
+                value={creditLimit ?? ''}
+                onChange={(e) => setCreditLimit(e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="No limit"
                 className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
               />
             </div>

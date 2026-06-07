@@ -16,6 +16,39 @@ export const isEmailConfigured = !!(SERVICE_ID && TEMPLATE_ID && PUBLIC_KEY);
  * The EmailJS template should have variables:
  *   {{to_email}}, {{user_name}}, {{username}}, {{temp_password}}, {{login_url}}
  */
+/**
+ * Send a daily summary email to the admin.
+ */
+export async function sendDailySummaryEmail(
+  adminEmail: string,
+  summaryHtml: string,
+  summarySubject: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isEmailConfigured) {
+    return { success: false, error: 'Email service not configured.' };
+  }
+  try {
+    await emailjs.send(
+      SERVICE_ID,
+      TEMPLATE_ID,
+      {
+        to_email: adminEmail,
+        user_name: 'Admin',
+        username: '',
+        temp_password: '',
+        login_url: window.location.origin,
+        logo_url: `${window.location.origin}/zumra-logo.png`,
+        message: summaryHtml,
+        subject: summarySubject,
+      },
+      { publicKey: PUBLIC_KEY }
+    );
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.text || err?.message || 'Failed to send summary.' };
+  }
+}
+
 export async function sendInvitationEmail(
   toEmail: string,
   userName: string,

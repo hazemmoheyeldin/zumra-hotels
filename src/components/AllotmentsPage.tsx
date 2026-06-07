@@ -55,6 +55,10 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     { startDate: '', endDate: '', costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }
   ]);
 
+  // Rate sheet upload state
+  const [rateSheetDataUrl, setRateSheetDataUrl] = useState<string | undefined>(undefined);
+  const [rateSheetName, setRateSheetName] = useState<string | undefined>(undefined);
+
   // Filters
   const [filterHotel, setFilterHotel] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
@@ -165,6 +169,9 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
       bookedRooms: 0,
       dailyAvailability: daily,
       ratePeriods: ratePeriods.filter(rp => rp.startDate && rp.endDate),
+      rateSheetDataUrl: rateSheetDataUrl || (editingId ? allotments.find(a => a.id === editingId)?.rateSheetDataUrl : undefined),
+      rateSheetName: rateSheetName || (editingId ? allotments.find(a => a.id === editingId)?.rateSheetName : undefined),
+      rateSheetUploadedAt: rateSheetDataUrl ? new Date().toISOString() : (editingId ? allotments.find(a => a.id === editingId)?.rateSheetUploadedAt : undefined),
     };
 
     onSaveAllotment(newAllotment);
@@ -180,6 +187,8 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     setEndDate('');
     setTotalRooms(5);
     setRatePeriods([{ startDate: '', endDate: '', costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }]);
+    setRateSheetDataUrl(undefined);
+    setRateSheetName(undefined);
     setShowForm(false);
   };
 
@@ -330,6 +339,52 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                 ))}
               </div>
             </div>
+
+            {/* Rate Sheet Upload */}
+            <div className="pt-3 border-t border-slate-200">
+              <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">📎 Rate Sheet (PDF/Excel, max 2MB)</label>
+              <input
+                type="file"
+                accept=".pdf,.xlsx,.xls,.csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 2 * 1024 * 1024) { showToast('File too large. Max 2MB allowed.', 'warning'); return; }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setRateSheetDataUrl(reader.result as string);
+                    setRateSheetName(file.name);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+                className="w-full text-[10px] file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+              />
+              {(rateSheetName || (editingId && allotments.find(a => a.id === editingId)?.rateSheetName)) && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-slate-600">📄 {rateSheetName || allotments.find(a => a.id === editingId)?.rateSheetName}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = rateSheetDataUrl || allotments.find(a => a.id === editingId)?.rateSheetDataUrl;
+                      if (url) window.open(url, '_blank');
+                    }}
+                    className="text-[9px] text-blue-600 hover:underline font-bold"
+                  >View</button>
+                  <button
+                    type="button"
+                    onClick={() => { setRateSheetDataUrl(undefined); setRateSheetName(undefined); }}
+                    className="text-[9px] text-rose-500 hover:underline font-bold"
+                  >Remove</button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-5 py-2 rounded-lg transition">
+                {editingId ? 'Update Allotment' : 'Create Allotment'}
+              </button>
+              <button type="button" onClick={resetForm} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-5 py-2 rounded-lg transition">Cancel</button>
+            </div>
           </form>
         ) : (
           <>
@@ -390,6 +445,13 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                                   : `${allot.ratePeriods.length} rate periods`}
                               </div>
                             )}
+                            {allot.rateSheetName && (
+                              <button
+                                onClick={() => { if (allot.rateSheetDataUrl) window.open(allot.rateSheetDataUrl, '_blank'); }}
+                                className="text-[8px] text-blue-600 hover:underline font-bold mt-0.5 block"
+                                title="View uploaded rate sheet"
+                              >📎 {allot.rateSheetName}</button>
+                            )}
                           </td>
                           {visibleDates.map(d => {
                             const day = allot.dailyAvailability?.[d];
@@ -411,6 +473,8 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                                 setEndDate(allot.endDate);
                                 setTotalRooms(allot.totalRooms);
                                 setRatePeriods(allot.ratePeriods && allot.ratePeriods.length > 0 ? allot.ratePeriods : [{ startDate: allot.startDate, endDate: allot.endDate, costPerNight: 0, sellRatePerNight: 0, extraBedRate: 0, extraBedBuyRate: 0, mealRate: 0, mealBuyRate: 0 }]);
+                                setRateSheetDataUrl(allot.rateSheetDataUrl);
+                                setRateSheetName(allot.rateSheetName);
                                 setShowForm(true);
                               }} className="text-blue-600 hover:text-blue-800 font-bold text-[10px]">Edit</button>
                               <button onClick={() => { if (confirm('Delete this allotment block?')) onDeleteAllotment(allot.id); }} className="text-red-500 hover:text-red-700 font-bold text-[10px]">Del</button>

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry } from '../types';
 import ZumraLogo from './ZumraLogo';
 import { getReservationTotals, getEgyptTime, exportToCSV } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
@@ -59,6 +59,7 @@ interface ReservationsPageProps {
   transactions?: Transaction[];
   allotments?: Allotment[];
   onSaveAllotment?: (allotment: Allotment) => void;
+  onLogAudit?: (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>) => void;
 }
 
 export default function ReservationsPage({
@@ -74,7 +75,8 @@ export default function ReservationsPage({
   onSaveTransaction,
   transactions = [],
   allotments = [],
-  onSaveAllotment
+  onSaveAllotment,
+  onLogAudit
 }: ReservationsPageProps) {
   
   // View states
@@ -98,7 +100,7 @@ export default function ReservationsPage({
   const [payAccountId, setPayAccountId] = useState<string>('');
   const [payMethod, setPayMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
   const [payVoucher, setPayVoucher] = useState<string>('');
-  const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents'>('overview');
+  const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents' | 'history'>('overview');
   const { t, lang } = useLang();
   const toast = useToast();
   const [confirmDlg, setConfirmDlg] = useState<{ open: boolean; title: string; message: string; variant: 'standard' | 'destructive'; action: (() => void) | null }>({ open: false, title: '', message: '', variant: 'standard', action: null });
@@ -646,6 +648,47 @@ export default function ReservationsPage({
       createdBy: currentUser
     };
 
+    // Amendment history: track changes when editing
+    if (editingId) {
+      const oldRes = reservations.find(r => r.id.toString() === editingId);
+      if (oldRes) {
+        const amendments: AmendmentEntry[] = [];
+        const ts = new Date().toISOString();
+        const mkEntry = (field: string, oldVal: string, newVal: string): AmendmentEntry => ({
+          id: `amd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          timestamp: ts, user: currentUser, field, oldValue: oldVal, newValue: newVal
+        });
+        if (oldRes.status !== status) amendments.push(mkEntry('Status', oldRes.status, status));
+        if (oldRes.checkIn !== checkIn) amendments.push(mkEntry('Check-In', oldRes.checkIn, checkIn));
+        if (oldRes.checkOut !== checkOut) amendments.push(mkEntry('Check-Out', oldRes.checkOut, checkOut));
+        if (oldRes.guestName !== guestName) amendments.push(mkEntry('Guest Name', oldRes.guestName, guestName));
+        if (oldRes.clientId !== clientId) amendments.push(mkEntry('Client', agents.find(a => a.id === oldRes.clientId)?.name || oldRes.clientId, agents.find(a => a.id === clientId)?.name || clientId));
+        if (oldRes.supplierId !== supplierId) amendments.push(mkEntry('Supplier', agents.find(a => a.id === oldRes.supplierId)?.name || oldRes.supplierId, agents.find(a => a.id === supplierId)?.name || supplierId));
+        if (oldRes.hotelId !== hotelId) amendments.push(mkEntry('Hotel', hotels.find(h => h.id === oldRes.hotelId)?.name || oldRes.hotelId, hotels.find(h => h.id === hotelId)?.name || hotelId));
+        if (oldRes.amountPaidByClient !== amountPaidByClient) amendments.push(mkEntry('Client Paid', String(oldRes.amountPaidByClient), String(amountPaidByClient)));
+        if (oldRes.amountPaidToSupplier !== amountPaidToSupplier) amendments.push(mkEntry('Supplier Paid', String(oldRes.amountPaidToSupplier), String(amountPaidToSupplier)));
+        const oldTotalRooms = oldRes.rooms.reduce((s, r) => s + r.qty, 0);
+        const newTotalRooms = rooms.reduce((s, r) => s + r.qty, 0);
+        if (oldTotalRooms !== newTotalRooms) amendments.push(mkEntry('Total Rooms', String(oldTotalRooms), String(newTotalRooms)));
+        if (amendments.length > 0) {
+          reservationToSave.amendmentHistory = [...(oldRes.amendmentHistory || []), ...amendments];
+        } else {
+          reservationToSave.amendmentHistory = oldRes.amendmentHistory;
+        }
+      }
+    }
+
+    // Audit log
+    if (onLogAudit) {
+      onLogAudit({
+        user: currentUser,
+        action: editingId ? 'Update Reservation' : 'Create Reservation',
+        entityType: 'Reservation',
+        entityId: String(nextId),
+        detail: `${reservationToSave.guestName} @ ${hotels.find(h => h.id === reservationToSave.hotelId)?.name || ''} | ${checkIn} to ${checkOut} | ${status}`
+      });
+    }
+
     onSaveReservation(reservationToSave);
     clearDraft('reservation_form');
     resetForm();
@@ -657,6 +700,43 @@ export default function ReservationsPage({
     if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut || !guestName) {
       toast.warning('Please fill out all mandatory booking specs.');
       return;
+    }
+
+    // Duplicate booking detection: check for same guest + overlapping dates + same hotel
+    if (!editingId) {
+      const newCheckIn = new Date(checkIn);
+      const newCheckOut = new Date(checkOut);
+      const duplicate = reservations.find(r => {
+        if (r.status === 'Cancelled') return false;
+        if (r.hotelId !== hotelId) return false;
+        if (r.guestName.trim().toLowerCase() !== guestName.trim().toLowerCase()) return false;
+        const existCheckIn = new Date(r.checkIn);
+        const existCheckOut = new Date(r.checkOut);
+        // Overlapping date ranges
+        return newCheckIn < existCheckOut && newCheckOut > existCheckIn;
+      });
+      if (duplicate) {
+        openConfirm(
+          'Possible Duplicate Booking',
+          `A similar booking already exists:\n\nRSV-${duplicate.id} | ${duplicate.guestName}\n${hotels.find(h => h.id === duplicate.hotelId)?.name || ''} | ${duplicate.checkIn} to ${duplicate.checkOut} (${duplicate.status})\n\nDo you still want to create this booking?`,
+          () => doSaveReservation()
+        );
+        return;
+      }
+    }
+
+    // Credit limit warning (non-blocking)
+    const selectedClient = agents.find(a => a.id === clientId);
+    if (selectedClient?.creditLimit) {
+      const totalOutstanding = reservations
+        .filter(r => r.clientId === clientId && r.status !== 'Cancelled')
+        .reduce((sum, r) => {
+          const { totalSell } = getReservationTotals(r);
+          return sum + Math.max(totalSell - (r.amountPaidByClient || 0), 0);
+        }, 0);
+      if (totalOutstanding > selectedClient.creditLimit) {
+        toast.warning(`Client "${selectedClient.companyName || selectedClient.name}" has exceeded credit limit: ${totalOutstanding.toLocaleString()} SAR outstanding vs ${selectedClient.creditLimit.toLocaleString()} SAR limit.`);
+      }
     }
 
     // Weekend rate reminder: warn if booking spans weekend days but no weekend rate is set
@@ -1696,6 +1776,8 @@ export default function ReservationsPage({
             const client = agents.find(a => a.id === res.clientId);
             const hotel = hotels.find(h => h.id === res.hotelId);
             const { totalSell, totalBuy, profit } = getReservationTotals(res);
+            const marginPct = totalSell > 0 ? Math.round((profit / totalSell) * 100) : 0;
+            const marginColor = marginPct >= 15 ? 'text-emerald-700 bg-emerald-50' : marginPct >= 8 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50';
             const clientPaid = res.amountPaidByClient || 0;
             const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
             return (
@@ -1707,6 +1789,7 @@ export default function ReservationsPage({
                     {res.nonRefundable && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 border border-rose-200">NON-REF</span>}
                   </div>
                   <span className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
+                  <span className={`ml-1 px-1.5 py-0.5 rounded text-[8px] font-bold ${marginColor}`}>{marginPct}%</span>
                 </div>
                 <div className="font-semibold uppercase text-slate-900 text-sm mb-1">{res.guestName}</div>
                 <div className="text-[10px] text-slate-600 mb-2">{hotel?.name}  {client?.companyName || client?.name}</div>
@@ -1902,6 +1985,30 @@ export default function ReservationsPage({
                           {t('res.invoice')}
                         </button>
                         <button
+                          onClick={() => {
+                            const c = agents.find(a => a.id === res.clientId);
+                            const phone = (c?.phone || '').replace(/[^0-9]/g, '');
+                            if (!phone) { toast.warning('Client has no phone number'); return; }
+                            const h = hotels.find(ht => ht.id === res.hotelId);
+                            const { totalSell } = getReservationTotals(res);
+                            const roomSummary = res.rooms.map(rm => `${rm.qty}x ${rm.roomType}`).join(', ');
+                            const msg = encodeURIComponent(
+                              `*Zumra Hotels - Booking RSV-${res.id}*\n` +
+                              `Guest: ${res.guestName}\n` +
+                              `Hotel: ${h?.name || ''}\n` +
+                              `Check-in: ${res.checkIn} | Check-out: ${res.checkOut} (${res.nights}N)\n` +
+                              `Rooms: ${roomSummary}\n` +
+                              `Total: ${totalSell.toLocaleString()} SAR\n` +
+                              `Status: ${res.status}`
+                            );
+                            window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+                          }}
+                          className="bg-green-50 hover:bg-green-100 text-green-700 font-bold px-1.5 py-1 rounded border border-green-200 text-[9px] whitespace-nowrap hidden lg:block"
+                          title="Send via WhatsApp"
+                        >
+                          WhatsApp
+                        </button>
+                        <button
                           onClick={() => handleEdit(res)}
                           className="p-1 hover:bg-amber-55/35 text-amber-800 rounded"
                           title="Edit booking"
@@ -1986,6 +2093,7 @@ export default function ReservationsPage({
                   { key: 'payment' as const, label: t('res.recordPaymentTitle'), icon: '💳' },
                   { key: 'agreements' as const, label: t('res.agreementsRooms'), icon: '⚙️' },
                   { key: 'documents' as const, label: t('res.documents'), icon: '📄' },
+                  ...(resObj.amendmentHistory && resObj.amendmentHistory.length > 0 ? [{ key: 'history' as const, label: 'History', icon: '🕐' }] : []),
                 ]).map(tab => (
                   <button
                     key={tab.key}
@@ -2468,6 +2576,36 @@ export default function ReservationsPage({
                         </button>
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* ===== HISTORY TAB ===== */}
+                {activeDetailTab === 'history' && (
+                  <div className="space-y-3">
+                    <h5 className="font-bold text-[10px] uppercase text-slate-400 tracking-widest">Amendment History</h5>
+                    {resObj.amendmentHistory && resObj.amendmentHistory.length > 0 ? (
+                      <div className="relative border-l-2 border-slate-200 ml-3 pl-6 space-y-4">
+                        {resObj.amendmentHistory.map((entry) => (
+                          <div key={entry.id} className="relative">
+                            <div className="absolute -left-[25px] top-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow"></div>
+                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-bold text-slate-800 text-[11px]">{entry.field}</span>
+                                <span className="text-[9px] text-slate-400 font-mono">{new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px]">
+                                <span className="text-rose-600 line-through">{entry.oldValue}</span>
+                                <span className="text-slate-400">→</span>
+                                <span className="text-emerald-700 font-semibold">{entry.newValue}</span>
+                              </div>
+                              <div className="text-[9px] text-slate-400 mt-1">by {entry.user}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic text-[10px] py-4 text-center">No amendments recorded</p>
+                    )}
                   </div>
                 )}
 

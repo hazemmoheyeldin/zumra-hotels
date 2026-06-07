@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Reservation, Agent, Hotel, User, FollowUp } from '../types';
+import { Reservation, Agent, Hotel, User, FollowUp, Allotment, Transaction } from '../types';
 import { getReservationTotals, getEgyptTime } from '../lib/storage';
 import { useCurrency } from '../lib/CurrencyContext';
 import { useLang } from '../lib/LanguageContext';
+import { sendDailySummaryEmail, isEmailConfigured } from '../lib/email';
 import ZumraLogo from './ZumraLogo';
 
 interface DashboardProps {
@@ -16,12 +17,42 @@ interface DashboardProps {
   hotels: Hotel[];
   users: User[];
   followUps: FollowUp[];
+  allotments: Allotment[];
+  transactions: Transaction[];
   onNavigate: (tab: string, initialFilters?: any) => void;
   onQuickReservation: () => void;
 }
 
-export default function Dashboard({ reservations, agents, hotels, users, followUps, onNavigate, onQuickReservation }: DashboardProps) {
+export default function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, onNavigate, onQuickReservation }: DashboardProps) {
   const todayStr = getEgyptTime().toISOString().split('T')[0];
+  const [sendingSummary, setSendingSummary] = useState(false);
+
+  const handleSendDailySummary = async () => {
+    const admin = users.find(u => u.role === 'Admin');
+    const adminEmail = admin?.email || '';
+    if (!adminEmail) { alert('No admin email found'); return; }
+    setSendingSummary(true);
+    const today = new Date(todayStr);
+    const checkIns = reservations.filter(r => r.checkIn === todayStr && r.status !== 'Cancelled');
+    const checkOuts = reservations.filter(r => r.checkOut === todayStr && r.status !== 'Cancelled');
+    const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
+    const cancToday = reservations.filter(r => r.status === 'Cancelled' && r.cancellationReason && r.createdAt.startsWith(todayStr));
+    const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+    const totalRev = activeRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+    const totalCst = activeRes.reduce((s, r) => s + getReservationTotals(r).totalBuy, 0);
+    const summary = `Zumra Hotels - Daily Summary ${todayStr}\n\n` +
+      `Check-ins Today: ${checkIns.length}\n` +
+      `Check-outs Today: ${checkOuts.length}\n` +
+      `New Bookings Today: ${newToday.length}\n` +
+      `Cancellations Today: ${cancToday.length}\n` +
+      `Active Reservations: ${activeRes.length}\n\n` +
+      `Total Revenue: ${totalRev.toLocaleString()} SAR\n` +
+      `Total Cost: ${totalCst.toLocaleString()} SAR\n` +
+      `Total Profit: ${(totalRev - totalCst).toLocaleString()} SAR`;
+    const result = await sendDailySummaryEmail(adminEmail, summary, `Daily Summary - ${todayStr}`);
+    setSendingSummary(false);
+    if (result.success) { alert('Daily summary sent to ' + adminEmail); } else { alert('Failed: ' + result.error); }
+  };
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -141,6 +172,66 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     }
     return false;
   });
+
+  // Payment Aging Buckets: outstanding client amounts by days since check-in
+  const paymentAging = useMemo(() => {
+    const today = new Date(todayStr);
+    const buckets = { current: { count: 0, amount: 0 }, d7: { count: 0, amount: 0 }, d14: { count: 0, amount: 0 }, d30: { count: 0, amount: 0 }, d60: { count: 0, amount: 0 } };
+    reservations.forEach(res => {
+      if (res.status === 'Cancelled') return;
+      const { totalSell } = getReservationTotals(res);
+      const owed = totalSell - (res.amountPaidByClient || 0);
+      if (owed <= 0) return;
+      const ci = new Date(res.checkIn);
+      const daysSinceCheckIn = Math.floor((today.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceCheckIn < 0) { buckets.current.count++; buckets.current.amount += owed; }
+      else if (daysSinceCheckIn <= 7) { buckets.current.count++; buckets.current.amount += owed; }
+      else if (daysSinceCheckIn <= 14) { buckets.d7.count++; buckets.d7.amount += owed; }
+      else if (daysSinceCheckIn <= 30) { buckets.d14.count++; buckets.d14.amount += owed; }
+      else if (daysSinceCheckIn <= 60) { buckets.d30.count++; buckets.d30.amount += owed; }
+      else { buckets.d60.count++; buckets.d60.amount += owed; }
+    });
+    return buckets;
+  }, [reservations, todayStr]);
+
+  // Contract Expiry: allotments expiring soon
+  const expiringContracts = useMemo(() => {
+    const today = new Date(todayStr);
+    return allotments
+      .map(a => {
+        const end = new Date(a.endDate);
+        const daysUntil = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const hotel = hotels.find(h => h.id === a.hotelId);
+        const supplier = agents.find(ag => ag.id === a.supplierId);
+        return { ...a, daysUntil, hotelName: hotel?.name || 'Unknown', supplierName: supplier?.companyName || supplier?.name || 'Unknown' };
+      })
+      .filter(a => a.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+  }, [allotments, hotels, agents, todayStr]);
+
+  // Demand heatmap: booking room-nights per date for next 90 days
+  const demandHeatmap = useMemo(() => {
+    const today = new Date(todayStr);
+    const days: { date: string; count: number; hotels: string[] }[] = [];
+    for (let i = 0; i < 90; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split('T')[0];
+      let count = 0;
+      const hotelSet = new Set<string>();
+      reservations.forEach(r => {
+        if (r.status === 'Cancelled') return;
+        if (r.checkIn <= ds && r.checkOut > ds) {
+          count += r.rooms.reduce((s, rm) => s + rm.qty, 0);
+          hotelSet.add(hotels.find(h => h.id === r.hotelId)?.name || '');
+        }
+      });
+      days.push({ date: ds, count, hotels: Array.from(hotelSet) });
+    }
+    return days;
+  }, [reservations, hotels, todayStr]);
+
+  const maxDemand = useMemo(() => Math.max(1, ...demandHeatmap.map(d => d.count)), [demandHeatmap]);
 
   // Confirmed bookings with unpaid client amounts, check-in within 14 days
   const unpaidUpcoming = reservations.filter(res => {
@@ -358,6 +449,15 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             {t('dash.newReservation')}
           </button>
+          {isEmailConfigured && (
+            <button
+              onClick={handleSendDailySummary}
+              disabled={sendingSummary}
+              className="bg-emerald-600 font-bold hover:bg-emerald-700 text-white px-3 py-2 min-h-[36px] rounded-xl text-[10px] transition flex items-center gap-1 shadow-lg disabled:opacity-50 cursor-pointer"
+            >
+              {sendingSummary ? '⏳ Sending...' : '📧 Daily Summary'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -705,6 +805,127 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
           </div>
         </div>
 
+      </div>
+
+      {/* Payment Aging Buckets */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+            <span className="text-base">⏰</span> Payment Aging (Client Outstanding)
+          </h3>
+          <button onClick={() => onNavigate('Reservations')} className="text-[10px] text-blue-600 hover:underline">View All</button>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Current (0-7d)', data: paymentAging.current, color: 'emerald' },
+            { label: '8-14 Days', data: paymentAging.d7, color: 'yellow' },
+            { label: '15-30 Days', data: paymentAging.d14, color: 'orange' },
+            { label: '31-60 Days', data: paymentAging.d30, color: 'red' },
+            { label: '60+ Days', data: paymentAging.d60, color: 'rose' },
+          ].map(bucket => (
+            <div key={bucket.label} className={`bg-${bucket.color}-50 border border-${bucket.color}-200 rounded-xl p-3 shadow-sm`}>
+              <div className={`text-[9px] font-bold text-${bucket.color}-600 uppercase`}>{bucket.label}</div>
+              <div className={`text-lg font-extrabold text-${bucket.color}-800 font-mono mt-1`}>
+                {bucket.data.amount > 0 ? bucket.data.amount.toLocaleString() : '0'}
+              </div>
+              <div className={`text-[9px] text-${bucket.color}-500`}>{bucket.data.count} booking{bucket.data.count !== 1 ? 's' : ''} · SAR</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Contract Expiry Alerts */}
+      {expiringContracts.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-3">
+            <span className="text-base">📋</span> Contract / Allotment Expiry
+          </h3>
+          <div className="bg-white border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600">Hotel</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600">Room Type</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600">Supplier</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600">Expiry Date</th>
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {expiringContracts.map(c => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium">{c.hotelName}</td>
+                      <td className="px-3 py-2">{c.roomType}</td>
+                      <td className="px-3 py-2">{c.supplierName}</td>
+                      <td className="px-3 py-2 font-mono">{c.endDate}</td>
+                      <td className="px-3 py-2">
+                        {c.daysUntil < 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">Expired ({Math.abs(c.daysUntil)}d ago)</span>
+                        ) : c.daysUntil <= 7 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800">{c.daysUntil}d left</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800">{c.daysUntil}d left</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seasonal Demand Heatmap */}
+      <div>
+        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-3">
+          <span className="text-base">🌡️</span> Demand Forecast (Next 90 Days)
+        </h3>
+        <div className="bg-white border rounded-xl p-4 overflow-x-auto">
+          <div className="flex gap-[2px] min-w-[600px]">
+            {demandHeatmap.map((day, idx) => {
+              const intensity = day.count / maxDemand;
+              const d = new Date(day.date);
+              const dayOfWeek = d.getDay();
+              const isWeekend = dayOfWeek === 4 || dayOfWeek === 5;
+              const bgColor = intensity === 0
+                ? 'bg-slate-100'
+                : intensity < 0.25 ? 'bg-emerald-100'
+                : intensity < 0.5 ? 'bg-emerald-300'
+                : intensity < 0.75 ? 'bg-amber-300'
+                : 'bg-red-400';
+              return (
+                <div
+                  key={day.date}
+                  className={`flex-1 min-w-[6px] h-8 rounded-sm ${bgColor} cursor-default relative group ${isWeekend ? 'ring-1 ring-indigo-200' : ''}`}
+                  title={`${day.date}: ${day.count} rooms\n${day.hotels.join(', ')}`}
+                >
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 mb-1 transition-opacity">
+                    {day.date} | {day.count} rooms
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between mt-2 text-[9px] text-slate-400 font-mono">
+            <span>{demandHeatmap[0]?.date}</span>
+            <span>{demandHeatmap[44]?.date}</span>
+            <span>{demandHeatmap[89]?.date}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-2 text-[9px] text-slate-500">
+            <span>Low</span>
+            <div className="flex gap-0.5">
+              <div className="w-3 h-3 rounded-sm bg-slate-100 border border-slate-200"></div>
+              <div className="w-3 h-3 rounded-sm bg-emerald-100"></div>
+              <div className="w-3 h-3 rounded-sm bg-emerald-300"></div>
+              <div className="w-3 h-3 rounded-sm bg-amber-300"></div>
+              <div className="w-3 h-3 rounded-sm bg-red-400"></div>
+            </div>
+            <span>High</span>
+            <span className="ml-2 text-indigo-400">| Indigo border = Thu/Fri</span>
+          </div>
+        </div>
       </div>
 
     </div>
