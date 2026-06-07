@@ -457,58 +457,70 @@ export default function App() {
 
       // Wait for Firebase Auth to be ready, then migrate
       const waitForAuthAndMigrate = async () => {
-        // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
-        await new Promise<void>((resolve) => {
-          const unsub = onFirebaseAuthStateChanged((fbUser) => {
-            unsub();
-            resolve();
+        try {
+          // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
+          await new Promise<void>((resolve) => {
+            const unsub = onFirebaseAuthStateChanged((fbUser) => {
+              unsub();
+              resolve();
+            });
+            // Safety timeout: don't wait forever
+            setTimeout(() => { unsub(); resolve(); }, 5000);
           });
-          // Safety timeout: don't wait forever
-          setTimeout(() => { unsub(); resolve(); }, 5000);
-        });
 
-        // Check if already authenticated
-        let isAuthed = !!auth?.currentUser;
-        console.log(`[Firebase Auth] Initial state: authenticated=${isAuthed}`);
+          // Check if already authenticated (from browserLocalPersistence)
+          let isAuthed = !!auth?.currentUser;
+          console.log(`[Firebase Auth] Initial state: authenticated=${isAuthed}`);
 
-        // If not authenticated, try to sign in with stored user credentials
-        if (!isAuthed && currentUser?.email) {
-          const fbPwd = currentUser.password || `${currentUser.username}123`;
-          isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
-          if (!isAuthed) {
-            // Firebase Auth user doesn't exist yet — create it
-            console.log(`[Firebase Auth] Creating auth user for ${currentUser.email}`);
-            await firebaseCreateUser(currentUser.email, fbPwd);
+          // If not authenticated, try to sign in with stored user credentials
+          if (!isAuthed && currentUser?.email) {
+            const fbPwd = currentUser.password || `${currentUser.username}123`;
             isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
-          }
-          if (isAuthed) {
-            console.log(`[Firebase Auth] Session restored for ${currentUser.username}`);
-          } else {
-            console.warn(`[Firebase Auth] Could not authenticate ${currentUser.email}`);
-          }
-        }
-
-        // Ensure ALL local users have Firebase Auth accounts (for multi-device login)
-        const allUsers = ZumraDB.getUsers();
-        for (const u of allUsers) {
-          if (u.email) {
-            const pwd = u.password || `${u.username}123`;
-            // Try sign-in; if it fails, create the auth user
-            const ok = await firebaseSignIn(u.email, pwd).catch(() => false);
-            if (!ok) {
-              await firebaseCreateUser(u.email, pwd).catch(() => {});
+            if (!isAuthed) {
+              // Firebase Auth user doesn't exist yet — create it
+              console.log(`[Firebase Auth] Creating auth user for ${currentUser.email}`);
+              await firebaseCreateUser(currentUser.email, fbPwd);
+              isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
+            }
+            if (isAuthed) {
+              console.log(`[Firebase Auth] Session restored for ${currentUser.username}`);
+            } else {
+              console.warn(`[Firebase Auth] Could not authenticate ${currentUser.email} — continuing with localStorage data`);
             }
           }
-        }
-        // Re-authenticate as current user after bulk creation
-        if (currentUser?.email) {
-          const fbPwd = currentUser.password || `${currentUser.username}123`;
-          await firebaseSignIn(currentUser.email, fbPwd).catch(() => {});
-        }
 
-        // Now run migration (auth should be confirmed)
-        await migrateData();
-        setAuthLoading(false);
+          // Now run migration (auth should be confirmed)
+          await migrateData();
+
+          // Background: ensure other users have Firebase Auth accounts (non-blocking)
+          // This runs AFTER the UI is unblocked so it doesn't cause "Verifying Session" hang
+          const allUsers = ZumraDB.getUsers();
+          if (allUsers.length > 1 && isAuthed) {
+            // Use a small delay to let the UI render first
+            setTimeout(async () => {
+              console.log(`[Firebase Auth] Ensuring ${allUsers.length} users have auth accounts...`);
+              for (const u of allUsers) {
+                if (u.email && u.email !== currentUser?.email) {
+                  const pwd = u.password || `${u.username}123`;
+                  try {
+                    await firebaseCreateUser(u.email, pwd);
+                  } catch { /* ignore - user might already exist */ }
+                }
+              }
+              // Re-authenticate as current user after bulk creation
+              if (currentUser?.email) {
+                const fbPwd = currentUser.password || `${currentUser.username}123`;
+                await firebaseSignIn(currentUser.email, fbPwd).catch(() => {});
+              }
+              console.log(`[Firebase Auth] Bulk user auth provisioning complete`);
+            }, 3000);
+          }
+        } catch (err) {
+          console.error(`[Firebase Auth] Migration error:`, err);
+        } finally {
+          // ALWAYS unblock the UI, even if something failed
+          setAuthLoading(false);
+        }
       };
       waitForAuthAndMigrate();
 
@@ -1361,6 +1373,16 @@ export default function App() {
       : [...users, user];
     setUsers(updated);
     ZumraDB.saveUsers(updated);
+    // Save user to Firestore IMMEDIATELY (while admin is still authenticated)
+    ZumraSync.saveUser(user).then(() => {
+      console.log(`[doAddUser] Firestore sync completed for ${user.username}`);
+    }).catch(err => {
+      console.error(`[doAddUser] Firestore sync failed for ${user.username}:`, err);
+    });
+    // Also bulk-save all users to Firestore to ensure consistency
+    if (isFirebaseConfigured) {
+      firestoreBulkSave(COLLECTIONS.USERS, updated).catch(() => {});
+    }
     // Create Firebase Auth user (required for Firestore security rules)
     if (isFirebaseConfigured && user.email) {
       const fbPwd = user.password || `${user.username}123`;
@@ -1371,11 +1393,6 @@ export default function App() {
         await firebaseSignIn(currentUser.email, adminPwd);
       }
     }
-    ZumraSync.saveUser(user).then(() => {
-      console.log(`[doAddUser] Sync completed for ${user.username}`);
-    }).catch(err => {
-      console.error(`[doAddUser] Sync failed for ${user.username}:`, err);
-    });
     toast.success(`User "${user.name}" saved`);
   };
   const handleAddUser = (user: User) => {
