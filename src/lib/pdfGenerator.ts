@@ -117,7 +117,7 @@ export const downloadPDF = (elementId: string, filename: string, options?: PDFOp
     console.error(`[downloadPDF] Element with id "${elementId}" not found.`);
     alert('Print area not found. Please try again.');
     isPrinting = false;
-    return;
+    return false;
   }
 
   const landscape = options?.landscape || false;
