@@ -207,6 +207,7 @@ export default function App() {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   // Restore session from localStorage if user was previously logged in
   const [authLoading, setAuthLoading] = useState(true);
+  const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('zumra_current_user');
@@ -451,7 +452,8 @@ export default function App() {
           }
           // Initial data sync complete
         } catch (err) {
-          console.warn('[Firebase] Migration error, using localStorage:', err);
+          console.warn('[Firebase] Migration error:', err);
+          throw err; // Re-throw so retry logic can catch it
         }
       };
 
@@ -489,8 +491,42 @@ export default function App() {
             }
           }
 
-          // Now run migration (auth should be confirmed)
-          await migrateData();
+          // Fallback: if no currentUser (e.g., localStorage cleared), try default admin
+          if (!isAuthed && !currentUser) {
+            const defaultAdmins = ZumraDB.getUsers().filter(u => u.role === 'Admin');
+            for (const admin of defaultAdmins) {
+              if (admin.email) {
+                const fbPwd = admin.password || `${admin.username}123`;
+                isAuthed = await firebaseSignIn(admin.email, fbPwd);
+                if (!isAuthed) {
+                  await firebaseCreateUser(admin.email, fbPwd);
+                  isAuthed = await firebaseSignIn(admin.email, fbPwd);
+                }
+                if (isAuthed) {
+                  console.log(`[Firebase Auth] Fallback: authenticated as admin ${admin.username}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Retry migration up to 2 times if auth is confirmed but first read fails
+          let migrateRetries = 0;
+          const maxRetries = isAuthed ? 2 : 0;
+          while (migrateRetries <= maxRetries) {
+            try {
+              await migrateData();
+              break;
+            } catch (err) {
+              migrateRetries++;
+              if (migrateRetries <= maxRetries) {
+                console.warn(`[Firebase] Migration attempt ${migrateRetries} failed, retrying in 2s...`);
+                await new Promise(r => setTimeout(r, 2000));
+              } else {
+                console.warn('[Firebase] Migration failed after retries, using localStorage data');
+              }
+            }
+          }
 
           // Background: ensure other users have Firebase Auth accounts (non-blocking)
           // This runs AFTER the UI is unblocked so it doesn't cause "Verifying Session" hang
@@ -522,11 +558,11 @@ export default function App() {
           setAuthLoading(false);
         }
       };
-      waitForAuthAndMigrate();
 
-      // 3. Attach real-time Firestore listeners for cross-device sync
-      // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
-      const unsubs = [
+      // Function to attach real-time Firestore listeners (called AFTER auth is confirmed)
+      const attachFirestoreListeners = () => {
+        // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
+        const unsubs = [
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
           if (data.length > 0 && !isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
@@ -648,6 +684,18 @@ export default function App() {
           }
         }),
       ];
+        // Store unsubs in ref for cleanup
+        firestoreListenerUnsubs.current = unsubs;
+      };
+
+      // Call attachFirestoreListeners after auth is confirmed
+      const originalWaitForAuth = waitForAuthAndMigrate;
+      const wrappedWaitForAuth = async () => {
+        await originalWaitForAuth();
+        // Attach listeners after auth + migration complete
+        attachFirestoreListeners();
+      };
+      wrappedWaitForAuth();
 
       // Also listen for cross-tab localStorage changes (for theme etc.)
       const handleStorage = (e: StorageEvent) => {
@@ -658,7 +706,8 @@ export default function App() {
       window.addEventListener('storage', handleStorage);
 
       return () => {
-        unsubs.forEach(unsub => unsub());
+        firestoreListenerUnsubs.current.forEach(unsub => unsub());
+        firestoreListenerUnsubs.current = [];
         window.removeEventListener('storage', handleStorage);
       };
     } else {
