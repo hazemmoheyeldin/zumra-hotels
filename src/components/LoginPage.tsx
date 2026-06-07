@@ -54,41 +54,41 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         return;
       }
 
-      // Auto-create user profile in Firestore if it doesn't exist
+      // ===== Access Control: Check if email is in the User List =====
+      const emailLower = result.email.toLowerCase();
+
+      // First check local users list
+      let matchedUser = users.find(u => u.email?.toLowerCase() === emailLower);
+
+      // If not found locally, check Firestore
+      if (!matchedUser) {
+        const firestoreUsers = await firestoreLoadAll<any>(COLLECTIONS.USERS);
+        matchedUser = firestoreUsers.find((u: any) => u.email?.toLowerCase() === emailLower);
+      }
+
+      // If email not in user list → reject
+      if (!matchedUser) {
+        console.warn(`[Auth] Google sign-in rejected: ${emailLower} not found in user list`);
+        setErrorMsg('Access Denied: Your email is not registered. Please contact an admin to be added to the user list.');
+        setLoading(false);
+        return;
+      }
+
+      // If user status is Pending → reject
+      if (matchedUser.status === 'Pending') {
+        console.warn(`[Auth] Google sign-in rejected: ${emailLower} has Pending status`);
+        setErrorMsg('Account Pending: Your account is awaiting activation. Please contact an admin.');
+        setLoading(false);
+        return;
+      }
+
+      // Access granted — ensure user profile exists in Firestore
       await ensureUserProfileInFirestore({
         uid: result.uid,
         email: result.email,
         displayName: result.displayName,
         photoURL: result.photoURL,
       });
-
-      // Find or create user in the app's user list
-      const emailLower = result.email.toLowerCase();
-      let matchedUser = users.find(u => u.email?.toLowerCase() === emailLower);
-
-      if (!matchedUser) {
-        // Try fetching from Firestore
-        const firestoreUsers = await firestoreLoadAll<any>(COLLECTIONS.USERS);
-        matchedUser = firestoreUsers.find((u: any) => u.email?.toLowerCase() === emailLower);
-
-        if (!matchedUser) {
-          // Create a new user record
-          const newUser: User = {
-            id: result.uid,
-            username: result.email.split('@')[0],
-            name: result.displayName,
-            role: 'Reservationist',
-            email: result.email,
-            password: '',
-            mustChangePassword: false,
-          };
-          // Add to local users list
-          const updatedUsers = [...users, newUser];
-          localStorage.setItem('zumra_users', JSON.stringify(updatedUsers));
-          onUpdateUser?.(newUser);
-          matchedUser = newUser;
-        }
-      }
 
       setLoading(false);
       onLoginSuccess(matchedUser);
@@ -112,6 +112,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     // Helper to validate credentials against a matched user
     const validateLogin = async (matchedUser: User, allUsers: User[]) => {
+      // ===== Access Control: Check user status =====
+      if (matchedUser.status === 'Pending') {
+        setLoading(false);
+        setErrorMsg('Account Pending: Your account is awaiting activation. Please contact an admin.');
+        return;
+      }
+
       const allowedPwd = matchedUser.password || (
                          matchedUser.username === 'hazem' ? 'hazem123' :
                          matchedUser.username === 'zaki' ? 'zaki123' :

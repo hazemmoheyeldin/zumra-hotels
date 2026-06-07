@@ -91,6 +91,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
       jobTitle,
       role,
       mustChangePassword: isNewUser && !isEditingSelf ? true : (isEditingSelf ? false : undefined),
+      status: editingUserId ? (users.find(u => u.id === editingUserId)?.status || 'Active') : 'Active',
     };
 
     onAddUser(updatedUser);
@@ -175,6 +176,13 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     } else {
       onToast?.('error', result.error || 'Failed to send invitation');
     }
+  };
+
+  const handleToggleStatus = (user: User) => {
+    const newStatus = user.status === 'Pending' ? 'Active' : 'Pending';
+    const updatedUser: User = { ...user, status: newStatus };
+    onAddUser(updatedUser);
+    onToast?.('success', `${user.name} is now ${newStatus}`);
   };
 
   // KPI counts
@@ -420,6 +428,13 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                         <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${getRoleColor(u.role)}`}>
                           {u.role}
                         </span>
+                        <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${
+                          (u.status || 'Active') === 'Active'
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            : 'bg-orange-100 text-orange-700 border-orange-200'
+                        }`}>
+                          {u.status || 'Active'}
+                        </span>
                         {u.mustChangePassword && (
                           <span className="text-[9px] text-amber-700 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded font-bold">
                             MUST CHANGE PW
@@ -447,6 +462,19 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                               Sending...
                             </>
                           ) : '✉ Invite'}
+                        </button>
+                      )}
+                      {isAdmin && !isActive && (
+                        <button
+                          onClick={() => handleToggleStatus(u)}
+                          className={`font-bold text-xs px-3 py-1.5 rounded-xl transition border flex items-center gap-1 ${
+                            (u.status || 'Active') === 'Active'
+                              ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border-emerald-200'
+                          }`}
+                          title={(u.status || 'Active') === 'Active' ? 'Deactivate user (block login)' : 'Activate user (allow login)'}
+                        >
+                          {(u.status || 'Active') === 'Active' ? '🔒 Deactivate' : '✅ Activate'}
                         </button>
                       )}
                       {isActive && (

@@ -236,6 +236,7 @@ export interface User {
   password?: string;
   mustChangePassword?: boolean; // Force password change on next login
   profileImage?: string; // base64 encoded profile image
+  status?: 'Active' | 'Pending'; // Access control: Pending users cannot log in until activated by admin
 }
 
 export interface FollowUp {
