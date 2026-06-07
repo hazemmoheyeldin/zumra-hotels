@@ -915,6 +915,18 @@ export default function App() {
     );
   };
 
+  // Client Portal: Update agreement status
+  const handleUpdateAgreementStatus = (resId: number, newStatus: 'Approved' | 'Declined') => {
+    const res = reservations.find(r => r.id === resId);
+    if (!res) return;
+    const updated = reservations.map(r => r.id === resId ? { ...r, agreementStatus: newStatus, agreementConfirmed: newStatus === 'Approved' } : r);
+    setReservations(updated);
+    ZumraDB.saveReservations(updated);
+    const updatedRes = updated.find(r => r.id === resId);
+    if (updatedRes) ZumraSync.saveReservation(updatedRes);
+    toast.success(`RSV-${resId} agreement ${newStatus === 'Approved' ? 'approved' : 'declined'}`);
+  };
+
   // Waitlist save handler
   const handleSaveWaitlist = (entry: WaitlistEntry) => {
     const updated = [...waitlist.filter(w => w.id !== entry.id), entry];
@@ -1743,7 +1755,7 @@ export default function App() {
     // Check for client portal URL
     const portalId = new URLSearchParams(window.location.search).get('portal');
     if (portalId) {
-      return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={portalId} />;
+      return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={portalId} onUpdateAgreementStatus={handleUpdateAgreementStatus} />;
     }
     return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={doAddUser} />;
   }

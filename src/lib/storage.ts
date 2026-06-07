@@ -1529,6 +1529,75 @@ export function seedTestDataIfEmpty(): void {
     { id: 'os_5', serviceType: 'OutboundHotel', clientId: 'test_client_5', description: 'Cairo hotel booking - pre-departure', quantity: 1, sellPrice: 600, buyPrice: 400, taxRate: 15, date: '2025-05-25', status: 'Pending', invoiceNo: 'INV-SVC-005', notes: '1 night Cairo hotel before flight', createdBy: 'Hazem', createdAt: '2025-05-25 10:00:00', details: { hotelName: 'Steigenberger', city: 'Cairo', checkIn: '2025-05-31', checkOut: '2025-06-01' } },
   ];
 
+  // ===== Agreement numbers and statuses for reservations =====
+  testReservations[0].agreementNo = 'AGR-2025-001'; testReservations[0].agreementStatus = 'Approved'; testReservations[0].agreementConfirmed = true;
+  testReservations[1].agreementNo = 'AGR-2025-002'; testReservations[1].agreementStatus = 'Approved'; testReservations[1].agreementConfirmed = true;
+  testReservations[2].agreementNo = 'AGR-2025-003'; testReservations[2].agreementStatus = 'Pending'; testReservations[2].agreementConfirmed = false;
+  testReservations[3].agreementNo = 'AGR-2025-004'; testReservations[3].agreementStatus = 'Pending'; testReservations[3].agreementConfirmed = false;
+  testReservations[4].agreementNo = 'AGR-2025-005'; testReservations[4].agreementStatus = 'Approved'; testReservations[4].agreementConfirmed = true;
+  testReservations[5].agreementNo = 'AGR-2025-006'; testReservations[5].agreementStatus = 'Declined'; testReservations[5].agreementConfirmed = false;
+  testReservations[6].agreementNo = 'AGR-2025-007'; testReservations[6].agreementStatus = 'Pending'; testReservations[6].agreementConfirmed = false;
+  testReservations[7].agreementNo = 'AGR-2025-008'; testReservations[7].agreementStatus = 'Approved'; testReservations[7].agreementConfirmed = true;
+  testReservations[8].agreementNo = 'AGR-2025-009'; testReservations[8].agreementStatus = 'Pending'; testReservations[8].agreementConfirmed = false;
+  testReservations[9].agreementNo = 'AGR-2025-010'; testReservations[9].agreementStatus = 'Approved'; testReservations[9].agreementConfirmed = true;
+
+  // Add bank account IDs to some reservations
+  testReservations[0].bankAccountId = 'acc_bank_1';
+  testReservations[1].bankAccountId = 'acc_bank_2';
+  testReservations[2].bankAccountId = 'acc_bank_1';
+  testReservations[4].bankAccountId = 'acc_bank_1';
+  testReservations[7].bankAccountId = 'acc_bank_2';
+  testReservations[9].bankAccountId = 'acc_bank_1';
+
+  // Add hotel confirmation numbers to confirmed reservations
+  testReservations[0].hotelConfirmationNo = 'CONF-55901';
+  testReservations[1].hotelConfirmationNo = 'CONF-55902';
+  testReservations[2].hotelConfirmationNo = 'CONF-55903';
+  testReservations[4].hotelConfirmationNo = 'CONF-55905';
+  testReservations[7].hotelConfirmationNo = 'CONF-55908';
+  testReservations[8].hotelConfirmationNo = 'CONF-55909';
+  testReservations[9].hotelConfirmationNo = 'CONF-55910';
+
+  // Add supplier voucher references
+  testReservations[0].supplierVoucher = 'SUP-V-001';
+  testReservations[1].supplierVoucher = 'SUP-V-002';
+  testReservations[2].supplierVoucher = 'SUP-V-003';
+  testReservations[4].supplierVoucher = 'SUP-V-005';
+  testReservations[9].supplierVoucher = 'SUP-V-010';
+
+  // ===== Terms & Conditions Templates =====
+  const testTermsAndConditions: TermsAndConditions[] = [
+    {
+      id: 'tc_default',
+      title: 'Standard Booking Terms & Conditions',
+      content: `1. BOOKING CONFIRMATION: All bookings are subject to availability and confirmation by Zumra Hotels. A booking is only confirmed once a written confirmation with a confirmation number is issued.\n\n2. PAYMENT TERMS: Full payment is due 14 days before check-in unless otherwise agreed in writing. Late payments may result in cancellation without refund.\n\n3. CANCELLATION POLICY: Cancellations made more than 7 days before arrival are free of charge. Cancellations within 7 days incur a 50% fee. No-shows are charged in full.\n\n4. MODIFICATIONS: Changes to confirmed bookings (dates, room types, guest names) are subject to availability and current rates at the time of change.\n\n5. LIABILITY: Zumra Hotels acts solely as an agent between the guest and the hotel. We are not liable for acts, omissions, or defaults of any hotel.\n\n6. FORCE MAJEURE: Neither party shall be liable for failure to perform obligations due to circumstances beyond reasonable control (natural disasters, war, pandemics, government actions).\n\n7. DISPUTES: Any disputes shall be resolved through mutual negotiation first, then through arbitration in accordance with Saudi Arabian law.`,
+      active: true,
+      isDefault: true
+    },
+    {
+      id: 'tc_group',
+      title: 'Group Booking Terms & Conditions',
+      content: `1. GROUP DEFINITION: A group booking is defined as 5 or more rooms booked under the same reference.\n\n2. DEPOSIT: A non-refundable deposit of 30% is required within 7 days of booking confirmation.\n\n3. FINAL PAYMENT: Full payment is due 21 days before group arrival.\n\n4. ROOM LIST: Final rooming list with guest names must be submitted 14 days before arrival.\n\n5. REDUCTIONS: Room count reductions of more than 10% after confirmation will incur a penalty equal to one night's stay per cancelled room.\n\n6. ATTRITION: If actual room usage falls below 80% of the blocked allocation, the client is liable for the shortfall at the contracted rate.\n\n7. SPECIAL REQUESTS: Group meal plans, transfers, and special arrangements must be confirmed at least 10 days before arrival.`,
+      active: true,
+      isDefault: false
+    },
+    {
+      id: 'tc_ramadan',
+      title: 'Ramadan & Hajj Season Terms',
+      content: `1. SEASONAL RATES: All rates during Ramadan and Hajj season are subject to change based on hotel announcements.\n\n2. PAYMENT: 100% advance payment is required at the time of booking for peak season reservations.\n\n3. CANCELLATION: Peak season bookings are non-refundable. Credit may be offered at the discretion of the hotel for future stays.\n\n4. MODIFICATIONS: Date changes during peak season are treated as new bookings at prevailing rates.\n\n5. VISA REQUIREMENTS: Guests are responsible for obtaining valid visas. No refunds for visa denials during peak season.`,
+      active: true,
+      isDefault: false
+    },
+  ];
+
+  // ===== Payment Gateways =====
+  const testPaymentGateways: PaymentGateway[] = [
+    { id: 'pg_1', name: 'Al Rajhi Bank Transfer', type: 'Bank', merchantId: 'RAJHI-MERCHANT-001', active: true },
+    { id: 'pg_2', name: 'Moyasar - Visa/Mada', type: 'Visa', merchantId: 'MOY-001', apiKey: 'pk_test_moyasar_001', active: true },
+    { id: 'pg_3', name: 'Apple Pay', type: 'ApplePay', merchantId: 'APPLE-ZUMRA-001', active: true },
+    { id: 'pg_4', name: 'SNB Bank Transfer', type: 'Bank', merchantId: 'SNB-MERCHANT-001', active: true },
+  ];
+
   // ===== Save everything =====
   const allAgents = [...testClients, ...testSuppliers];
   ZumraDB.saveAgents(allAgents);
@@ -1541,5 +1610,7 @@ export function seedTestDataIfEmpty(): void {
   ZumraDB.saveExpenseCategories(testExpenseCategories);
   ZumraDB.saveExpenses(testExpenses);
   ZumraDB.saveOtherServices(testOtherServices);
+  ZumraDB.saveTermsAndConditions(testTermsAndConditions);
+  ZumraDB.savePaymentGateways(testPaymentGateways);
 }
 
