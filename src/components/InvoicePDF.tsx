@@ -68,7 +68,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             </label>
             {stampVisible && (
               <button
-                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.40 }); }}
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.85 }); }}
                 className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
                 title="Reset stamp to default position"
               >Reset</button>
@@ -91,8 +91,8 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             <StampOverlay
               visible={stampVisible}
               position={stampPosition}
-              opacity={0.40}
-              onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.40 }); }}
+              opacity={0.85}
+              onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
             />
             {/* Header: Company Name LEFT + Logo RIGHT */}
             <div className="flex items-center justify-between border-b-2 border-slate-300 pb-4 mb-4 gap-4">

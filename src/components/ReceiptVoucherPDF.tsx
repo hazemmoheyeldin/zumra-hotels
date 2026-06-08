@@ -44,7 +44,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
       const bookingRef = reservation ? `${reservation.id}` : (transaction.docNo || transaction.id.slice(0, 4));
       const guestName = reservation ? reservation.guestName : (client?.companyName || client?.name || 'Client');
       const safeName = guestName.replace(/[^a-zA-Z0-9\s-]/g, '').trim();
-      const success = await exportPDF('print-area', `(v) RSV-${bookingRef} ${safeName}.pdf`);
+      const success = await exportPDF('print-area', `(V) RSV-${bookingRef} ${safeName}.pdf`);
       if (success) {
         setTimeout(onClose, 400);
       } else {
@@ -87,7 +87,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             </label>
             {stampVisible && (
               <button
-                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.40 }); }}
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.85 }); }}
                 className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
                 title="Reset stamp to default position"
               >Reset</button>
@@ -131,8 +131,8 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}
-            opacity={0.40}
-            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.40 }); }}
+            opacity={0.85}
+            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
           />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}

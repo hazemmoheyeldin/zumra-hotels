@@ -35,7 +35,7 @@ function isCustom(pos: StampPosition): pos is StampPositionCustom {
 export default function StampOverlay({
   visible,
   position,
-  opacity = 0.40,
+  opacity = 0.85,
   onPositionChange,
   containerId = 'print-area',
 }: StampOverlayProps) {
@@ -152,13 +152,13 @@ export function getStampSettings(): { enabled: boolean; position: StampPosition;
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        enabled: parsed.enabled ?? true,
+        enabled: parsed.enabled ?? false,
         position: parsed.position ?? 'bottom-right',
-        opacity: parsed.opacity ?? 0.18,
+        opacity: parsed.opacity ?? 0.85,
       };
     }
   } catch {}
-  return { enabled: true, position: 'bottom-right', opacity: 0.40 };
+  return { enabled: false, position: 'bottom-right', opacity: 0.85 };
 }
 
 export function saveStampSettings(settings: { enabled: boolean; position: StampPosition; opacity: number }) {

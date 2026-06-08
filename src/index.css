@@ -202,6 +202,8 @@ tbody tr {
     page-break-inside: auto !important;
     width: 100% !important;
     table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
   }
   tr {
     page-break-inside: avoid !important;
@@ -210,6 +212,8 @@ tbody tr {
   th, td {
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
+    /* Ensure standard pixel-width borders render cleanly at A4 scale */
+    border-width: 1px !important;
   }
 
   /* Ensure logos and images don't disappear or distort during print */
@@ -320,6 +324,55 @@ tbody tr {
   input, select, textarea {
     padding-top: 0.75rem;
     padding-bottom: 0.75rem;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+
+  /* Stack grid layouts on mobile */
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full-width flex on mobile */
+  .flex {
+    flex-wrap: wrap;
+  }
+
+  /* Ensure modals are full-width on mobile */
+  .max-w-6xl, .max-w-4xl, .max-w-3xl, .max-w-2xl {
+    max-width: 100% !important;
+  }
+
+  /* Reduce padding on mobile cards */
+  .p-6 {
+    padding: 0.75rem !important;
+  }
+  .p-5 {
+    padding: 0.625rem !important;
+  }
+
+  /* Sidebar icons alignment */
+  nav .flex {
+    gap: 0.5rem;
+  }
+}
+
+/* Extra small devices (phones < 480px) */
+@media (max-width: 480px) {
+  html {
+    font-size: 13px;
+  }
+
+  /* Hide non-essential labels on very small screens */
+  .hide-xs {
+    display: none !important;
+  }
+
+  /* Ensure buttons don't overflow */
+  button {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 

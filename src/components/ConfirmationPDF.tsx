@@ -61,7 +61,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
       const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
       const today = new Date().toISOString().split('T')[0];
       const filename = type === 'voucher'
-        ? `(v) RSV-${reservation.id} ${guestSafe}.pdf`
+        ? `(V) RSV-${reservation.id} ${guestSafe}.pdf`
         : `RSV-${reservation.id} (${status}) ${today}.pdf`;
       const success = await exportPDF('print-area', filename, { landscape: false });
       if (success) {
@@ -137,7 +137,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             </label>
             {stampVisible && (
               <button
-                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.40 }); }}
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.85 }); }}
                 className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
                 title="Reset stamp to default position"
               >Reset</button>
@@ -189,8 +189,8 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}
-            opacity={0.40}
-            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.40 }); }}
+            opacity={0.85}
+            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
           />
           
           {/* Document Header: Company Name LEFT + Logo RIGHT */}

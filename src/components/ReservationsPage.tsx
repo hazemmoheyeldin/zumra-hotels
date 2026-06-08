@@ -109,6 +109,7 @@ export default function ReservationsPage({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [printingDoc, setPrintingDoc] = useState<{ res: Reservation; isVoucher: boolean } | null>(null);
   const [printingInvoice, setPrintingInvoice] = useState<Reservation | null>(null);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
 
   // Local editing states for detailed modal view
   const [localHotelConf, setLocalHotelConf] = useState('');
@@ -1326,12 +1327,6 @@ export default function ReservationsPage({
               <button
                 onClick={() => {
                 resetForm();
-                // Pick default hotel
-                if (hotels.length > 0) {
-                  setHotelId(hotels[0].id);
-                  setClientId(agents.find(a => a.type === 'Customer' || a.type === 'Both')?.id || '');
-                  setSupplierId(agents.find(a => a.type === 'Supplier' || a.type === 'Both')?.id || '');
-                }
                 setShowForm(true);
               }}
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow flex items-center gap-1.5"
@@ -1416,6 +1411,26 @@ export default function ReservationsPage({
               {editingId ? `${t('res.editBooking')} RSV-${editingId}` : t('res.newReservation')}
             </h3>
             <div className="flex items-center gap-3">
+              {/* Payment Status Indicator (only in edit mode) */}
+              {editingId && (() => {
+                const totalSell = rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0);
+                const paid = amountPaidByClient || 0;
+                const pct = totalSell > 0 ? Math.round((paid / totalSell) * 100) : 0;
+                let statusLabel = 'Not Paid';
+                let statusColor = 'bg-rose-100 text-rose-700 border-rose-200';
+                if (pct >= 100) {
+                  statusLabel = 'Paid';
+                  statusColor = 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                } else if (pct > 0) {
+                  statusLabel = `Partially Paid (${pct}%)`;
+                  statusColor = 'bg-amber-100 text-amber-700 border-amber-200';
+                }
+                return (
+                  <span className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-xl border ${statusColor}`}>
+                    {statusLabel}
+                  </span>
+                );
+              })()}
               {/* Live Pricing Summary Badge */}
               {selectedHotelObj && checkIn && checkOut && (
                 <div className="flex items-center gap-4 text-[10px] bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
@@ -1423,6 +1438,44 @@ export default function ReservationsPage({
                                   <span className="text-red-600">{t('res.cost')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'buy'), 0).toLocaleString()}</strong></span>
                                   <span className="text-emerald-700">{t('res.sell')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + roomFullTotal(rm, 'sell'), 0).toLocaleString()}</strong></span>
                                   <span className="text-amber-700">{t('res.profit')}: <strong className="font-mono">{rooms.reduce((acc, rm) => acc + (roomFullTotal(rm, 'sell') - roomFullTotal(rm, 'buy')), 0).toLocaleString()}</strong></span>
+                </div>
+              )}
+              {/* Print Action Menu (only in edit mode) */}
+              {editingId && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setPrintMenuOpen(!printMenuOpen)}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded-xl transition border border-indigo-200 flex items-center gap-1"
+                  >
+                    🖨️ Print <span className="text-[8px]">▼</span>
+                  </button>
+                  {printMenuOpen && (
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 min-w-[160px] py-1 animate-fade-in">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const editingRes = reservations.find(r => r.id.toString() === editingId);
+                          if (editingRes) setPrintingDoc({ res: editingRes, isVoucher: false });
+                          setPrintMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition"
+                      >
+                        📄 Print Confirmation
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const editingRes = reservations.find(r => r.id.toString() === editingId);
+                          if (editingRes) setPrintingDoc({ res: editingRes, isVoucher: true });
+                          setPrintMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
+                      >
+                        🎟️ Print Voucher
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               <button type="button" onClick={resetForm} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition shadow-sm">{t('common.close')}</button>
