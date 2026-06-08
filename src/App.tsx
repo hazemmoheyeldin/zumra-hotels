@@ -164,6 +164,8 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<any>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Monotonic key that increments on every navigation — forces remount even on same-tab re-click
+  const [tabKey, setTabKey] = useState(0);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { t, lang } = useLang();
   const toast = useToast();
@@ -1515,9 +1517,48 @@ export default function App() {
   const profileImageRef = useRef<HTMLInputElement>(null);
   const contentAreaRef = useRef<HTMLDivElement>(null);
 
+  // ===== Centralized Navigation with Browser History =====
+  // Pushes state to browser history so back/forward buttons work.
+  // Always increments tabKey to force remount even on same-tab re-click.
+  const navigateTo = (tab: string, filters?: any) => {
+    setActiveFilters(filters ?? null);
+    setActiveTab(tab);
+    setTabKey(k => k + 1);
+    window.history.pushState({ tab, filters: filters ?? null }, '', `#${encodeURIComponent(tab)}`);
+  };
+
+  // Restore tab from URL hash on initial load
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      const decoded = decodeURIComponent(hash);
+      setActiveTab(decoded);
+    }
+  }, []);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state?.tab) {
+        setActiveFilters(e.state.filters ?? null);
+        setActiveTab(e.state.tab);
+        setTabKey(k => k + 1);
+      } else {
+        // Fallback: read from hash
+        const hash = window.location.hash.replace('#', '');
+        if (hash) {
+          setActiveTab(decodeURIComponent(hash));
+          setTabKey(k => k + 1);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   // Scroll content area to top whenever active tab changes
   useEffect(() => {
-    // Use requestAnimationFrame to ensure DOM has remounted (key={activeTab})
+    // Use requestAnimationFrame to ensure DOM has remounted (key={tabKey})
     requestAnimationFrame(() => {
       if (contentAreaRef.current) {
         contentAreaRef.current.scrollTop = 0;
@@ -1563,8 +1604,7 @@ export default function App() {
 
   // Switch tab triggered from Dashboard widgets
   const handleNavigate = (tab: string, initialFilters?: any) => {
-    setActiveFilters(initialFilters);
-    setActiveTab(tab);
+    navigateTo(tab, initialFilters);
   };
 
   // Core visual tab panels
@@ -1585,8 +1625,7 @@ export default function App() {
             transactions={transactions}
             onNavigate={handleNavigate}
             onQuickReservation={() => {
-              setActiveFilters({ showNewForm: true });
-              setActiveTab('Reservations');
+              navigateTo('Reservations', { showNewForm: true });
             }}
           />
           </ErrorBoundary>
@@ -1884,14 +1923,14 @@ export default function App() {
       if (e.key === 'Escape') { setShowShortcuts(false); setIsAlertsOpen(false); return; }
       if (!mod) return; // remaining shortcuts require Ctrl/Cmd
       switch (e.key.toLowerCase()) {
-        case '1': setActiveTab('Dashboard'); e.preventDefault(); break;
-        case '2': setActiveTab('Reservations'); e.preventDefault(); break;
-        case '3': setActiveTab('Hotels'); e.preventDefault(); break;
-        case '4': setActiveTab('Agents'); e.preventDefault(); break;
-        case '5': setActiveTab('Transactions'); e.preventDefault(); break;
-        case 'k': setActiveTab('Calendar'); e.preventDefault(); break;
-        case 'b': setActiveTab('Reports'); e.preventDefault(); break;
-        case 'j': setActiveTab('Sales'); e.preventDefault(); break;
+        case '1': navigateTo('Dashboard'); e.preventDefault(); break;
+        case '2': navigateTo('Reservations'); e.preventDefault(); break;
+        case '3': navigateTo('Hotels'); e.preventDefault(); break;
+        case '4': navigateTo('Agents'); e.preventDefault(); break;
+        case '5': navigateTo('Transactions'); e.preventDefault(); break;
+        case 'k': navigateTo('Calendar'); e.preventDefault(); break;
+        case 'b': navigateTo('Reports'); e.preventDefault(); break;
+        case 'j': navigateTo('Sales'); e.preventDefault(); break;
         case '.': setSidebarOpen(s => !s); e.preventDefault(); break;
       }
     };
@@ -2027,11 +2066,11 @@ export default function App() {
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
         <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-2' : 'px-5'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
-          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-1' : 'p-1.5'} rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all duration-200`} onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-1' : 'p-1.5'} rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all duration-200`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
             <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" />
           </button>
           {!sidebarCollapsed && (
-            <button className="cursor-pointer mt-2" onClick={() => { setActiveTab('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+            <button className="cursor-pointer mt-2" onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
               <p className="text-[15px] font-extrabold tracking-widest leading-none text-amber-500">RMS</p>
             </button>
           )}
@@ -2072,8 +2111,7 @@ export default function App() {
                       key={item.name}
                       title={item.name}
                       onClick={() => {
-                        setActiveFilters(null);
-                        setActiveTab(item.name);
+                        navigateTo(item.name);
                         setSidebarOpen(false);
                       }}
                       className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
@@ -2249,8 +2287,7 @@ export default function App() {
                             key={alert.id}
                             className="p-3 text-xs hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition flex flex-col gap-0.5"
                             onClick={() => {
-                              setActiveFilters({ viewReservationId: alert.resId });
-                              setActiveTab('Reservations');
+                              navigateTo('Reservations', { viewReservationId: alert.resId });
                               setIsAlertsOpen(false);
                             }}
                           >
@@ -2339,21 +2376,21 @@ export default function App() {
                     </div>
                     <div className="py-1">
                       <button
-                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
                         {t('users.myProfile')}
                       </button>
                       <button
-                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
                         {t('users.changePassword')}
                       </button>
                       <button
-                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Users'); }}
+                        onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -2367,7 +2404,7 @@ export default function App() {
                         Download Data Backup
                       </button>
                       <button
-                        onClick={() => { setIsUserMenuOpen(false); setActiveTab('Dashboard'); }}
+                        onClick={() => { setIsUserMenuOpen(false); navigateTo('Dashboard'); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
                       >
                         <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
@@ -2391,7 +2428,7 @@ export default function App() {
         </header>
 
         {/* Scrollable central content area */}
-        <div ref={contentAreaRef} className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={activeTab}>
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto p-4 md:p-6 print:p-0 print:m-0 page-enter" key={tabKey}>
           {/* Pending Refund Alerts Banner */}
           {(() => {
             const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
