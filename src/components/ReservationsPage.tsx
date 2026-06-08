@@ -1932,7 +1932,7 @@ export default function ReservationsPage({
                 <>
                   <div>
                     <label className="text-[10px] uppercase font-bold text-emerald-800 block mb-1">{t('res.hotelConfNo')}</label>
-                    <input type="text" value={hotelConfirmationNo} onChange={(e) => setHotelConfirmationNo(e.target.value)} placeholder="CONF-559021" className="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm font-bold focus:bg-white font-mono bg-emerald-50/30 text-emerald-900" required />
+                    <input type="text" value={hotelConfirmationNo} onChange={(e) => setHotelConfirmationNo(e.target.value)} placeholder="CONF-559021" className="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm font-bold focus:bg-white font-mono bg-emerald-50/30 text-emerald-900" />
                   </div>
                 </>
               )}
