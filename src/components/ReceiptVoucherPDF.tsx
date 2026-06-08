@@ -127,7 +127,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
         </div>
 
         {/* Printable Paper Area */}
-        <div id="print-area" className="relative bg-white p-6 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none print:max-h-full">
+        <div id="print-area" className="relative bg-white p-6 pb-8 border border-emerald-150 text-slate-800 font-sans shadow-inner max-h-[65vh] overflow-y-auto no-scrollbar print:p-0 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}

@@ -93,7 +93,7 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
 
         {/* Printable Invoice */}
         <div className="overflow-y-auto flex-1 p-4">
-          <div id="print-area" className="relative bg-white p-6 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+          <div id="print-area" className="relative bg-white p-6 pb-8 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-4 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
 
             {/* Stamp Overlay */}
             <StampOverlay

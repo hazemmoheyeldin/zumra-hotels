@@ -216,6 +216,18 @@ tbody tr {
     border-width: 1px !important;
   }
 
+  /* Force table bottom border rendering — prevents truncation of final row border
+     in reports like Arrival During Period, Statement of Account, Cancellation Report */
+  .arrival-report-table {
+    border-bottom: 1px solid #000 !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .arrival-report-table table {
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
   /* Ensure logos and images don't disappear or distort during print */
   img {
     max-width: 100% !important;

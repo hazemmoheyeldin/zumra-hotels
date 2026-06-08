@@ -522,11 +522,14 @@ const generatePDFBlob = async (
   const jpegQuality = options?.jpegQuality ?? 0.78;
   const scale = options?.scale ?? 1.5;
   const hiddenElements: { el: HTMLElement; origDisplay: string }[] = [];
+  const hiddenSiblings: { el: HTMLElement; origVisibility: string; origDisplay: string }[] = [];
   let origMaxHeight = '', origOverflow = '', origOverflowX = '';
   let origWidth = '', origMinWidth = '';
   let origHeight = '', origBoxSizing = '';
   let scrollModified: ReturnType<typeof stripAllScrollConstraints> = [];
   let desktopModified: ReturnType<typeof forceDesktopLayout> = [];
+  let origParent: Node | null = null;
+  let origNextSibling: Node | null = null;
 
   try {
     // Hide no-print elements
@@ -534,6 +537,29 @@ const generatePDFBlob = async (
       const htmlEl = el as HTMLElement;
       hiddenElements.push({ el: htmlEl, origDisplay: htmlEl.style.display });
       htmlEl.style.display = 'none';
+    });
+
+    // CRITICAL: Isolate element from fixed-position modal containers.
+    // Temporarily move print-area to <body> root so html-to-image captures
+    // ONLY the document content — not the modal backdrop, overlays, or any
+    // sibling content that could bleed into the captured image.
+    origParent = element.parentNode;
+    origNextSibling = element.nextSibling;
+    document.body.appendChild(element);
+
+    // Also hide all direct body children EXCEPT the print-area element
+    // to prevent any body-level overlays from leaking into the capture.
+    Array.from(document.body.children).forEach(child => {
+      if (child === element) return;
+      const htmlChild = child as HTMLElement;
+      if (htmlChild.tagName === 'SCRIPT' || htmlChild.tagName === 'STYLE' || htmlChild.tagName === 'LINK') return;
+      hiddenSiblings.push({
+        el: htmlChild,
+        origVisibility: htmlChild.style.visibility,
+        origDisplay: htmlChild.style.display,
+      });
+      htmlChild.style.visibility = 'hidden';
+      htmlChild.style.display = 'none';
     });
 
     // Remove scroll constraints from ROOT element
@@ -563,6 +589,7 @@ const generatePDFBlob = async (
     // hidden behind scrollbars (e.g., wide tables in arrival reports).
     origHeight = element.style.height;
     origBoxSizing = element.style.boxSizing;
+    // Re-read scrollHeight AFTER removing overflow constraints and moving to body
     const fullWidth = captureWidth || Math.max(element.scrollWidth, element.offsetWidth);
     const fullHeight = element.scrollHeight;
     element.style.width = `${fullWidth}px`;
@@ -586,7 +613,23 @@ const generatePDFBlob = async (
       },
     });
 
-    // Restore everything
+    // Restore element to its original position in the DOM
+    if (origParent) {
+      if (origNextSibling) {
+        origParent.insertBefore(element, origNextSibling);
+      } else {
+        origParent.appendChild(element);
+      }
+    }
+
+    // Restore hidden body siblings
+    hiddenSiblings.forEach(({ el, origVisibility, origDisplay }) => {
+      el.style.visibility = origVisibility;
+      el.style.display = origDisplay;
+    });
+    hiddenSiblings.length = 0;
+
+    // Restore everything on the element
     removeDesktopLayout(desktopModified);
     element.style.maxHeight = origMaxHeight;
     element.style.overflow = origOverflow;
@@ -660,6 +703,19 @@ const generatePDFBlob = async (
     return pdf.output('blob');
   } catch (e) {
     console.error('[generatePDFBlob] Failed:', e);
+    // Restore element to its original position in the DOM on error
+    if (origParent) {
+      if (origNextSibling) {
+        origParent.insertBefore(element, origNextSibling);
+      } else {
+        origParent.appendChild(element);
+      }
+    }
+    // Restore hidden body siblings
+    hiddenSiblings.forEach(({ el, origVisibility, origDisplay }) => {
+      el.style.visibility = origVisibility;
+      el.style.display = origDisplay;
+    });
     // Restore on error
     removeDesktopLayout(desktopModified);
     element.style.maxHeight = origMaxHeight;
@@ -864,11 +920,22 @@ export const exportPDF = async (
     return downloadPDF(elementId, filename, options);
   }
 
+  // Desktop & Mobile: directly download/share the PDF (no preview modal).
+  // The preview modal was causing the entire screen to be captured when
+  // users triggered browser print (Ctrl+P) while the preview was visible.
   if (isMobile) {
     // Mobile: open native share sheet (WhatsApp, email, etc.)
     return await sharePDF(blob, cleanName);
   }
 
-  // Desktop: show preview before saving
-  return await showPDFPreview(blob, cleanName);
+  // Desktop: direct download — no preview overlay that could interfere
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = cleanName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
 };

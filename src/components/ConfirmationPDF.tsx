@@ -184,7 +184,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
         {/* PRINTABLE PAPER CONTAINER (A4 Layout) */}
         <div 
           id="print-area"
-          className="relative bg-white p-4 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-3 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
+          className="relative bg-white p-4 pb-8 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-3 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
         >
           <StampOverlay
             visible={stampVisible}

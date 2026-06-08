@@ -327,7 +327,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
         </div>
 
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="relative bg-white p-4 md:p-6 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+        <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}
@@ -384,7 +384,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
 
           {/* Statement of Account Ledger */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto mb-4 print:overflow-visible print:border-none print:rounded-none">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto mb-4 print:overflow-visible print:border-none print:rounded-none arrival-report-table">
             <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '8%' }} />
@@ -497,7 +497,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
               </div>
               <p className="text-[9px] text-slate-500 mb-2 italic">All reservations with outstanding balance (Paid &lt; Total), sorted oldest first</p>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto print:overflow-visible print:border-none print:rounded-none">
+              <div className="border border-slate-200 rounded-lg overflow-x-auto print:overflow-visible print:border-none print:rounded-none arrival-report-table">
                 <table className="w-full text-left border-collapse text-[9px]" style={{ tableLayout: 'fixed' }}>
                   <colgroup>
                     <col style={{ width: '7%' }} />
