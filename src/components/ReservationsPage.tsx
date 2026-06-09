@@ -1731,13 +1731,13 @@ export default function ReservationsPage({
               {/* Print Action Menu (only in edit mode) */}
               {editingId && (
                 <div className="relative">
-                  <Tooltip label="Generate and download PDF documents" position="bottom">
+                  <Tooltip label="Generate confirmation PDF documents" position="bottom">
                   <button
                     type="button"
                     onClick={() => setPrintMenuOpen(!printMenuOpen)}
                     className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded-xl transition border border-indigo-200 flex items-center gap-1"
                   >
-                    🖨️ Print <span className="text-[8px]">▼</span>
+                    🖨️ Confirmation <span className="text-[8px]">▼</span>
                   </button>
                   </Tooltip>
                   {printMenuOpen && (
