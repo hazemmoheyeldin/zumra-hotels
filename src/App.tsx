@@ -109,9 +109,9 @@ const THEMES: AppTheme[] = [
     emoji: '✨',
     sidebarBg: 'bg-[#0f172a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.18]',
-    sidebarActive: 'bg-white/[0.22] text-white',
-    sidebarText: 'text-slate-300',
+    sidebarHover: 'hover:bg-white/[0.20]',
+    sidebarActive: 'bg-white/[0.25] text-white',
+    sidebarText: 'text-slate-200',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
     brandLetterColor: 'text-white',
@@ -153,9 +153,9 @@ const THEMES: AppTheme[] = [
     emoji: '⚓',
     sidebarBg: 'bg-[#0c1929]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-teal-500/[0.20]',
-    sidebarActive: 'bg-teal-500/[0.25] text-teal-300',
-    sidebarText: 'text-slate-400',
+    sidebarHover: 'hover:bg-teal-500/[0.25]',
+    sidebarActive: 'bg-teal-500/[0.30] text-white',
+    sidebarText: 'text-slate-300',
     brandBg: 'bg-teal-500',
     brandText: 'text-teal-400',
     brandLetterColor: 'text-white',
@@ -175,9 +175,9 @@ const THEMES: AppTheme[] = [
     emoji: '🪨',
     sidebarBg: 'bg-[#1a1a1a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.16]',
-    sidebarActive: 'bg-amber-500/[0.20] text-amber-300',
-    sidebarText: 'text-neutral-400',
+    sidebarHover: 'hover:bg-white/[0.20]',
+    sidebarActive: 'bg-amber-500/[0.25] text-white',
+    sidebarText: 'text-neutral-300',
     brandBg: 'bg-amber-600',
     brandText: 'text-amber-500',
     brandLetterColor: 'text-white',
@@ -197,9 +197,9 @@ const THEMES: AppTheme[] = [
     emoji: '🌙',
     sidebarBg: 'bg-gray-950',
     sidebarBorder: 'border-gray-800',
-    sidebarHover: 'hover:bg-gray-600',
-    sidebarActive: 'bg-gray-600 text-white',
-    sidebarText: 'text-gray-400',
+    sidebarHover: 'hover:bg-white/[0.18]',
+    sidebarActive: 'bg-white/[0.22] text-white',
+    sidebarText: 'text-gray-300',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
     brandLetterColor: 'text-white',
@@ -219,9 +219,9 @@ const THEMES: AppTheme[] = [
     emoji: '👑',
     sidebarBg: 'bg-[#0F0F1A]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-[#1a3a6e]/80',
+    sidebarHover: 'hover:bg-[#1a3a6e]',
     sidebarActive: 'bg-[#1a3a6e] text-white',
-    sidebarText: 'text-slate-400',
+    sidebarText: 'text-slate-300',
     brandBg: 'bg-amber-400',
     brandText: 'text-amber-400',
     brandLetterColor: 'text-white',
@@ -2278,7 +2278,7 @@ export default function App() {
                         navigateTo(item.name);
                         setSidebarOpen(false);
                       }}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                      className={`flex items-center ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
                         isActive
                           ? `${currentTheme.sidebarActive} font-bold`
                           : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
@@ -2286,7 +2286,7 @@ export default function App() {
                     >
                       {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full ${currentTheme.brandBg}`}></span>}
                       <span className="text-base w-6 text-center flex-shrink-0 leading-none">{item.icon}</span>
-                      <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
+                      {!sidebarCollapsed && <span className="truncate">{t(`nav.${item.key}` as TranslationKey)}</span>}
                     </button>
                     </Tooltip>
                   );
