@@ -1,7 +1,8 @@
 /**
  * StampOverlay - Reusable company stamp image overlay for PDFs.
- * Supports free drag-and-drop positioning in addition to preset positions.
- * The stamp can be dragged directly on the preview to place it anywhere.
+ * Uses PIXEL-BASED positioning within the full scrollable area (not percentages).
+ * This ensures the stamp can be dragged ANYWHERE on the entire page, including
+ * below the fold in scrollable containers.
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
@@ -17,17 +18,6 @@ interface StampOverlayProps {
   containerId?: string;
 }
 
-const presetClasses: Record<StampPositionPreset, string> = {
-  'bottom-right': 'bottom-8 right-8',
-  'bottom-left': 'bottom-8 left-8',
-  'bottom-center': 'bottom-8 left-1/2 -translate-x-1/2',
-  'top-right': 'top-20 right-8',
-};
-
-function isPreset(pos: StampPosition): pos is StampPositionPreset {
-  return typeof pos === 'string';
-}
-
 function isCustom(pos: StampPosition): pos is StampPositionCustom {
   return typeof pos === 'object' && pos !== null && 'x' in pos && 'y' in pos;
 }
@@ -40,86 +30,103 @@ export default function StampOverlay({
   containerId = 'print-area',
 }: StampOverlayProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
+  const [pixelPos, setPixelPos] = useState<{ x: number; y: number } | null>(null);
   const stampRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
-  // Clear local dragPos when parent position prop changes (sync with external state)
+  // Convert a StampPosition to pixel coords within the container
+  const posToPixels = useCallback((): { x: number; y: number } => {
+    const container = document.getElementById(containerId);
+    if (!container) return { x: 0, y: 0 };
+    const w = container.scrollWidth;
+    const h = container.scrollHeight;
+
+    if (isCustom(position)) {
+      // Custom positions are stored as percentages — convert to pixels
+      return {
+        x: (position.x / 100) * w,
+        y: (position.y / 100) * h,
+      };
+    }
+
+    // Convert presets to pixel positions
+    switch (position) {
+      case 'bottom-right': return { x: w - 180, y: h - 180 };
+      case 'bottom-left': return { x: 20, y: h - 180 };
+      case 'bottom-center': return { x: w / 2 - 80, y: h - 180 };
+      case 'top-right': return { x: w - 180, y: 80 };
+      default: return { x: w - 180, y: h - 180 };
+    }
+  }, [position, containerId]);
+
+  // Clear pixel override when position prop changes externally
   useEffect(() => {
-    setDragPos(null);
+    setPixelPos(null);
   }, [position]);
 
-  // Get the current position as percentages
-  const getPercentPos = (): { x: number; y: number } => {
-    if (isCustom(position)) return position;
-    // Convert presets to approximate percentages
-    switch (position) {
-      case 'bottom-right': return { x: 85, y: 85 };
-      case 'bottom-left': return { x: 5, y: 85 };
-      case 'bottom-center': return { x: 50, y: 85 };
-      case 'top-right': return { x: 85, y: 10 };
-      default: return { x: 85, y: 85 };
-    }
-  };
+  // Get the current pixel position
+  const currentPos = pixelPos || posToPixels();
 
-  const currentPos = dragPos || getPercentPos();
-
-  // Mouse/touch handlers for dragging
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
     const container = document.getElementById(containerId);
     if (!container || !stampRef.current) return;
-    const rect = container.getBoundingClientRect();
-    const stampRect = stampRef.current.getBoundingClientRect();
-    // Use visible rect dimensions for 1:1 drag feel (not scrollHeight)
+    // Store the scroll offset at drag start so we can compensate during move
+    const scrollTop = container.scrollTop;
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      origX: ((stampRect.left - rect.left) / rect.width) * 100,
-      origY: ((stampRect.top - rect.top) / rect.height) * 100,
+      origX: currentPos.x,
+      origY: currentPos.y - scrollTop, // Adjust for current scroll position
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [containerId]);
+  }, [containerId, currentPos]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging || !dragStartRef.current) return;
     e.preventDefault();
     const container = document.getElementById(containerId);
     if (!container) return;
-    const rect = container.getBoundingClientRect();
     const dx = e.clientX - dragStartRef.current.startX;
     const dy = e.clientY - dragStartRef.current.startY;
-    const newX = dragStartRef.current.origX + (dx / rect.width) * 100;
-    const newY = dragStartRef.current.origY + (dy / rect.height) * 100;
-    // Clamp to container bounds (0-95% to keep stamp visible)
-    const clampedX = Math.max(0, Math.min(95, newX));
-    const clampedY = Math.max(0, Math.min(95, newY));
-    setDragPos({ x: clampedX, y: clampedY });
+    // Add current scroll offset so stamp position is in scrollable-area coords
+    const scrollTop = container.scrollTop;
+    const newX = dragStartRef.current.origX + dx;
+    const newY = dragStartRef.current.origY + dy + scrollTop;
+    // Clamp to container bounds
+    const clampedX = Math.max(0, Math.min(container.scrollWidth - 40, newX));
+    const clampedY = Math.max(0, Math.min(container.scrollHeight - 40, newY));
+    setPixelPos({ x: clampedX, y: clampedY });
   }, [isDragging, containerId]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return;
     e.preventDefault();
     setIsDragging(false);
-    if (dragPos && onPositionChange) {
-      onPositionChange({ x: dragPos.x, y: dragPos.y });
+    if (pixelPos && onPositionChange) {
+      // Convert pixel position back to percentages for storage
+      const container = document.getElementById(containerId);
+      if (container) {
+        const pctX = (pixelPos.x / container.scrollWidth) * 100;
+        const pctY = (pixelPos.y / container.scrollHeight) * 100;
+        onPositionChange({ x: pctX, y: pctY });
+      }
     }
-    // Clear local drag state so the next drag starts fresh from the synced position
-    setDragPos(null);
+    setPixelPos(null);
     dragStartRef.current = null;
-  }, [isDragging, dragPos, onPositionChange]);
+  }, [isDragging, pixelPos, onPositionChange, containerId]);
 
   if (!visible) return null;
 
   const style: React.CSSProperties = {
     position: 'absolute',
-    left: `${currentPos.x}%`,
-    top: `${currentPos.y}%`,
+    left: `${currentPos.x}px`,
+    top: `${currentPos.y}px`,
     opacity,
     cursor: isDragging ? 'grabbing' : 'grab',
-    zIndex: 20,
+    zIndex: 9999,
     touchAction: 'none',
     userSelect: 'none',
     transition: isDragging ? 'none' : 'left 0.15s ease, top 0.15s ease',
