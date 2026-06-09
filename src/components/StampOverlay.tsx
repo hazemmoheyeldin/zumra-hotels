@@ -44,6 +44,11 @@ export default function StampOverlay({
   const stampRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
+  // Clear local dragPos when parent position prop changes (sync with external state)
+  useEffect(() => {
+    setDragPos(null);
+  }, [position]);
+
   // Get the current position as percentages
   const getPercentPos = (): { x: number; y: number } => {
     if (isCustom(position)) return position;
@@ -104,6 +109,8 @@ export default function StampOverlay({
     if (dragPos && onPositionChange) {
       onPositionChange({ x: dragPos.x, y: dragPos.y });
     }
+    // Clear local drag state so the next drag starts fresh from the synced position
+    setDragPos(null);
     dragStartRef.current = null;
   }, [isDragging, dragPos, onPositionChange]);
 
