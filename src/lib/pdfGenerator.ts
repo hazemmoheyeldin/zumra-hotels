@@ -1024,11 +1024,41 @@ export const exportPDF = async (
     return await sharePDF(blob, cleanName);
   }
 
-  // Desktop: direct download — no preview overlay that could interfere
+  // Desktop: open native "Save As" dialog so user chooses download location
+  return await savePDFWithPicker(blob, cleanName);
+};
+
+/**
+ * Saves a PDF using the native "Save As" file picker dialog (File System Access API).
+ * Falls back to standard auto-download on browsers that don't support it.
+ */
+const savePDFWithPicker = async (blob: Blob, filename: string): Promise<boolean> => {
+  // Try native Save As dialog (Chrome, Edge, Opera)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [{
+          description: 'PDF Document',
+          accept: { 'application/pdf': ['.pdf'] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (e: any) {
+      // User cancelled the dialog — not an error
+      if (e?.name === 'AbortError') return true;
+      console.warn('[savePDFWithPicker] File picker failed, falling back:', e);
+    }
+  }
+
+  // Fallback: standard download link
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = cleanName;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
