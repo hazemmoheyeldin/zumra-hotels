@@ -6,7 +6,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { StampPosition, StampPositionPreset, StampPositionCustom } from '../types';
-import stampImg from '../assets/stamp.png';
+import stampImg from '../assets/stamp-opt.png';
 
 interface StampOverlayProps {
   visible: boolean;

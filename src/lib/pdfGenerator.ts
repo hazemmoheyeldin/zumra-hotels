@@ -46,8 +46,8 @@ const compressionCache = new Map<string, string>();
  */
 export const compressImagesForPrint = async (
   containerId: string,
-  maxWidth: number = 600,
-  quality: number = 0.72
+  maxWidth: number = 300,
+  quality: number = 0.65
 ): Promise<void> => {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -99,6 +99,59 @@ export const compressImagesForPrint = async (
     }
   });
 
+  await Promise.all(promises);
+};
+
+/**
+ * Inline-compresses all images in the container that don't already have a
+ * `data-compressed-src` attribute. Resizes to max 300px wide and converts
+ * to JPEG at 0.7 quality. Used as a fallback for images not pre-processed
+ * by compressImagesForPrint().
+ */
+const inlineCompressImages = async (
+  container: HTMLElement,
+  maxWidth: number = 300,
+  quality: number = 0.7
+): Promise<void> => {
+  const images = container.querySelectorAll('img') as NodeListOf<HTMLImageElement>;
+  const promises = Array.from(images).map(async (img) => {
+    // Skip if already has compressed version or is empty
+    if (img.getAttribute('data-compressed-src') || !img.src) return;
+    // Skip if already a small data URL
+    if (img.src.startsWith('data:image/jpeg') && img.src.length < 50000) return;
+
+    try {
+      if (compressionCache.has(img.src)) {
+        img.setAttribute('data-compressed-src', compressionCache.get(img.src)!);
+        return;
+      }
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = reject;
+        image.src = img.src;
+      });
+      // Skip tiny images (icons, spacers)
+      if (image.width < 20 || image.height < 20) return;
+      const scale = Math.min(1, maxWidth / image.width);
+      const w = Math.round(image.width * scale);
+      const h = Math.round(image.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(image, 0, 0, w, h);
+      const compressedUrl = canvas.toDataURL('image/jpeg', quality);
+      compressionCache.set(img.src, compressedUrl);
+      img.setAttribute('data-compressed-src', compressedUrl);
+    } catch {
+      // Silently skip CORS-blocked or broken images
+    }
+  });
   await Promise.all(promises);
 };
 
@@ -519,8 +572,8 @@ const generatePDFBlob = async (
   captureWidth?: number
 ): Promise<Blob | null> => {
   const landscape = options?.landscape || false;
-  const jpegQuality = options?.jpegQuality ?? 0.78;
-  const scale = options?.scale ?? 1.5;
+  const jpegQuality = options?.jpegQuality ?? 0.65;
+  const scale = options?.scale ?? 1.0;
   const hiddenElements: { el: HTMLElement; origDisplay: string }[] = [];
   const hiddenSiblings: { el: HTMLElement; origVisibility: string; origDisplay: string }[] = [];
   let origMaxHeight = '', origOverflow = '', origOverflowX = '';
@@ -600,6 +653,32 @@ const generatePDFBlob = async (
     // Force reflow so all style changes are applied before capture
     void element.offsetHeight;
 
+    // CRITICAL: Swap images to compressed JPEG before capture.
+    // This replaces high-res assets (500KB+ logo/stamp) with optimized versions
+    // so the screenshot capture embeds small images instead of full-resolution bitmaps.
+    const swappedImages: { el: HTMLImageElement; origSrc: string }[] = [];
+    element.querySelectorAll('img').forEach(img => {
+      const compressed = img.getAttribute('data-compressed-src');
+      if (compressed && img.src !== compressed) {
+        swappedImages.push({ el: img, origSrc: img.src });
+        img.src = compressed;
+      }
+    });
+    // Also inline-compress any images that weren't pre-processed
+    await inlineCompressImages(element);
+    // Re-collect after inline compression
+    element.querySelectorAll('img').forEach(img => {
+      const compressed = img.getAttribute('data-compressed-src');
+      if (compressed && img.src !== compressed && !swappedImages.some(s => s.el === img)) {
+        swappedImages.push({ el: img, origSrc: img.src });
+        img.src = compressed;
+      }
+    });
+    // Allow swapped images to load
+    if (swappedImages.length > 0) {
+      await new Promise(r => setTimeout(r, 100));
+    }
+
     // Capture as PNG (html-to-image uses SVG foreignObject — native text rendering)
     const dataUrl = await toPng(element, {
       pixelRatio: scale,
@@ -612,6 +691,10 @@ const generatePDFBlob = async (
         return true;
       },
     });
+
+    // Restore swapped image sources
+    swappedImages.forEach(({ el, origSrc }) => { el.src = origSrc; });
+    swappedImages.length = 0;
 
     // Restore element to its original position in the DOM
     if (origParent) {
@@ -666,6 +749,13 @@ const generatePDFBlob = async (
     const pageHeightInImgPx = usableHeight / scaleFactor;
     const numPages = Math.max(1, Math.ceil(img.height / pageHeightInImgPx));
 
+    // Downscale target: max 1200px wide for embedded page images.
+    // This avoids embedding 1350px+ wide images when 1200px is more than
+    // sufficient for A4 at 96 DPI (usable ~555pt ≈ 740px at 96dpi).
+    const MAX_PAGE_WIDTH = 1200;
+    const downscaleRatio = Math.min(1, MAX_PAGE_WIDTH / img.width);
+    const targetPageWidth = Math.round(img.width * downscaleRatio);
+
     // Draw image to source canvas
     const sourceCanvas = document.createElement('canvas');
     sourceCanvas.width = img.width;
@@ -688,13 +778,17 @@ const generatePDFBlob = async (
       if (srcHeight <= 0) break;
 
       const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = img.width;
-      pageCanvas.height = srcHeight;
+      const pageWidth = targetPageWidth;
+      const pageHeight = Math.round(srcHeight * downscaleRatio);
+      pageCanvas.width = pageWidth;
+      pageCanvas.height = pageHeight;
       const ctx = pageCanvas.getContext('2d');
       if (!ctx) continue;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-      ctx.drawImage(sourceCanvas, 0, srcY, img.width, srcHeight, 0, 0, img.width, srcHeight);
+      ctx.fillRect(0, 0, pageWidth, pageHeight);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(sourceCanvas, 0, srcY, img.width, srcHeight, 0, 0, pageWidth, pageHeight);
 
       const imgData = pageCanvas.toDataURL('image/jpeg', jpegQuality);
       pdf.addImage(imgData, 'JPEG', MARGIN_PT, MARGIN_PT, usableWidth, srcHeight * scaleFactor, undefined, 'FAST');

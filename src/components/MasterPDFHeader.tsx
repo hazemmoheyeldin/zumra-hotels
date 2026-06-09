@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import logoUrl from '../assets/zumra-logo.png';
+import logoUrl from '../assets/zumra-logo-opt.png';
 
 interface MasterPDFHeaderProps {
   /** Optional content rendered below the header bar, right-aligned (e.g. document title badge) */
