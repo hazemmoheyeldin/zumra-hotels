@@ -19,7 +19,7 @@ const STAMP_POSITIONS: StampPosition[] = ['bottom-right', 'bottom-left', 'bottom
 
 export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: ConsolidatedInvoicePDFProps) {
   const stampDefaults = getStampSettings();
-  const [stampVisible, setStampVisible] = useState(invoice.showStamp ?? stampDefaults.enabled);
+  const [stampVisible, setStampVisible] = useState(invoice.showStamp ?? false); // Always default to off
   const [stampPosition, setStampPosition] = useState<StampPosition>(invoice.stampPosition ?? stampDefaults.position);
   const [isGenerating, setIsGenerating] = useState(false);
 

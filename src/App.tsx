@@ -246,6 +246,7 @@ export default function App() {
   // Monotonic key that increments on every navigation — forces remount even on same-tab re-click
   const [tabKey, setTabKey] = useState(0);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarRef = React.useRef<HTMLElement>(null);
   const { t, lang } = useLang();
   const toast = useToast();
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -2108,6 +2109,18 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [currentUser]);
 
+  // Desktop: Click outside the sidebar to collapse it (only when expanded)
+  useEffect(() => {
+    if (!currentUser || sidebarCollapsed) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
+        setSidebarCollapsed(true);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [currentUser, sidebarCollapsed]);
+
   const navItems = [
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard', tip: 'Overview of bookings, revenue & occupancy' },
     { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar', tip: 'Visual calendar of all reservations' },
@@ -2183,7 +2196,7 @@ export default function App() {
   const isDarkSidebar = currentTheme.isDark;
 
   return (
-    <div className={`min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none ${currentTheme.mainBg}`}>
+    <div className={`min-h-screen font-sans flex flex-col print:bg-white print:min-h-0 select-none overflow-x-hidden ${currentTheme.mainBg}`}>
       
       {/* Decorative top accent bar (mobile only) */}
       <div className={`h-0.5 bg-gradient-to-r ${currentTheme.topBarGradient} w-full no-print absolute top-0 left-0 right-0 md:hidden z-[60]`}></div>
@@ -2235,8 +2248,11 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
       )}
 
+      {/* Desktop sidebar click-outside-to-close (only when expanded) */}
+      {/* Implemented via document-level click listener below */}
+
       {/* Sidebar Navigation */}
-      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-72'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-300 ease-in-out will-change-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside ref={sidebarRef} className={`fixed z-[60] h-screen top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-72'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out will-change-[width,transform] shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Sidebar Top Bar — minimal, no branding */}
         <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
           {/* Desktop collapse toggle */}
@@ -2346,7 +2362,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className={`flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 ${currentTheme.mainBg}`}>
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-[margin-left] duration-300 ease-in-out ${currentTheme.mainBg} ${sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-72'}`}>
         
         {/* Top Header Bar */}
         <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print`}>

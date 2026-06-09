@@ -42,7 +42,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
   const { renderInsertZone, PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
   const stampDefaults = getStampSettings();
-  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampVisible, setStampVisible] = useState(false); // Always default to off
   const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
   
   // Format Helper for dates as standard DD/MM/YYYY

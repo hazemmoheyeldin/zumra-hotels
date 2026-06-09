@@ -73,13 +73,12 @@ export default function StampOverlay({
     if (!container || !stampRef.current) return;
     const rect = container.getBoundingClientRect();
     const stampRect = stampRef.current.getBoundingClientRect();
-    // Account for scroll offset so stamp can be placed anywhere in scrollable area
-    const scrollTop = container.scrollTop;
+    // Use visible rect dimensions for 1:1 drag feel (not scrollHeight)
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
       origX: ((stampRect.left - rect.left) / rect.width) * 100,
-      origY: ((stampRect.top - rect.top + scrollTop) / container.scrollHeight) * 100,
+      origY: ((stampRect.top - rect.top) / rect.height) * 100,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }, [containerId]);
@@ -90,12 +89,10 @@ export default function StampOverlay({
     const container = document.getElementById(containerId);
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const scrollTop = container.scrollTop;
     const dx = e.clientX - dragStartRef.current.startX;
     const dy = e.clientY - dragStartRef.current.startY;
     const newX = dragStartRef.current.origX + (dx / rect.width) * 100;
-    // Use scrollHeight for Y so percentage maps to full scrollable area
-    const newY = dragStartRef.current.origY + (dy / container.scrollHeight) * 100;
+    const newY = dragStartRef.current.origY + (dy / rect.height) * 100;
     // Clamp to container bounds (0-95% to keep stamp visible)
     const clampedX = Math.max(0, Math.min(95, newX));
     const clampedY = Math.max(0, Math.min(95, newY));

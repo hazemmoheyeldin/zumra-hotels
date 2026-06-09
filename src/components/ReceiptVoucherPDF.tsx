@@ -24,7 +24,7 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
   const [isGenerating, setIsGenerating] = useState(false);
   const [printError, setPrintError] = useState(false);
   const stampDefaults = getStampSettings();
-  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampVisible, setStampVisible] = useState(false); // Always default to off
   const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
 
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)

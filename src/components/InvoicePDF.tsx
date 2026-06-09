@@ -18,7 +18,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
   const totals = getReservationTotals(reservation);
   const { t, lang } = useLang();
   const stampDefaults = getStampSettings();
-  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampVisible, setStampVisible] = useState(false); // Always default to off
   const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
 
   // Pre-compress images for smaller PDF file size (WhatsApp-friendly)
