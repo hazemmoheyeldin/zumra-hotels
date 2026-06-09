@@ -339,9 +339,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
           <MasterPDFHeader />
 
           {/* Title bar */}
-          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
-            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">{t('srpdf.clientStatementTitle')}</h1>
-            <h1 className="text-xl font-bold text-[#0f172a] font-serif">{isSupplier ? 'كشف حساب المورد' : 'كشف حساب العميل'}</h1>
+          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2 flex-nowrap gap-4">
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide whitespace-nowrap flex-shrink-0">{t('srpdf.clientStatementTitle')}</h1>
+            <h1 className="text-xl font-bold text-[#0f172a] font-serif whitespace-nowrap flex-shrink-0">{isSupplier ? 'كشف حساب المورد' : 'كشف حساب العميل'}</h1>
           </div>
 
           {/* Statement metadata matrix */}
@@ -472,8 +472,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
           {(pendingRequests.length > 0 || Math.abs(reconciliationDiff) > 0.01) && (
             <div className="mb-4 no-page-break">
               {/* Section Header */}
-              <div className="flex justify-between items-baseline mb-2 mt-2 border-b-2 border-amber-400 pb-1.5">
-                <h2 className="text-sm font-extrabold text-[#0f172a] font-sans tracking-wide uppercase">
+              <div className="flex justify-between items-baseline mb-2 mt-2 border-b-2 border-amber-400 pb-1.5 flex-nowrap gap-4">
+                <h2 className="text-sm font-extrabold text-[#0f172a] font-sans tracking-wide uppercase whitespace-nowrap flex-shrink-0">
                   {isSupplier ? 'Pending Supplier Requests' : 'Pending Client Requests'}
                 </h2>
                 <h2 className="text-sm font-bold text-[#0f172a] font-serif">

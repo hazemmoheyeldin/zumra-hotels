@@ -118,9 +118,9 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           <MasterPDFHeader />
 
           {/* Report Title Section */}
-          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
-            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide">{t('arpdf.titleEn')}</h1>
-            <h1 className="text-xl font-bold text-[#0f172a] font-serif">الوصول خلال فترة</h1>
+          <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2 flex-nowrap gap-4">
+            <h1 className="text-xl font-extrabold text-[#0f172a] font-sans tracking-wide whitespace-nowrap flex-shrink-0">{t('arpdf.titleEn')}</h1>
+            <h1 className="text-xl font-bold text-[#0f172a] font-serif whitespace-nowrap flex-shrink-0">الوصول خلال فترة</h1>
           </div>
 
           {/* Period Details Bar */}
