@@ -2258,7 +2258,7 @@ export default function App() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col overflow-x-auto">
+        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col">
           {/* Categorized groups with subtle headers */}
           {Object.entries(navGroups).map(([group, items], groupIdx) => (
             <div key={group} className={groupIdx > 0 ? 'mt-4' : ''}>
@@ -2268,7 +2268,7 @@ export default function App() {
                   <div className={`flex-1 h-px ${isDarkSidebar ? 'bg-white/[0.06]' : 'bg-slate-200'}`}></div>
                 </div>
               )}
-              <div className="space-y-1">
+              <div className="flex flex-col gap-1">
                 {items.map((item) => {
                   const isActive = activeTab === item.name;
                   return (
@@ -2278,7 +2278,7 @@ export default function App() {
                         navigateTo(item.name);
                         setSidebarOpen(false);
                       }}
-                      className={`flex items-center ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                      className={`flex items-center w-full ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-3 rounded-xl text-[13px] font-semibold transition-all duration-150 relative group ${
                         isActive
                           ? `${currentTheme.sidebarActive} font-bold`
                           : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
