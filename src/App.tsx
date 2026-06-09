@@ -109,8 +109,8 @@ const THEMES: AppTheme[] = [
     emoji: '✨',
     sidebarBg: 'bg-[#0f172a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.12]',
-    sidebarActive: 'bg-white/[0.14] text-white',
+    sidebarHover: 'hover:bg-white/[0.18]',
+    sidebarActive: 'bg-white/[0.22] text-white',
     sidebarText: 'text-slate-300',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
@@ -153,8 +153,8 @@ const THEMES: AppTheme[] = [
     emoji: '⚓',
     sidebarBg: 'bg-[#0c1929]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-teal-500/[0.14]',
-    sidebarActive: 'bg-teal-500/[0.18] text-teal-300',
+    sidebarHover: 'hover:bg-teal-500/[0.20]',
+    sidebarActive: 'bg-teal-500/[0.25] text-teal-300',
     sidebarText: 'text-slate-400',
     brandBg: 'bg-teal-500',
     brandText: 'text-teal-400',
@@ -175,8 +175,8 @@ const THEMES: AppTheme[] = [
     emoji: '🪨',
     sidebarBg: 'bg-[#1a1a1a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.10]',
-    sidebarActive: 'bg-amber-500/[0.14] text-amber-300',
+    sidebarHover: 'hover:bg-white/[0.16]',
+    sidebarActive: 'bg-amber-500/[0.20] text-amber-300',
     sidebarText: 'text-neutral-400',
     brandBg: 'bg-amber-600',
     brandText: 'text-amber-500',
@@ -197,8 +197,8 @@ const THEMES: AppTheme[] = [
     emoji: '🌙',
     sidebarBg: 'bg-gray-950',
     sidebarBorder: 'border-gray-800',
-    sidebarHover: 'hover:bg-gray-700',
-    sidebarActive: 'bg-gray-700 text-white',
+    sidebarHover: 'hover:bg-gray-600',
+    sidebarActive: 'bg-gray-600 text-white',
     sidebarText: 'text-gray-400',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
@@ -219,8 +219,8 @@ const THEMES: AppTheme[] = [
     emoji: '👑',
     sidebarBg: 'bg-[#0F0F1A]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-[#0F3460]/60',
-    sidebarActive: 'bg-[#0F3460]/70 text-white',
+    sidebarHover: 'hover:bg-[#1a3a6e]/80',
+    sidebarActive: 'bg-[#1a3a6e] text-white',
     sidebarText: 'text-slate-400',
     brandBg: 'bg-amber-400',
     brandText: 'text-amber-400',
@@ -2193,13 +2193,13 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-72'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-300 ease-in-out will-change-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
-        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-1' : 'px-4'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
-          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-0.5' : 'p-2'} rounded-xl shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition-all duration-200 ${sidebarCollapsed ? 'w-full' : ''}`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" className={sidebarCollapsed ? 'overflow-hidden' : ''} />
+        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-1' : 'px-4'} py-3 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
+          <button className={`flex items-center justify-center flex-shrink-0 cursor-pointer transition-all duration-200 ${sidebarCollapsed ? 'w-full p-0.5' : ''}`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xxl'} variant={isDarkSidebar ? 'light' : 'dark'} className={sidebarCollapsed ? 'overflow-hidden' : ''} />
           </button>
           {!sidebarCollapsed && (
-            <button className="cursor-pointer mt-2" onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-              <p className="text-[15px] font-extrabold tracking-widest leading-none text-amber-500">RMS</p>
+            <button className="cursor-pointer mt-1" onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+              <p className="text-[14px] font-extrabold tracking-widest leading-none text-amber-500">RMS</p>
             </button>
           )}
           {/* Mobile close */}
@@ -2224,40 +2224,32 @@ export default function App() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col gap-4 overflow-x-auto">
-          {Object.entries(navGroups).map(([group, items]) => (
-            <div key={group}>
-              {!sidebarCollapsed && (
-                <div className="px-3 mb-1.5">
-                  <span className={`text-[9px] font-bold uppercase tracking-[0.18em] ${isDarkSidebar ? 'text-slate-500' : 'text-slate-400'}`}>{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {items.map((item) => {
-                  const isActive = activeTab === item.name;
-                  return (
-                    <Tooltip key={item.name} label={item.tip} position="right">
-                    <button
-                      onClick={() => {
-                        navigateTo(item.name);
-                        setSidebarOpen(false);
-                      }}
-                      className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
-                        isActive
-                          ? `${currentTheme.sidebarActive} font-bold`
-                          : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
-                      }`}
-                    >
-                      {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${currentTheme.brandBg}`}></span>}
-                      <span className="text-sm w-5 text-center flex-shrink-0">{item.icon}</span>
-                      <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
-                    </button>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <nav className="flex-1 py-2 overflow-y-auto no-scrollbar px-3 flex flex-col overflow-x-auto">
+          {/* Flat list of all nav items */}
+          <div className="space-y-0.5">
+            {Object.values(navGroups).flat().map((item) => {
+              const isActive = activeTab === item.name;
+              return (
+                <Tooltip key={item.name} label={item.tip} position="right">
+                <button
+                  onClick={() => {
+                    navigateTo(item.name);
+                    setSidebarOpen(false);
+                  }}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                    isActive
+                      ? `${currentTheme.sidebarActive} font-bold`
+                      : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
+                  }`}
+                >
+                  {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${currentTheme.brandBg}`}></span>}
+                  <span className="text-sm w-5 text-center flex-shrink-0">{item.icon}</span>
+                  <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
+                </button>
+                </Tooltip>
+              );
+            })}
+          </div>
           {/* Mobile logout trigger */}
           <button
             onClick={() => { setSidebarOpen(false); handleSetCurrentUser(null as any); }}
