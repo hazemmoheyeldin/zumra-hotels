@@ -259,10 +259,10 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
-          <div className="text-center flex flex-col items-center justify-center gap-1">
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10" />
-            <div>
-              <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+          <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
+            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
+            <div className="m-0">
+              <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Reset</p>
             </div>
           </div>
@@ -340,10 +340,10 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
-          <div className="text-center flex flex-col items-center justify-center gap-1">
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10" />
-            <div>
-              <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+          <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
+            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
+            <div className="m-0">
+              <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Change Required</p>
             </div>
           </div>
@@ -455,13 +455,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
         
         {/* Branding header */}
-        <div className="text-center flex flex-col items-center justify-center gap-1">
-          <div className="relative flex items-center justify-center">
+        <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
+          <div className="relative flex items-center justify-center m-0 p-0">
             <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-xl scale-150"></div>
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10" />
+            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
+          <div className="m-0">
+            <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
             <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">{t('login.operationsPortal')}</p>
           </div>
         </div>
