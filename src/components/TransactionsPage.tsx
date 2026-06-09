@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction, Agent, Account, Reservation } from '../types';
 import ReceiptVoucherPDF from './ReceiptVoucherPDF';
+import Tooltip from './Tooltip';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 import { exportToExcel } from '../lib/storage';
@@ -339,25 +340,30 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
           <p className="text-xs text-slate-500 font-serif">{t('trans.ledgerSubtitle')}</p>
         </div>
         <div className="flex gap-2">
+          <Tooltip label="Export transactions in Excel format" position="bottom">
           <button
             onClick={handleExportExcel}
             className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition border border-emerald-200"
-            title="Export to Excel"
           >
             📊 Excel
           </button>
+          </Tooltip>
+          <Tooltip label="Export transactions as CSV file" position="bottom">
           <button
             onClick={handleExportCSV}
             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition"
           >
             ⬇️ {t('trans.exportCSV')}
           </button>
+          </Tooltip>
+          <Tooltip label={showAddForm ? 'Go back to transaction list' : 'Record a new financial transaction'} position="bottom">
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition shadow"
           >
             {showAddForm ? t('trans.viewReceipts') : t('trans.recordNew')}
           </button>
+          </Tooltip>
         </div>
       </div>
 

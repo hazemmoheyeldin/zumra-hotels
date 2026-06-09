@@ -419,3 +419,96 @@ tbody tr {
 button, [role="button"], select {
   min-height: 36px;
 }
+
+/* ============================================
+   TOOLTIP SYSTEM
+   ============================================ */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-bubble {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #fff;
+  background: #1e293b;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.10);
+  animation: tooltipFadeIn 0.15s ease-out;
+  letter-spacing: 0.01em;
+}
+
+/* Arrow via pseudo-element */
+.tooltip-bubble::after {
+  content: '';
+  position: absolute;
+  border: 5px solid transparent;
+}
+
+/* Positions */
+.tooltip-pos-top {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tooltip-pos-top::after {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top-color: #1e293b;
+}
+
+.tooltip-pos-bottom {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tooltip-pos-bottom::after {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-bottom-color: #1e293b;
+}
+
+.tooltip-pos-left {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tooltip-pos-left::after {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left-color: #1e293b;
+}
+
+.tooltip-pos-right {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tooltip-pos-right::after {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right-color: #1e293b;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Hide tooltips on touch devices (no hover) */
+@media (hover: none), (max-width: 768px) {
+  .tooltip-bubble {
+    display: none !important;
+  }
+}

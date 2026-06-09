@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import logoUrl from '../assets/zumra-logo.png';
+import logoUrl from '../assets/zumra-logo-opt.png';
 
 interface ZumraLogoProps {
   className?: string;
@@ -16,11 +16,11 @@ export default function ZumraLogo({ className = '', size = 'md', variant = 'gold
   // Size mapping: height in pixels for each variant
   // New logo is wide (icon + text), so heights are tuned for prominence
   const sizeMap: Record<string, { h: number; printH: number }> = {
-    sm:  { h: 44,  printH: 56 },
-    md:  { h: 56,  printH: 72 },
-    lg:  { h: 80,  printH: 100 },
-    xl:  { h: 120, printH: 140 },
-    xxl: { h: 220, printH: 260 },
+    sm:  { h: 48,  printH: 56 },
+    md:  { h: 64,  printH: 72 },
+    lg:  { h: 96,  printH: 100 },
+    xl:  { h: 140, printH: 140 },
+    xxl: { h: 280, printH: 260 },
   };
 
   const { h } = sizeMap[size] || sizeMap.md;

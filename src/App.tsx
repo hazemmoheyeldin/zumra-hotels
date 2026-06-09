@@ -37,6 +37,7 @@ const ExpensesPage = lazy(() => import('./components/ExpensesPage'));
 
 // Eagerly loaded (needed for modals/auth flow)
 import ZumraLogo from './components/ZumraLogo';
+import Tooltip from './components/Tooltip';
 import LoginPage from './components/LoginPage';
 import InboxModal from './components/InboxModal';
 import InvoicePDF from './components/InvoicePDF';
@@ -2057,27 +2058,27 @@ export default function App() {
   }, [currentUser]);
 
   const navItems = [
-    { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard' },
-    { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar' },
-    { name: 'Analytics', icon: '📉', group: 'Overview', key: 'analytics' },
-    { name: 'Reservations', icon: '📅', group: 'Operations', key: 'reservations' },
-    { name: 'Sales', icon: '🚀', group: 'Operations', key: 'sales' },
-    { name: 'Production', icon: '📈', group: 'Operations', key: 'production' },
-    { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels' },
-    { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents' },
-    { name: 'Guests', icon: '🧳', group: 'Operations', key: 'guests' },
-    { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments' },
-    { name: 'Other Services', icon: '🌐', group: 'Operations', key: 'otherServices' },
-    { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions' },
-    { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers' },
-    { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes' },
-    { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports' },
-    { name: 'Expenses', icon: '📤', group: 'Finance', key: 'expenses' },
-    { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways' },
-    { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog' },
-    { name: 'Users', icon: '🔑', group: 'Settings', key: 'users' },
-    { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData' },
-    { name: 'Client Portal', icon: '🚪', group: 'Settings', key: 'clientPortal' },
+    { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard', tip: 'Overview of bookings, revenue & occupancy' },
+    { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar', tip: 'Visual calendar of all reservations' },
+    { name: 'Analytics', icon: '📉', group: 'Overview', key: 'analytics', tip: 'Performance charts & trends' },
+    { name: 'Reservations', icon: '📅', group: 'Operations', key: 'reservations', tip: 'Manage all bookings & reservations' },
+    { name: 'Sales', icon: '🚀', group: 'Operations', key: 'sales', tip: 'Sales pipeline & tracking' },
+    { name: 'Production', icon: '📈', group: 'Operations', key: 'production', tip: 'Room production & availability' },
+    { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels', tip: 'Hotel properties & room types' },
+    { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents', tip: 'Clients, suppliers & salespersons' },
+    { name: 'Guests', icon: '🧳', group: 'Operations', key: 'guests', tip: 'Guest directory & history' },
+    { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments', tip: 'Room allotments & block bookings' },
+    { name: 'Other Services', icon: '🌐', group: 'Operations', key: 'otherServices', tip: 'Extra services & add-ons' },
+    { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions', tip: 'All financial transactions & payments' },
+    { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers', tip: 'External bank transfers & wires' },
+    { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes', tip: 'Bank accounts & safe boxes' },
+    { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports', tip: 'Generate financial & operational reports' },
+    { name: 'Expenses', icon: '📤', group: 'Finance', key: 'expenses', tip: 'Track & manage expenses' },
+    { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways', tip: 'Online payment gateway settings' },
+    { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog', tip: 'System activity & change log' },
+    { name: 'Users', icon: '🔑', group: 'Settings', key: 'users', tip: 'Manage user accounts & permissions' },
+    { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData', tip: 'System settings & configuration' },
+    { name: 'Client Portal', icon: '🚪', group: 'Settings', key: 'clientPortal', tip: 'Client-facing portal settings' },
   ];
 
   // Auth loading screen - prevents flash of login page during session verification
@@ -2203,16 +2204,17 @@ export default function App() {
 
         {/* Desktop collapse toggle */}
         <div className="hidden md:flex px-3 pt-2">
+          <Tooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="right">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className={`flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-[10px] font-semibold transition-all duration-150 ${isDarkSidebar ? 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
-            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
           >
             <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
             {!sidebarCollapsed && <span>Collapse</span>}
           </button>
+          </Tooltip>
         </div>
 
         {/* Navigation */}
@@ -2228,9 +2230,8 @@ export default function App() {
                 {items.map((item) => {
                   const isActive = activeTab === item.name;
                   return (
+                    <Tooltip key={item.name} label={item.tip} position="right">
                     <button
-                      key={item.name}
-                      title={item.name}
                       onClick={() => {
                         navigateTo(item.name);
                         setSidebarOpen(false);
@@ -2245,6 +2246,7 @@ export default function App() {
                       <span className="text-sm w-5 text-center flex-shrink-0">{item.icon}</span>
                       <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
                     </button>
+                    </Tooltip>
                   );
                 })}
               </div>
@@ -2264,9 +2266,11 @@ export default function App() {
         {currentUser && (
           <div className={`p-3 border-t ${currentTheme.sidebarBorder} flex-shrink-0 ${sidebarCollapsed ? 'hidden md:flex md:justify-center' : 'hidden md:block'}`}>
             {sidebarCollapsed ? (
-              <button onClick={() => handleSetCurrentUser(null as any)} title="Sign Out" className={`p-2 rounded-lg transition-all text-xs ${isDarkSidebar ? 'bg-white/[0.06] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400' : 'bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-500'}`}>
+              <Tooltip label="Sign out of your session" position="right">
+              <button onClick={() => handleSetCurrentUser(null as any)} className={`p-2 rounded-lg transition-all text-xs ${isDarkSidebar ? 'bg-white/[0.06] hover:bg-rose-500/20 text-slate-400 hover:text-rose-400' : 'bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-500'}`}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
+              </Tooltip>
             ) : (
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 overflow-hidden">
@@ -2285,13 +2289,14 @@ export default function App() {
                   <p className={`text-[9px] truncate leading-tight ${isDarkSidebar ? 'text-slate-500' : 'text-slate-400'}`}>{currentUser.role}</p>
                 </div>
               </div>
+              <Tooltip label="Sign out of your session" position="top">
               <button
                 onClick={() => handleSetCurrentUser(null as any)}
-                title="Sign Out"
                 className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${isDarkSidebar ? 'text-slate-500 hover:text-rose-400 hover:bg-rose-500/10' : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50'}`}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
               </button>
+              </Tooltip>
             </div>
             )}
           </div>

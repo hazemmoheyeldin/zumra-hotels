@@ -10,6 +10,7 @@ import { useCurrency } from '../lib/CurrencyContext';
 import { useLang } from '../lib/LanguageContext';
 import { sendDailySummaryEmail, isEmailConfigured } from '../lib/email';
 import ZumraLogo from './ZumraLogo';
+import Tooltip from './Tooltip';
 import DailyOpsSheetPDF from './DailyOpsSheetPDF';
 
 interface DashboardProps {
@@ -491,6 +492,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
               className="pl-7 pr-2.5 py-2 min-h-[36px] bg-emerald-950/80 border border-emerald-700/80 rounded-xl text-[11px] text-white placeholder-emerald-300/50 focus:outline-none focus:border-amber-400 w-full sm:w-38 font-mono"
             />
           </div>
+          <Tooltip label="Create a new reservation" position="bottom">
           <button 
             onClick={() => onNavigate('Reservations', { showNewForm: true })}
             className="bg-blue-600 font-bold hover:bg-blue-700 text-white px-4 py-2 min-h-[36px] rounded-xl text-xs transition flex items-center gap-1 shadow-lg hover:scale-[1.02] active:scale-95 cursor-pointer"
@@ -498,7 +500,9 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             {t('dash.newReservation')}
           </button>
+          </Tooltip>
           {isEmailConfigured && (
+            <Tooltip label="Send a daily summary email to all stakeholders" position="bottom">
             <button
               onClick={handleSendDailySummary}
               disabled={sendingSummary}
@@ -506,6 +510,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             >
               {sendingSummary ? '⏳ Sending...' : '📧 Daily Summary'}
             </button>
+            </Tooltip>
           )}
           {/* Scheduled Reports Toggle */}
           {isEmailConfigured && (

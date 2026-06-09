@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Agent, Reservation, Account, Transaction } from '../types';
 import BulkPaymentDialog from './BulkPaymentDialog';
+import Tooltip from './Tooltip';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 
@@ -203,6 +204,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
           >
             ⬇️ Excel
           </button>
+          <Tooltip label={showForm ? 'Go back to agent directory' : 'Add a new client, supplier or salesperson'} position="bottom">
           <button
             onClick={() => {
               if (showForm) resetForm();
@@ -212,6 +214,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
           >
             {showForm ? 'View Directory' : 'Add New Agent'}
           </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -404,16 +407,28 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       {bal < 0 ? `(${Math.abs(bal).toLocaleString()})` : bal.toLocaleString()} SAR
                     </span>
                     <div className="flex gap-1">
-                      <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm" title="View Details">👁️</button>
+                      <Tooltip label="View agent details and history" position="bottom">
+                      <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm">👁️</button>
+                      </Tooltip>
                       {agent.type !== 'Supplier' && (
-                        <button onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100" title="Open Client Portal">🚪 Portal</button>
+                        <Tooltip label="Open secure client portal link" position="bottom">
+                        <button onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100">🚪 Portal</button>
+                        </Tooltip>
                       )}
-                      <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm" title="Edit">✏️</button>
+                      <Tooltip label="Edit agent details" position="bottom">
+                      <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm">✏️</button>
+                      </Tooltip>
+                      <Tooltip label="View agent audit trail" position="bottom">
                       <button onClick={() => { setAuditingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-sm">📋</button>
+                      </Tooltip>
                       {agent.type !== 'Supplier' && (
+                        <Tooltip label="Record a bulk payment for this client" position="bottom">
                         <button onClick={() => setBulkPaymentAgent(agent)} className="min-h-[36px] bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-800 font-bold px-2 rounded-lg text-[10px] border border-emerald-100">Bulk Pay</button>
+                        </Tooltip>
                       )}
+                      <Tooltip label="Delete this agent permanently" position="bottom">
                       <button onClick={() => { if (confirm('Delete this agent directory registry?')) onDeleteAgent(agent.id); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-300 hover:text-red-600 rounded-lg text-sm">🗑️</button>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>

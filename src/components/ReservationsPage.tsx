@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry, BookingTemplate } from '../types';
 import ZumraLogo from './ZumraLogo';
+import Tooltip from './Tooltip';
 import { getReservationTotals, getEgyptTime, exportToCSV, exportToExcel, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold, loadBookingTemplates, saveBookingTemplates, loadCommissions, saveCommissions, recordCommissionEntries, reverseCommissionEntries, calculateSalesPersonCommission, calculateSupplierCommission } from '../lib/storage';
 import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder, sendSupplierRateConfirmation } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
@@ -1551,41 +1552,51 @@ export default function ReservationsPage({
               <p className="text-[10px] text-slate-450 mt-0.5">{t('res.subtitle')}</p>
             </div>
             <div className="flex gap-2">
+              <Tooltip label="Export all reservation data with full details" position="bottom">
               <button
                 onClick={handleExportFullReport}
                 className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-emerald-200"
               >
                 📊 Export Full Report
               </button>
+              </Tooltip>
               {onNavigate && (
                 <>
+                  <Tooltip label="View arrival report for upcoming check-ins" position="bottom">
                   <button
                     onClick={() => onNavigate('Reports', { reportTab: 'arrival' })}
                     className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-blue-200"
                   >
                     🛫 Arrivals
                   </button>
+                  </Tooltip>
+                  <Tooltip label="View cancellation report for cancelled bookings" position="bottom">
                   <button
                     onClick={() => onNavigate('Reports', { reportTab: 'cancellation' })}
                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-rose-200"
                   >
                     ❌ Cancellations
                   </button>
+                  </Tooltip>
                 </>
               )}
+              <Tooltip label="Export data in Excel (.xlsx) format" position="bottom">
               <button
                 onClick={handleExportExcel}
                 className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-emerald-200"
-                title="Export to Excel"
               >
                 📊 Excel
               </button>
+              </Tooltip>
+              <Tooltip label="Export filtered data as CSV file" position="bottom">
               <button
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
               >
                  ⬇️ {t('res.exportCSV')}
               </button>
+              </Tooltip>
+              <Tooltip label="Create a new reservation" position="bottom">
               <button
                 onClick={() => {
                 resetForm();
@@ -1595,12 +1606,15 @@ export default function ReservationsPage({
             >
                ➕ {t('res.newReservation')}
             </button>
+            </Tooltip>
+            <Tooltip label="Manage booking templates for quick creation" position="bottom">
             <button
               onClick={() => setShowTemplates(true)}
               className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-purple-200"
             >
               📋 Templates
             </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -1717,6 +1731,7 @@ export default function ReservationsPage({
               {/* Print Action Menu (only in edit mode) */}
               {editingId && (
                 <div className="relative">
+                  <Tooltip label="Generate and download PDF documents" position="bottom">
                   <button
                     type="button"
                     onClick={() => setPrintMenuOpen(!printMenuOpen)}
@@ -1724,6 +1739,7 @@ export default function ReservationsPage({
                   >
                     🖨️ Print <span className="text-[8px]">▼</span>
                   </button>
+                  </Tooltip>
                   {printMenuOpen && (
                     <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 min-w-[160px] py-1 animate-fade-in">
                       <button
