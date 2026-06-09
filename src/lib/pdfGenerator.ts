@@ -56,6 +56,7 @@ export const compressImagesForPrint = async (
   const promises = Array.from(images).map(async (img) => {
     const src = img.src;
     if (!src || src.startsWith('data:image/jpeg')) return; // already compressed or empty
+    if (img.getAttribute('data-no-compress')) return; // skip protected assets (header, etc.)
 
     // Check cache
     if (compressionCache.has(src)) {
@@ -117,6 +118,7 @@ const inlineCompressImages = async (
   const promises = Array.from(images).map(async (img) => {
     // Skip if already has compressed version or is empty
     if (img.getAttribute('data-compressed-src') || !img.src) return;
+    if (img.getAttribute('data-no-compress')) return; // skip protected assets (header, etc.)
     // Skip if already a small data URL
     if (img.src.startsWith('data:image/jpeg') && img.src.length < 50000) return;
 

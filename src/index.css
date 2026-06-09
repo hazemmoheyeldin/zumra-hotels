@@ -180,7 +180,8 @@ tbody tr {
 
   /* ---- Logo sizing for all print modes ---- */
   /* Match the on-screen xxl size (260px) for prominent PDF output */
-  img[alt*="Zumra"] {
+  /* Exclude header.png (pre-rendered image) — it uses its own natural sizing */
+  img[alt*="Zumra"]:not([data-no-compress]) {
     height: 260px !important;
     width: auto !important;
     print-color-adjust: exact;
