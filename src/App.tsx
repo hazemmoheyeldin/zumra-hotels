@@ -2021,6 +2021,51 @@ export default function App() {
     const [calcDisplay, setCalcDisplay] = useState('0');
     const [calcExpr, setCalcExpr] = useState('');
     const [calcNewNum, setCalcNewNum] = useState(true);
+
+  // Keyboard input for the calculator
+  useEffect(() => {
+    if (!showCalc || calcTab !== 'calc') return;
+    const handleKey = (e: KeyboardEvent) => {
+      // Don't capture if user is typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const key = e.key;
+      if (/^[0-9]$/.test(key)) {
+        e.preventDefault();
+        if (calcNewNum) { setCalcDisplay(key); setCalcNewNum(false); }
+        else { setCalcDisplay(d => d === '0' ? key : d + key); }
+      } else if (key === '.') {
+        e.preventDefault();
+        if (calcNewNum) { setCalcDisplay('0.'); setCalcNewNum(false); }
+        else { setCalcDisplay(d => d.includes('.') ? d : d + '.'); }
+      } else if (key === '+') {
+        e.preventDefault(); setCalcExpr(calcExpr + calcDisplay + ' + '); setCalcNewNum(true);
+      } else if (key === '-') {
+        e.preventDefault(); setCalcExpr(calcExpr + calcDisplay + ' \u2212 '); setCalcNewNum(true);
+      } else if (key === '*') {
+        e.preventDefault(); setCalcExpr(calcExpr + calcDisplay + ' \u00d7 '); setCalcNewNum(true);
+      } else if (key === '/') {
+        e.preventDefault(); setCalcExpr(calcExpr + calcDisplay + ' \u00f7 '); setCalcNewNum(true);
+      } else if (key === 'Enter' || key === '=') {
+        e.preventDefault();
+        try {
+          const fullExpr = calcExpr + calcDisplay;
+          const evalExpr = fullExpr.replace(/\u00d7/g, '*').replace(/\u00f7/g, '/').replace(/\u2212/g, '-');
+          const result = Function('"use strict"; return (' + evalExpr + ')')();
+          setCalcExpr(fullExpr + ' =');
+          setCalcDisplay(String(Number.isFinite(result) ? parseFloat(Number(result).toFixed(8)) : 'Error'));
+          setCalcNewNum(true);
+        } catch { setCalcDisplay('Error'); setCalcNewNum(true); }
+      } else if (key === 'Escape' || key === 'c' || key === 'C') {
+        e.preventDefault(); setCalcDisplay('0'); setCalcExpr(''); setCalcNewNum(true);
+      } else if (key === 'Backspace') {
+        e.preventDefault(); setCalcDisplay(d => d.length > 1 ? d.slice(0, -1) : '0');
+      } else if (key === '%') {
+        e.preventDefault(); setCalcDisplay(d => String(Number(d) / 100));
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showCalc, calcTab, calcExpr, calcDisplay, calcNewNum]);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -2776,9 +2821,10 @@ export default function App() {
             ) : (
               /* Real Calculator */
               <div className="space-y-2">
-                <div className="bg-slate-900 rounded-xl p-3 text-right min-h-[56px] flex flex-col justify-end">
+                <div className="bg-slate-900 rounded-xl p-3 text-right min-h-[56px] flex flex-col justify-end relative">
                   {calcExpr && <div className="text-[10px] text-slate-400 font-mono truncate">{calcExpr}</div>}
                   <div className="text-2xl font-black text-white font-mono truncate">{calcDisplay}</div>
+                  <div className="absolute top-1 left-2 text-[7px] text-slate-600 font-medium">⌨️ keyboard enabled</div>
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {['C','±','%','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','⌫','='].map(btn => {
