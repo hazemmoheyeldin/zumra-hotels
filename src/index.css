@@ -421,19 +421,30 @@ button, [role="button"], select {
 }
 
 /* ============================================
-   TOOLTIP SYSTEM
+   PURE CSS TOOLTIP SYSTEM (zero JS overhead)
+   Uses data-tip attribute + ::before/::after
    ============================================ */
-.tooltip-wrapper {
+.tt-wrap {
   position: relative;
   display: inline-flex;
 }
 
-.tooltip-bubble {
+/* Tooltip bubble (::before) + arrow (::after) */
+.tt-wrap::before,
+.tt-wrap::after {
   position: absolute;
   z-index: 9999;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  /* Show delay — 500ms hover before tooltip appears */
+  transition-delay: 0s;
+}
+
+.tt-wrap::before {
+  content: attr(data-tip);
   white-space: nowrap;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.3;
@@ -441,74 +452,79 @@ button, [role="button"], select {
   background: #1e293b;
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.10);
-  animation: tooltipFadeIn 0.15s ease-out;
   letter-spacing: 0.01em;
 }
 
-/* Arrow via pseudo-element */
-.tooltip-bubble::after {
+.tt-wrap::after {
   content: '';
-  position: absolute;
   border: 5px solid transparent;
 }
 
-/* Positions */
-.tooltip-pos-top {
+/* Show on hover with delay */
+.tt-wrap:hover::before,
+.tt-wrap:hover::after {
+  opacity: 1;
+  transition-delay: 0.5s;
+}
+
+/* ---- Position: top (default) ---- */
+.tt-wrap[data-pos="top"]::before,
+.tt-wrap:not([data-pos])::before {
   bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
 }
-.tooltip-pos-top::after {
-  top: 100%;
+.tt-wrap[data-pos="top"]::after,
+.tt-wrap:not([data-pos])::after {
+  bottom: calc(100% + 3px);
   left: 50%;
   transform: translateX(-50%);
   border-top-color: #1e293b;
 }
 
-.tooltip-pos-bottom {
+/* ---- Position: bottom ---- */
+.tt-wrap[data-pos="bottom"]::before {
   top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
 }
-.tooltip-pos-bottom::after {
-  bottom: 100%;
+.tt-wrap[data-pos="bottom"]::after {
+  top: calc(100% + 3px);
   left: 50%;
   transform: translateX(-50%);
   border-bottom-color: #1e293b;
 }
 
-.tooltip-pos-left {
+/* ---- Position: left ---- */
+.tt-wrap[data-pos="left"]::before {
   right: calc(100% + 8px);
   top: 50%;
   transform: translateY(-50%);
 }
-.tooltip-pos-left::after {
-  left: 100%;
+.tt-wrap[data-pos="left"]::after {
+  right: calc(100% + 3px);
   top: 50%;
   transform: translateY(-50%);
   border-left-color: #1e293b;
 }
 
-.tooltip-pos-right {
+/* ---- Position: right ---- */
+.tt-wrap[data-pos="right"]::before {
   left: calc(100% + 8px);
   top: 50%;
   transform: translateY(-50%);
 }
-.tooltip-pos-right::after {
-  right: 100%;
+.tt-wrap[data-pos="right"]::after {
+  left: calc(100% + 3px);
   top: 50%;
   transform: translateY(-50%);
   border-right-color: #1e293b;
 }
 
-@keyframes tooltipFadeIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-
 /* Hide tooltips on touch devices (no hover) */
 @media (hover: none), (max-width: 768px) {
-  .tooltip-bubble {
+  .tt-wrap::before,
+  .tt-wrap::after {
     display: none !important;
   }
 }
