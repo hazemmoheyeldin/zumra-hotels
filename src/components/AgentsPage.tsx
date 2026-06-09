@@ -38,6 +38,7 @@ interface AgentsPageProps {
 export default function AgentsPage({ agents, reservations, accounts, transactions, currentUser, onSaveAgent, onDeleteAgent, onBulkPaymentSave }: AgentsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t, lang } = useLang();
+  const [portalMenuId, setPortalMenuId] = useState<string | null>(null);
   
   // Form States
   const [name, setName] = useState('');
@@ -87,6 +88,23 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     exportToExcel('Agents Directory.xlsx', rows, 'Agents');
   };
 
+  const copyPortalLink = (agent: Agent) => {
+      const token = agent.portalToken || 'no-token';
+      const url = `${window.location.origin}${window.location.pathname}?portal=${token}`;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast(`Portal link for ${agent.name} copied!`, 'success');
+        setPortalMenuId(null);
+      }).catch(() => {
+        showToast('Failed to copy link', 'error');
+      });
+    };
+  
+    const openPortal = (agent: Agent) => {
+      const token = agent.portalToken || 'no-token';
+      window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank');
+      setPortalMenuId(null);
+    };
+  
   const handleEdit = (agent: Agent) => {
     setEditingId(agent.id);
     setName(agent.name);
@@ -411,9 +429,21 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm">👁️</button>
                       </Tooltip>
                       {agent.type !== 'Supplier' && (
-                        <Tooltip label="Open secure client portal link" position="bottom">
-                        <button onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100">🚪 Portal</button>
-                        </Tooltip>
+                        <div className="relative">
+                          <Tooltip label="Client portal actions" position="bottom">
+                          <button onClick={() => setPortalMenuId(portalMenuId === agent.id ? null : agent.id)} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100">🚪 Portal ▾</button>
+                          </Tooltip>
+                          {portalMenuId === agent.id && (
+                            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[160px] py-1" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => openPortal(agent)} className="w-full text-left px-4 py-2 hover:bg-amber-50 text-xs font-semibold text-slate-700 flex items-center gap-2">
+                                <span>🔗</span> Open Portal
+                              </button>
+                              <button onClick={() => copyPortalLink(agent)} className="w-full text-left px-4 py-2 hover:bg-amber-50 text-xs font-semibold text-slate-700 flex items-center gap-2">
+                                <span>📋</span> Copy Link
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                       <Tooltip label="Edit agent details" position="bottom">
                       <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm">✏️</button>
@@ -520,13 +550,25 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                         👁️
                       </button>
                       {agent.type !== 'Supplier' && (
-                        <button
-                          onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }}
-                          className="bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 py-1 rounded text-[10px] border border-amber-100 min-h-[28px]"
-                          title="Open Client Portal"
-                        >
-                          🚪 Portal
-                        </button>
+                        <div className="relative">
+                          <button
+                            onClick={() => setPortalMenuId(portalMenuId === agent.id ? null : agent.id)}
+                            className="bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 py-1 rounded text-[10px] border border-amber-100 min-h-[28px]"
+                            title="Client portal actions"
+                          >
+                            🚪 Portal ▾
+                          </button>
+                          {portalMenuId === agent.id && (
+                            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[160px] py-1" onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => openPortal(agent)} className="w-full text-left px-4 py-2 hover:bg-amber-50 text-xs font-semibold text-slate-700 flex items-center gap-2">
+                                <span>🔗</span> Open Portal
+                              </button>
+                              <button onClick={() => copyPortalLink(agent)} className="w-full text-left px-4 py-2 hover:bg-amber-50 text-xs font-semibold text-slate-700 flex items-center gap-2">
+                                <span>📋</span> Copy Link
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                       <button
                         onClick={() => handleEdit(agent)}
