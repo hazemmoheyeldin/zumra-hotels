@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
+import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
@@ -259,11 +260,14 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
-          <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
-            <div className="m-0">
-              <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
-              <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Reset</p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+              <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
+            </div>
+            <div style={{ margin: 0 }}>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
+              <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Reset</p>
             </div>
           </div>
 
@@ -340,11 +344,14 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
-          <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
-            <div className="m-0">
-              <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
-              <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Change Required</p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+              <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
+            </div>
+            <div style={{ margin: 0 }}>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
+              <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Change Required</p>
             </div>
           </div>
 
@@ -431,7 +438,9 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
   if (users.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-        <ZumraLogo size="xxl" variant="light" className="justify-center items-center mx-auto" />
+        <div style={{ width: '280px', height: 'auto', margin: 0 }}>
+          <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
+        </div>
         <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mt-6"></div>
         <p className="text-sm text-slate-400 mt-4 font-medium">Loading user directory...</p>
       </div>
@@ -455,14 +464,14 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
         
         {/* Branding header */}
-        <div className="text-center flex flex-col items-center justify-center" style={{ gap: '8px' }}>
-          <div className="relative flex items-center justify-center m-0 p-0">
-            <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-xl scale-150"></div>
-            <ZumraLogo size="xxl" variant="light" className="justify-center items-center relative z-10 m-0" />
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
-          <div className="m-0">
-            <h1 className="text-xl font-extrabold text-white tracking-wide m-0">ZUMRA HOTELS</h1>
-            <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">{t('login.operationsPortal')}</p>
+          <div style={{ margin: 0 }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
+            <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>{t('login.operationsPortal')}</p>
           </div>
         </div>
 
