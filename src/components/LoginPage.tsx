@@ -260,7 +260,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
           <div className="text-center flex flex-col items-center space-y-3">
-            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
             <div className="mt-1">
               <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Reset</p>
@@ -341,7 +341,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
 
           <div className="text-center flex flex-col items-center space-y-3">
-            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
             <div className="mt-1">
               <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
               <p className="text-[10px] text-amber-400/80 font-mono uppercase tracking-[0.3em] mt-1">Password Change Required</p>
@@ -431,7 +431,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
   if (users.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-        <ZumraLogo size="xxl" variant="gold" />
+        <ZumraLogo size="xl" variant="gold" />
         <div className="w-10 h-10 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mt-6"></div>
         <p className="text-sm text-slate-400 mt-4 font-medium">Loading user directory...</p>
       </div>
@@ -458,7 +458,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <div className="text-center flex flex-col items-center space-y-3">
           <div className="relative">
             <div className="absolute inset-0 bg-amber-400/20 rounded-full blur-xl scale-150"></div>
-            <ZumraLogo size="xxl" variant="gold" className="justify-center relative z-10" />
+            <ZumraLogo size="xl" variant="gold" className="justify-center relative z-10" />
           </div>
           <div className="mt-1">
             <h1 className="text-xl font-extrabold text-white tracking-wide">ZUMRA HOTELS</h1>
@@ -480,11 +480,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         <form onSubmit={handleLoginSubmit} className="space-y-4">
           {/* Username */}
           <div className="group relative">
-            <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${username ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+            <label className={`absolute left-11 transition-all duration-200 pointer-events-none ${username ? 'top-1.5 text-[9px] text-amber-400' : 'top-1/2 -translate-y-1/2 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
               {t('login.usernameOrEmail')}
             </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+            <div className="relative flex items-center">
+              <span className="absolute left-3.5 flex items-center justify-center w-5 h-5 text-slate-500 pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </span>
               <input
@@ -492,7 +492,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-white/5 pl-10 pr-3 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all select-all placeholder-transparent"
+                className={`w-full bg-white/5 pl-11 pr-3 ${username ? 'pt-5 pb-2' : 'py-3'} border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all select-all placeholder-transparent`}
                 placeholder=" "
                 required
               />
@@ -501,11 +501,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
           {/* Password */}
           <div className="group relative">
-            <label className={`absolute left-4 transition-all duration-200 pointer-events-none ${password ? 'top-1 text-[9px] text-amber-400' : 'top-3 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
+            <label className={`absolute left-11 transition-all duration-200 pointer-events-none ${password ? 'top-1.5 text-[9px] text-amber-400' : 'top-1/2 -translate-y-1/2 text-xs text-slate-400'} font-mono font-bold uppercase tracking-wider`}>
               {t('login.password')}
             </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs">
+            <div className="relative flex items-center">
+              <span className="absolute left-3.5 flex items-center justify-center w-5 h-5 text-slate-500 pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </span>
               <input
@@ -513,11 +513,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/5 pl-10 pr-10 pt-5 pb-2 border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all placeholder-transparent"
+                className={`w-full bg-white/5 pl-11 pr-10 ${password ? 'pt-5 pb-2' : 'py-3'} border border-white/10 rounded-xl text-xs font-mono font-semibold text-white focus:outline-none focus:border-amber-400/50 focus:bg-white/10 transition-all placeholder-transparent`}
                 placeholder=" "
                 required
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-amber-400 text-xs transition">
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-amber-400 text-xs transition flex items-center justify-center w-5 h-5">
                 {showPassword ? (
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                 ) : (

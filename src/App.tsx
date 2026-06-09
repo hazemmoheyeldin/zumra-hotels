@@ -2237,28 +2237,13 @@ export default function App() {
 
       {/* Sidebar Navigation */}
       <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-72'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-300 ease-in-out will-change-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        {/* Brand Header */}
-        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-1' : 'px-4'} py-3 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
-          <button className={`flex items-center justify-center flex-shrink-0 cursor-pointer transition-all duration-200 ${sidebarCollapsed ? 'w-full p-0.5' : ''}`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xxl'} variant={isDarkSidebar ? 'light' : 'dark'} className={sidebarCollapsed ? 'overflow-hidden' : ''} />
-          </button>
-          {!sidebarCollapsed && (
-            <button className="cursor-pointer mt-1" onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-              <p className="text-[14px] font-extrabold tracking-widest leading-none text-amber-500">RMS</p>
-            </button>
-          )}
-          {/* Mobile close */}
-          <button onClick={() => setSidebarOpen(false)} className={`absolute top-4 right-4 md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        {/* Desktop collapse toggle */}
-        <div className="hidden md:flex px-3 pt-2">
+        {/* Sidebar Top Bar — minimal, no branding */}
+        <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
+          {/* Desktop collapse toggle */}
           <Tooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="right">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className={`flex items-center justify-center gap-2 w-full py-1.5 rounded-lg text-[10px] font-semibold transition-all duration-150 ${isDarkSidebar ? 'text-slate-500 hover:bg-white/[0.06] hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
+            className={`hidden md:flex items-center justify-center gap-2 py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all duration-150 ${isDarkSidebar ? 'text-slate-500 hover:bg-white/[0.08] hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
           >
             <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -2266,35 +2251,49 @@ export default function App() {
             {!sidebarCollapsed && <span>Collapse</span>}
           </button>
           </Tooltip>
+          {/* Mobile close */}
+          <button onClick={() => setSidebarOpen(false)} className={`md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-2 overflow-y-auto no-scrollbar px-3 flex flex-col overflow-x-auto">
-          {/* Flat list of all nav items */}
-          <div className="space-y-0.5">
-            {Object.values(navGroups).flat().map((item) => {
-              const isActive = activeTab === item.name;
-              return (
-                <Tooltip key={item.name} label={item.tip} position="right">
-                <button
-                  onClick={() => {
-                    navigateTo(item.name);
-                    setSidebarOpen(false);
-                  }}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
-                    isActive
-                      ? `${currentTheme.sidebarActive} font-bold`
-                      : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
-                  }`}
-                >
-                  {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full ${currentTheme.brandBg}`}></span>}
-                  <span className="text-sm w-5 text-center flex-shrink-0">{item.icon}</span>
-                  <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
-                </button>
-                </Tooltip>
-              );
-            })}
-          </div>
+        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col overflow-x-auto">
+          {/* Categorized groups with subtle headers */}
+          {Object.entries(navGroups).map(([group, items], groupIdx) => (
+            <div key={group} className={groupIdx > 0 ? 'mt-4' : ''}>
+              {!sidebarCollapsed && (
+                <div className={`px-3 mb-2 flex items-center gap-2`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-[0.2em] ${isDarkSidebar ? 'text-slate-600' : 'text-slate-400'}`}>{t(`nav.${group.toLowerCase()}` as TranslationKey)}</span>
+                  <div className={`flex-1 h-px ${isDarkSidebar ? 'bg-white/[0.06]' : 'bg-slate-200'}`}></div>
+                </div>
+              )}
+              <div className="space-y-1">
+                {items.map((item) => {
+                  const isActive = activeTab === item.name;
+                  return (
+                    <Tooltip key={item.name} label={item.tip} position="right">
+                    <button
+                      onClick={() => {
+                        navigateTo(item.name);
+                        setSidebarOpen(false);
+                      }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[12px] font-semibold transition-all duration-150 whitespace-nowrap md:w-full relative group ${
+                        isActive
+                          ? `${currentTheme.sidebarActive} font-bold`
+                          : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
+                      }`}
+                    >
+                      {isActive && <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full ${currentTheme.brandBg}`}></span>}
+                      <span className="text-base w-6 text-center flex-shrink-0 leading-none">{item.icon}</span>
+                      <span className={`truncate ${sidebarCollapsed ? 'md:hidden' : ''}`}>{t(`nav.${item.key}` as TranslationKey)}</span>
+                    </button>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
           {/* Mobile logout trigger */}
           <button
             onClick={() => { setSidebarOpen(false); handleSetCurrentUser(null as any); }}
