@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty } from './lib/storage';
@@ -11,29 +12,29 @@ import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBu
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
 
-// Lazy-loaded page components for faster initial load
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const ReservationsPage = lazy(() => import('./components/ReservationsPage'));
-const HotelsPage = lazy(() => import('./components/HotelsPage'));
-const AgentsPage = lazy(() => import('./components/AgentsPage'));
-const GuestsPage = lazy(() => import('./components/GuestsPage'));
-const AllotmentsPage = lazy(() => import('./components/AllotmentsPage'));
-const TransactionsPage = lazy(() => import('./components/TransactionsPage'));
-const ExternalTransfersPage = lazy(() => import('./components/ExternalTransfersPage'));
-const AccountsPage = lazy(() => import('./components/AccountsPage'));
-const ReportsPage = lazy(() => import('./components/ReportsPage'));
-const UserManagementPage = lazy(() => import('./components/UserManagementPage'));
-const SalesPage = lazy(() => import('./components/SalesPage'));
-const ProductionPage = lazy(() => import('./components/ProductionPage'));
-const ClientPortal = lazy(() => import('./components/ClientPortal'));
-const ClientPortalSettings = lazy(() => import('./components/ClientPortalSettings'));
-const CalendarView = lazy(() => import('./components/CalendarView'));
-const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
-const AuditLogPage = lazy(() => import('./components/AuditLogPage'));
-const GeneralDataPage = lazy(() => import('./components/GeneralDataPage'));
-const OtherServicesPage = lazy(() => import('./components/OtherServicesPage'));
-const PaymentGatewaysPage = lazy(() => import('./components/PaymentGatewaysPage'));
-const ExpensesPage = lazy(() => import('./components/ExpensesPage'));
+// Lazy-loaded page components with auto-retry on stale chunk failure
+const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
+const ReservationsPage = lazyWithRetry(() => import('./components/ReservationsPage'));
+const HotelsPage = lazyWithRetry(() => import('./components/HotelsPage'));
+const AgentsPage = lazyWithRetry(() => import('./components/AgentsPage'));
+const GuestsPage = lazyWithRetry(() => import('./components/GuestsPage'));
+const AllotmentsPage = lazyWithRetry(() => import('./components/AllotmentsPage'));
+const TransactionsPage = lazyWithRetry(() => import('./components/TransactionsPage'));
+const ExternalTransfersPage = lazyWithRetry(() => import('./components/ExternalTransfersPage'));
+const AccountsPage = lazyWithRetry(() => import('./components/AccountsPage'));
+const ReportsPage = lazyWithRetry(() => import('./components/ReportsPage'));
+const UserManagementPage = lazyWithRetry(() => import('./components/UserManagementPage'));
+const SalesPage = lazyWithRetry(() => import('./components/SalesPage'));
+const ProductionPage = lazyWithRetry(() => import('./components/ProductionPage'));
+const ClientPortal = lazyWithRetry(() => import('./components/ClientPortal'));
+const ClientPortalSettings = lazyWithRetry(() => import('./components/ClientPortalSettings'));
+const CalendarView = lazyWithRetry(() => import('./components/CalendarView'));
+const AnalyticsDashboard = lazyWithRetry(() => import('./components/AnalyticsDashboard'));
+const AuditLogPage = lazyWithRetry(() => import('./components/AuditLogPage'));
+const GeneralDataPage = lazyWithRetry(() => import('./components/GeneralDataPage'));
+const OtherServicesPage = lazyWithRetry(() => import('./components/OtherServicesPage'));
+const PaymentGatewaysPage = lazyWithRetry(() => import('./components/PaymentGatewaysPage'));
+const ExpensesPage = lazyWithRetry(() => import('./components/ExpensesPage'));
 
 // Eagerly loaded (needed for modals/auth flow)
 import ZumraLogo from './components/ZumraLogo';

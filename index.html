@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Prevent aggressive caching of the entry point -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <link rel="icon" type="image/png" href="./favicon.png" />
     <title>Zumra Hotels - RMS</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Stale chunk detection: if a dynamic import fails, auto-reload
+      window.addEventListener('unhandledrejection', function(event) {
+        var msg = (event.reason && event.reason.message) || String(event.reason);
+        if (/failed to fetch dynamically imported module/i.test(msg) ||
+            /importing a module script failed/i.test(msg) ||
+            /loading chunk/i.test(msg)) {
+          event.preventDefault();
+          console.warn('[Stale Chunk] Auto-reloading:', msg);
+          window.location.reload();
+        }
+      });
+    </script>
   </body>
 </html>
-

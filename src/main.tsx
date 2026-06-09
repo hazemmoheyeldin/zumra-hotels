@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { CurrencyProvider } from './lib/CurrencyContext.tsx';
 import { LanguageProvider } from './lib/LanguageContext.tsx';
+import GlobalErrorBoundary from './components/GlobalErrorBoundary.tsx';
 import './index.css';
 import { runFinancialTests } from './lib/financialTests';
 
@@ -13,10 +14,12 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <LanguageProvider>
-      <CurrencyProvider>
-        <App />
-      </CurrencyProvider>
-    </LanguageProvider>
+    <GlobalErrorBoundary>
+      <LanguageProvider>
+        <CurrencyProvider>
+          <App />
+        </CurrencyProvider>
+      </LanguageProvider>
+    </GlobalErrorBoundary>
   </StrictMode>,
 );
