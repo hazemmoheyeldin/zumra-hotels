@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -37,6 +37,18 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
+    // Enable offline persistence (IndexedDB cache, multi-tab sync)
+    enableMultiTabIndexedDbPersistence(db).then(() => {
+      console.log('[Firestore] Offline persistence enabled (multi-tab)');
+    }).catch((err: any) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('[Firestore] Persistence failed: browser not supported');
+      } else if (err.code === 'unimplemented') {
+        console.warn('[Firestore] Persistence not supported in this browser');
+      } else {
+        console.warn('[Firestore] Persistence error:', err?.message);
+      }
+    });
     auth = getAuth(app);
     // Set persistence to LOCAL (survives browser close/refresh)
     setPersistence(auth, browserLocalPersistence).then(() => {
