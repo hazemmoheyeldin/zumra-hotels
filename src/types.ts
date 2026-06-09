@@ -255,6 +255,7 @@ export interface FollowUp {
   notes: string;
   status: 'Pending' | 'Completed' | 'Closed';
   createdBy: string;
+  priority?: 'High' | 'Medium' | 'Low';
   activityLog?: ActivityLogEntry[];
 }
 

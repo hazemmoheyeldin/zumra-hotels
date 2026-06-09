@@ -108,8 +108,8 @@ const THEMES: AppTheme[] = [
     emoji: '✨',
     sidebarBg: 'bg-[#0f172a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.06]',
-    sidebarActive: 'bg-white/[0.10] text-white',
+    sidebarHover: 'hover:bg-white/[0.12]',
+    sidebarActive: 'bg-white/[0.14] text-white',
     sidebarText: 'text-slate-300',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
@@ -152,8 +152,8 @@ const THEMES: AppTheme[] = [
     emoji: '⚓',
     sidebarBg: 'bg-[#0c1929]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-teal-500/[0.08]',
-    sidebarActive: 'bg-teal-500/[0.12] text-teal-300',
+    sidebarHover: 'hover:bg-teal-500/[0.14]',
+    sidebarActive: 'bg-teal-500/[0.18] text-teal-300',
     sidebarText: 'text-slate-400',
     brandBg: 'bg-teal-500',
     brandText: 'text-teal-400',
@@ -174,8 +174,8 @@ const THEMES: AppTheme[] = [
     emoji: '🪨',
     sidebarBg: 'bg-[#1a1a1a]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-white/[0.05]',
-    sidebarActive: 'bg-amber-500/[0.12] text-amber-300',
+    sidebarHover: 'hover:bg-white/[0.10]',
+    sidebarActive: 'bg-amber-500/[0.14] text-amber-300',
     sidebarText: 'text-neutral-400',
     brandBg: 'bg-amber-600',
     brandText: 'text-amber-500',
@@ -196,8 +196,8 @@ const THEMES: AppTheme[] = [
     emoji: '🌙',
     sidebarBg: 'bg-gray-950',
     sidebarBorder: 'border-gray-800',
-    sidebarHover: 'hover:bg-gray-800',
-    sidebarActive: 'bg-gray-800 text-white',
+    sidebarHover: 'hover:bg-gray-700',
+    sidebarActive: 'bg-gray-700 text-white',
     sidebarText: 'text-gray-400',
     brandBg: 'bg-amber-500',
     brandText: 'text-amber-400',
@@ -218,8 +218,8 @@ const THEMES: AppTheme[] = [
     emoji: '👑',
     sidebarBg: 'bg-[#0F0F1A]',
     sidebarBorder: 'border-white/[0.06]',
-    sidebarHover: 'hover:bg-[#0F3460]/40',
-    sidebarActive: 'bg-[#0F3460]/60 text-white',
+    sidebarHover: 'hover:bg-[#0F3460]/60',
+    sidebarActive: 'bg-[#0F3460]/70 text-white',
     sidebarText: 'text-slate-400',
     brandBg: 'bg-amber-400',
     brandText: 'text-amber-400',
@@ -1620,6 +1620,8 @@ export default function App() {
     setActiveTab(tab);
     setTabKey(k => k + 1);
     window.history.pushState({ tab, filters: filters ?? null }, '', `#${encodeURIComponent(tab)}`);
+    // Scroll to top on navigation
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Restore tab from URL hash on initial load
@@ -2012,9 +2014,12 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false);
     const [showCalc, setShowCalc] = useState(false);
     const [calcBuy, setCalcBuy] = useState<number>(0);
-    const [calcMarkup, setCalcMarkup] = useState<number>(15);
     const [calcSell, setCalcSell] = useState<number>(0);
-    const [calcMode, setCalcMode] = useState<'buyToSell' | 'sellToBuy'>('buyToSell');
+    const [calcTab, setCalcTab] = useState<'markup' | 'calc'>('markup');
+    // Real calculator state
+    const [calcDisplay, setCalcDisplay] = useState('0');
+    const [calcExpr, setCalcExpr] = useState('');
+    const [calcNewNum, setCalcNewNum] = useState(true);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -2743,46 +2748,92 @@ export default function App() {
             <span className="text-xs font-bold flex items-center gap-1.5">🧮 Quick Calculator</span>
             <button onClick={() => setShowCalc(false)} className="text-slate-400 hover:text-white text-sm transition">&times;</button>
           </div>
-          <div className="p-4 space-y-3">
-            {/* Mode Toggle */}
-            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px] font-bold">
-              <button onClick={() => setCalcMode('buyToSell')} className={`flex-1 py-1.5 transition ${calcMode === 'buyToSell' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Buy → Sell</button>
-              <button onClick={() => setCalcMode('sellToBuy')} className={`flex-1 py-1.5 transition ${calcMode === 'sellToBuy' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Sell → Buy</button>
-            </div>
-            {calcMode === 'buyToSell' ? (
-              <>
+          {/* Tab Toggle: Markup / Calculator */}
+          <div className="flex border-b border-slate-200">
+            <button onClick={() => setCalcTab('markup')} className={`flex-1 py-2 text-[10px] font-bold transition ${calcTab === 'markup' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>💰 Markup</button>
+            <button onClick={() => setCalcTab('calc')} className={`flex-1 py-2 text-[10px] font-bold transition ${calcTab === 'calc' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>🔢 Calculator</button>
+          </div>
+          <div className="p-4">
+            {calcTab === 'markup' ? (
+              <div className="space-y-3">
                 <div>
                   <label className="text-[9px] uppercase font-bold text-red-500 block mb-1">Buy Rate (SAR)</label>
                   <input type="number" value={calcBuy || ''} onChange={e => setCalcBuy(Number(e.target.value))} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm font-mono font-bold text-red-700 bg-red-50/30" placeholder="0" />
                 </div>
                 <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Markup %</label>
-                  <input type="number" value={calcMarkup || ''} onChange={e => setCalcMarkup(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800" placeholder="15" />
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200">
-                  <span className="text-[9px] uppercase font-bold text-emerald-500 block">Sell Rate</span>
-                  <span className="text-xl font-black text-emerald-700 font-mono">{calcBuy > 0 ? (calcBuy * (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}</span>
-                  <span className="text-[10px] text-emerald-500 ml-1">SAR</span>
-                  <div className="text-[9px] text-emerald-500 font-bold mt-0.5">Profit: {calcBuy > 0 ? (calcBuy * calcMarkup / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} SAR | Margin: {calcMarkup > 0 ? (calcMarkup / (100 + calcMarkup) * 100).toFixed(1) : '0'}%</div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
                   <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-1">Sell Rate (SAR)</label>
                   <input type="number" value={calcSell || ''} onChange={e => setCalcSell(Number(e.target.value))} className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm font-mono font-bold text-emerald-700 bg-emerald-50/30" placeholder="0" />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Markup %</label>
-                  <input type="number" value={calcMarkup || ''} onChange={e => setCalcMarkup(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800" placeholder="15" />
+                {/* Results */}
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Profit</span>
+                    <span className="text-sm font-black font-mono text-emerald-600">{calcBuy > 0 && calcSell > 0 ? (calcSell - calcBuy).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} <span className="text-[10px]">SAR</span></span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Markup %</span>
+                    <span className="text-sm font-black font-mono text-indigo-600">{calcBuy > 0 && calcSell > 0 ? ((calcSell - calcBuy) / calcBuy * 100).toFixed(2) : '0'}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] uppercase font-bold text-slate-400">Margin %</span>
+                    <span className="text-sm font-black font-mono text-amber-600">{calcSell > 0 && calcBuy > 0 ? ((calcSell - calcBuy) / calcSell * 100).toFixed(2) : '0'}%</span>
+                  </div>
                 </div>
-                <div className="bg-red-50 rounded-xl p-3 border border-red-200">
-                  <span className="text-[9px] uppercase font-bold text-red-500 block">Buy Rate</span>
-                  <span className="text-xl font-black text-red-700 font-mono">{calcSell > 0 && calcMarkup > 0 ? (calcSell / (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}</span>
-                  <span className="text-[10px] text-red-500 ml-1">SAR</span>
-                  <div className="text-[9px] text-red-500 font-bold mt-0.5">Profit: {calcSell > 0 && calcMarkup > 0 ? (calcSell - calcSell / (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} SAR | Margin: {calcMarkup > 0 ? (calcMarkup / (100 + calcMarkup) * 100).toFixed(1) : '0'}%</div>
+              </div>
+            ) : (
+              /* Real Calculator */
+              <div className="space-y-2">
+                <div className="bg-slate-900 rounded-xl p-3 text-right min-h-[56px] flex flex-col justify-end">
+                  {calcExpr && <div className="text-[10px] text-slate-400 font-mono truncate">{calcExpr}</div>}
+                  <div className="text-2xl font-black text-white font-mono truncate">{calcDisplay}</div>
                 </div>
-              </>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {['C','±','%','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','⌫','='].map(btn => {
+                    const isOp = ['÷','×','−','+','='].includes(btn);
+                    const isFunc = ['C','±','%','⌫'].includes(btn);
+                    return (
+                      <button
+                        key={btn}
+                        onClick={() => {
+                          if (btn === 'C') { setCalcDisplay('0'); setCalcExpr(''); setCalcNewNum(true); }
+                          else if (btn === '⌫') { setCalcDisplay(d => d.length > 1 ? d.slice(0, -1) : '0'); }
+                          else if (btn === '±') { setCalcDisplay(d => d.startsWith('-') ? d.slice(1) : d === '0' ? '0' : '-' + d); }
+                          else if (btn === '%') { setCalcDisplay(d => String(Number(d) / 100)); }
+                          else if (isOp) {
+                            const opMap: Record<string, string> = { '÷': '/', '×': '*', '−': '-', '+': '+', '=': '' };
+                            if (btn === '=') {
+                              try {
+                                const fullExpr = calcExpr + calcDisplay;
+                                const evalExpr = fullExpr.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-');
+                                const result = Function('"use strict"; return (' + evalExpr + ')')();
+                                setCalcExpr(fullExpr + ' =');
+                                setCalcDisplay(String(Number.isFinite(result) ? parseFloat(Number(result).toFixed(8)) : 'Error'));
+                                setCalcNewNum(true);
+                              } catch { setCalcDisplay('Error'); setCalcNewNum(true); }
+                            } else {
+                              setCalcExpr(calcExpr + calcDisplay + ' ' + btn + ' ');
+                              setCalcNewNum(true);
+                            }
+                          }
+                          else {
+                            if (calcNewNum) { setCalcDisplay(btn === '.' ? '0.' : btn); setCalcNewNum(false); }
+                            else { setCalcDisplay(d => d === '0' && btn !== '.' ? btn : d + btn); }
+                          }
+                        }}
+                        className={`py-2.5 rounded-lg text-sm font-bold transition active:scale-95 ${
+                          btn === '=' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' :
+                          btn === '0' ? 'col-span-1 bg-slate-100 hover:bg-slate-200 text-slate-800' :
+                          isOp ? 'bg-amber-100 hover:bg-amber-200 text-amber-700' :
+                          isFunc ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' :
+                          'bg-slate-100 hover:bg-slate-200 text-slate-800'
+                        }`}
+                      >
+                        {btn}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>

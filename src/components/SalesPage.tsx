@@ -60,15 +60,16 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
       clientId,
       date,
       topic,
-      notes: priority !== 'Medium' ? `[${priority}] ${notes}` : notes,
+      notes,
       status,
+      priority,
       createdBy: editingId ? (followUps.find(f => f.id === editingId)?.createdBy || currentUser) : currentUser,
       activityLog: editingId ? (followUps.find(f => f.id === editingId)?.activityLog || []) : [{
         id: `log_${Date.now()}`,
         timestamp: new Date().toISOString(),
         user: currentUser,
         action: 'Created',
-        detail: `Activity created with status: ${status}`
+        detail: `Activity created with status: ${status}, priority: ${priority}`
       }]
     };
     onSaveFollowUp(newFu);
@@ -93,6 +94,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
     setTopic(fu.topic);
     setNotes(fu.notes);
     setStatus(fu.status);
+    setPriority(fu.priority || getPriority(fu));
     setShowForm(true);
   };
 
@@ -104,12 +106,15 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
     return agents.find(a => a.id === id)?.type || 'Customer';
   };
 
-  // Determine priority from notes (since FollowUp type doesn't have priority field)
+  // Determine priority: use the field if available, fallback to parsing notes
   const getPriority = (fu: FollowUp): Priority => {
+    if (fu.priority) return fu.priority;
     if (fu.notes?.toLowerCase().includes('[high]') || fu.notes?.toLowerCase().includes('urgent')) return 'High';
     if (fu.notes?.toLowerCase().includes('[low]')) return 'Low';
     return 'Medium';
   };
+
+  const priorityWeight = (p: Priority): number => p === 'High' ? 0 : p === 'Medium' ? 1 : 2;
 
   const filtered = useMemo(() => {
     let list = followUps;
@@ -126,11 +131,10 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
       );
     }
 
-    // Sort: overdue first, then by date
+    // Sort: High priority first, then by date (newest first)
     return list.sort((a, b) => {
-      if (a.status === 'Pending' && b.status === 'Pending') {
-        return a.date.localeCompare(b.date);
-      }
+      const pw = priorityWeight(getPriority(a)) - priorityWeight(getPriority(b));
+      if (pw !== 0) return pw;
       return b.date.localeCompare(a.date);
     });
   }, [followUps, activeTab, searchTerm]);
@@ -367,15 +371,24 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                           {fu.activityLog && fu.activityLog.length > 0 && showLogFor === fu.id && (
                             <div className="mt-3 border-t border-slate-200 pt-3">
                               <h5 className="text-[9px] uppercase font-bold text-slate-500 mb-2">Activity Timeline ({fu.activityLog.length} entries)</h5>
-                              <div className="space-y-1.5 max-h-48 overflow-y-auto thin-scrollbar">
-                                {fu.activityLog.slice().reverse().map((log) => (
-                                  <div key={log.id} className="flex items-start gap-2 text-[10px] bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                    <span className="text-slate-400 font-mono shrink-0">{new Date(log.timestamp).toLocaleDateString('en-GB')} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                    <span className="text-indigo-600 font-bold shrink-0">{log.action}:</span>
-                                    <span className="text-slate-600 flex-1">{log.detail}</span>
-                                    <span className="text-slate-400 shrink-0">by {log.user}</span>
-                                  </div>
-                                ))}
+                              <div className="space-y-1 max-h-56 overflow-y-auto thin-scrollbar">
+                                {fu.activityLog.slice().reverse().map((log) => {
+                                  const d = new Date(log.timestamp);
+                                  const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                  const actionColor = log.action === 'Closed' ? 'text-rose-600 bg-rose-50 border-rose-200' : log.action === 'Completed' ? 'text-emerald-600 bg-emerald-50 border-emerald-200' : log.action === 'Created' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-indigo-600 bg-slate-50 border-slate-200';
+                                  return (
+                                    <div key={log.id} className={`flex items-start gap-2 text-[10px] p-2 rounded-lg border ${actionColor}`}>
+                                      <div className="shrink-0 text-center">
+                                        <div className="font-mono font-bold text-[9px]">{dateStr}</div>
+                                        <div className="text-[8px] opacity-60">{timeStr}</div>
+                                      </div>
+                                      <span className={`font-bold shrink-0 px-1.5 py-0.5 rounded text-[9px] ${log.action === 'Closed' ? 'bg-rose-100' : log.action === 'Completed' ? 'bg-emerald-100' : log.action === 'Created' ? 'bg-blue-100' : 'bg-indigo-100'}`}>{log.action}</span>
+                                      <span className="text-slate-700 flex-1 leading-relaxed">{log.detail}</span>
+                                      <span className="shrink-0 bg-white/60 text-slate-500 px-1.5 py-0.5 rounded text-[8px] font-semibold border border-slate-200/60">{log.user}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                               {/* Add new log entry */}
                               {fu.status !== 'Closed' && (
