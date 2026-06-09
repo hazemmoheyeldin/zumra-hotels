@@ -28,7 +28,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
   const { PageBreakToggle } = usePageBreaks();
   const { t, lang } = useLang();
   const stampDefaults = getStampSettings();
-  const [stampVisible, setStampVisible] = useState(stampDefaults.enabled);
+  const [stampVisible, setStampVisible] = useState(false); // Always default to off
   const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
   const { totalSell, totalBuy, profit, vat, totalWithVat } = getReservationTotals(reservation);
   
