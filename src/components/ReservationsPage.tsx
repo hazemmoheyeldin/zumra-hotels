@@ -2948,9 +2948,9 @@ export default function ReservationsPage({
                         <button
                           onClick={() => setPrintingDoc({ res: res, isVoucher: false })}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] whitespace-nowrap hidden lg:block"
-                          title={t('res.printPDF')}
+                          title={t('res.confirmation')}
                         >
-                          {t('res.printPDF')}
+                          {t('res.confirmation')}
                         </button>
                         <button
                           onClick={() => setPrintingDoc({ res: res, isVoucher: true })}
