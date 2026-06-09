@@ -8,6 +8,7 @@ import { Transaction, Agent, Account, Reservation } from '../types';
 import ReceiptVoucherPDF from './ReceiptVoucherPDF';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
+import { exportToExcel } from '../lib/storage';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
@@ -271,6 +272,22 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     exportToCSV('transactions-report.csv', reportData);
   };
 
+  const handleExportExcel = () => {
+    const reportData = filteredTransactions.map(tr => ({
+      'Date': tr.date,
+      'Doc #': tr.docNo || '',
+      'Type': tr.type === 'ClientPayment' ? 'Client Payment' : tr.type === 'SupplierPayment' ? 'Supplier Payment' : tr.type === 'CreditApplied' ? 'Credit Applied' : tr.type === 'RefundProcessed' ? 'Refund Processed' : tr.type === 'ClientRefund' ? 'Client Refund' : 'Supplier Refund',
+      'Agent': getAgentLabel(tr.agentId),
+      'Method': tr.paymentMethod,
+      'Description': tr.description,
+      'Amount (SAR)': tr.amount,
+      'Voucher': tr.voucherNo || '',
+      'Created By': tr.createdBy || ''
+    }));
+    exportToExcel(`Transactions ${new Date().toISOString().split('T')[0]}.xlsx`, reportData, 'Transactions');
+    showToast('Excel exported successfully', 'success');
+  };
+
   return (
     <div className="space-y-5">
       {/* KPI Summary Cards */}
@@ -322,6 +339,13 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
           <p className="text-xs text-slate-500 font-serif">{t('trans.ledgerSubtitle')}</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition border border-emerald-200"
+            title="Export to Excel"
+          >
+            📊 Excel
+          </button>
           <button
             onClick={handleExportCSV}
             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-2 rounded-lg transition"
@@ -741,6 +765,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <th className="py-3 px-3 text-right">{t('trans.sumSAR')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.runningBal')}</th>
                 <th className="py-3 px-3 text-center">{t('trans.voucherLayout')}</th>
+                <th className="py-3 px-3 text-center hidden md:table-cell">{lang === 'ar' ? 'أضافه' : 'Added By'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 select-none">
@@ -821,11 +846,14 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                       </button>
                     </div>
                   </td>
+                  <td className="py-3 px-3 text-center hidden md:table-cell">
+                    <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{tr.createdBy || '—'}</span>
+                  </td>
                 </tr>
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center animate-fade-in">
+                  <td colSpan={12} className="py-16 text-center animate-fade-in">
                     <div className="text-5xl mb-4">💳</div>
                     <p className="text-sm font-bold text-slate-500">{t('trans.noTransactions')}</p>
                     <p className="text-xs text-slate-400 mt-1">{t('trans.createFirst')}</p>

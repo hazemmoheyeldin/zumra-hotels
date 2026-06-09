@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Reservation, Agent, Hotel, User, FollowUp, Allotment, Transaction } from '../types';
 import { getReservationTotals, getEgyptTime } from '../lib/storage';
 import { useCurrency } from '../lib/CurrencyContext';
 import { useLang } from '../lib/LanguageContext';
 import { sendDailySummaryEmail, isEmailConfigured } from '../lib/email';
 import ZumraLogo from './ZumraLogo';
+import DailyOpsSheetPDF from './DailyOpsSheetPDF';
 
 interface DashboardProps {
   reservations: Reservation[];
@@ -26,6 +27,31 @@ interface DashboardProps {
 export default function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, onNavigate, onQuickReservation }: DashboardProps) {
   const todayStr = getEgyptTime().toISOString().split('T')[0];
   const [sendingSummary, setSendingSummary] = useState(false);
+  const [showDailyOps, setShowDailyOps] = useState(false);
+  const [scheduleEnabled, setScheduleEnabled] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zumra_report_schedule') || '{}').enabled || false; } catch { return false; }
+  });
+  const [scheduleTime, setScheduleTime] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zumra_report_schedule') || '{}').time || '08:00'; } catch { return '08:00'; }
+  });
+  const lastSentRef = useRef<string>('');
+
+  // Scheduled report sender
+  useEffect(() => {
+    if (!scheduleEnabled) return;
+    const config = { enabled: scheduleEnabled, time: scheduleTime };
+    localStorage.setItem('zumra_report_schedule', JSON.stringify(config));
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const todayKey = now.toISOString().split('T')[0];
+      if (currentTime === scheduleTime && lastSentRef.current !== todayKey) {
+        lastSentRef.current = todayKey;
+        handleSendDailySummary();
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [scheduleEnabled, scheduleTime]);
 
   const handleSendDailySummary = async () => {
     const admin = users.find(u => u.role === 'Admin');
@@ -286,6 +312,16 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             >
               {t('dash.resolveList')} →
             </button>
+            <button
+              onClick={() => {
+                if (confirm(`Confirm all ${expiringOptions.length} expiring option bookings?\nThis will navigate to each one for review.`)) {
+                  onNavigate('Reservations', { status: 'Tentative', dateFilter: todayStr });
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded-lg shadow-xs transition cursor-pointer whitespace-nowrap"
+            >
+              ✅ Review All
+            </button>
           </div>
         </div>
       )}
@@ -350,6 +386,19 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
               className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10.5px] px-3 py-1 rounded-lg shadow-xs transition-transform hover:scale-[1.02] cursor-pointer whitespace-nowrap"
             >
               {t('dash.reviewPayments')} →
+            </button>
+            <button
+              onClick={() => {
+                const phones = unpaidUpcoming.map(r => {
+                  const client = agents.find(a => a.id === r.clientId);
+                  return client?.phone || '';
+                }).filter(Boolean);
+                if (phones.length === 0) { alert('No phone numbers found'); return; }
+                navigator.clipboard.writeText(phones.join('\n')).then(() => alert(`Copied ${phones.length} phone numbers`));
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold text-[10px] px-2 py-1 rounded-lg shadow-xs transition cursor-pointer whitespace-nowrap"
+            >
+              📱 Copy All Phones
             </button>
           </div>
         </div>
@@ -458,6 +507,87 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
               {sendingSummary ? '⏳ Sending...' : '📧 Daily Summary'}
             </button>
           )}
+          {/* Scheduled Reports Toggle */}
+          {isEmailConfigured && (
+            <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl px-2 py-1">
+              <button
+                onClick={() => {
+                  const next = !scheduleEnabled;
+                  setScheduleEnabled(next);
+                  localStorage.setItem('zumra_report_schedule', JSON.stringify({ enabled: next, time: scheduleTime }));
+                }}
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg transition ${scheduleEnabled ? 'bg-emerald-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+              >
+                {scheduleEnabled ? '⏰ On' : '⏰ Off'}
+              </button>
+              {scheduleEnabled && (
+                <>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={e => {
+                      setScheduleTime(e.target.value);
+                      localStorage.setItem('zumra_report_schedule', JSON.stringify({ enabled: scheduleEnabled, time: e.target.value }));
+                    }}
+                    className="w-20 px-1 py-0.5 border border-slate-200 rounded text-[10px] font-mono font-bold text-slate-700"
+                  />
+                  <span className="text-[8px] text-emerald-600 font-bold whitespace-nowrap">Next: {scheduleTime}</span>
+                </>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => {
+              const today = new Date(todayStr);
+              const checkIns = reservations.filter(r => r.checkIn === todayStr && r.status !== 'Cancelled');
+              const checkOuts = reservations.filter(r => r.checkOut === todayStr && r.status !== 'Cancelled');
+              const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
+              const cancToday = reservations.filter(r => r.status === 'Cancelled' && r.cancellationReason && r.createdAt.startsWith(todayStr));
+              const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+              const totalRev = activeRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+              const totalCst = activeRes.reduce((s, r) => s + getReservationTotals(r).totalBuy, 0);
+              const outstanding = activeRes.reduce((s, r) => {
+                const { totalSell } = getReservationTotals(r);
+                return s + Math.max(0, totalSell - (r.amountPaidByClient || 0));
+              }, 0);
+              const msg = `*Zumra Hotels - Daily Summary ${todayStr}*\n\n` +
+                `📥 Check-ins: ${checkIns.length}\n` +
+                `📤 Check-outs: ${checkOuts.length}\n` +
+                `📝 New Bookings: ${newToday.length}\n` +
+                `❌ Cancellations: ${cancToday.length}\n` +
+                `📊 Active: ${activeRes.length}\n\n` +
+                `💰 Revenue: ${totalRev.toLocaleString()} SAR\n` +
+                `💸 Cost: ${totalCst.toLocaleString()} SAR\n` +
+                `📈 Profit: ${(totalRev - totalCst).toLocaleString()} SAR\n` +
+                `⚠️ Outstanding: ${outstanding.toLocaleString()} SAR`;
+              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
+            }}
+            className="bg-green-600 font-bold hover:bg-green-700 text-white px-3 py-2 min-h-[36px] rounded-xl text-[10px] transition flex items-center gap-1 shadow-lg cursor-pointer"
+          >
+            📱 WhatsApp
+          </button>
+          <button
+            onClick={() => {
+              const today = new Date(todayStr);
+              const checkIns = reservations.filter(r => r.checkIn === todayStr && r.status !== 'Cancelled');
+              const checkOuts = reservations.filter(r => r.checkOut === todayStr && r.status !== 'Cancelled');
+              const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
+              const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+              const totalRev = activeRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
+              const totalProfit = activeRes.reduce((s, r) => { const { totalSell } = getReservationTotals(r); const { totalBuy } = getReservationTotals(r); return s + (totalSell - totalBuy); }, 0);
+              const text = `Zumra Hotels - ${todayStr}\nCheck-ins: ${checkIns.length} | Check-outs: ${checkOuts.length} | New: ${newToday.length}\nRevenue: ${totalRev.toLocaleString()} SAR | Profit: ${totalProfit.toLocaleString()} SAR`;
+              navigator.clipboard.writeText(text).then(() => alert('Summary copied to clipboard!'));
+            }}
+            className="bg-slate-600 font-bold hover:bg-slate-700 text-white px-3 py-2 min-h-[36px] rounded-xl text-[10px] transition flex items-center gap-1 shadow-lg cursor-pointer"
+          >
+            📋 Copy
+          </button>
+          <button
+            onClick={() => setShowDailyOps(true)}
+            className="bg-purple-600 font-bold hover:bg-purple-700 text-white px-3 py-2 min-h-[36px] rounded-xl text-[10px] transition flex items-center gap-1 shadow-lg cursor-pointer"
+          >
+            📋 Daily Ops Sheet
+          </button>
         </div>
       </div>
 
@@ -835,6 +965,103 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       </div>
 
       {/* Contract Expiry Alerts */}
+      {(() => {
+        // Overdue Payments: Confirmed + checkIn passed (or within 3 days) + client owes money
+        const today = new Date(todayStr);
+        const overdueList = reservations
+          .filter(res => {
+            if (res.status !== 'Confirmed') return false;
+            const { totalSell } = getReservationTotals(res);
+            const owed = totalSell - (res.amountPaidByClient || 0);
+            if (owed <= 0) return false;
+            const ci = new Date(res.checkIn);
+            const diffDays = Math.ceil((ci.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            return diffDays <= 3; // check-in already passed or within 3 days
+          })
+          .map(res => {
+            const { totalSell } = getReservationTotals(res);
+            const owed = totalSell - (res.amountPaidByClient || 0);
+            const ci = new Date(res.checkIn);
+            const daysSince = Math.floor((today.getTime() - ci.getTime()) / (1000 * 60 * 60 * 24));
+            const hotel = hotels.find(h => h.id === res.hotelId);
+            return { res, owed, daysSince, hotelName: hotel?.name || 'Unknown' };
+          })
+          .sort((a, b) => b.owed - a.owed);
+
+        if (overdueList.length === 0) return null;
+
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <span className="text-base">💳</span> Overdue Payments
+                <span className="bg-rose-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">{overdueList.length}</span>
+              </h3>
+            </div>
+            <div className="bg-white border border-rose-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-rose-50 border-b border-rose-200">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-rose-800">RSV#</th>
+                      <th className="text-left px-3 py-2 font-semibold text-rose-800">Guest</th>
+                      <th className="text-left px-3 py-2 font-semibold text-rose-800">Hotel</th>
+                      <th className="text-right px-3 py-2 font-semibold text-rose-800">Outstanding</th>
+                      <th className="text-center px-3 py-2 font-semibold text-rose-800">Days</th>
+                      <th className="text-center px-3 py-2 font-semibold text-rose-800">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-rose-100">
+                    {overdueList.slice(0, 10).map(({ res, owed, daysSince, hotelName }) => {
+                      const client = agents.find(a => a.id === res.clientId);
+                      const phone = (client?.phone || '').replace(/[^0-9]/g, '');
+                      return (
+                        <tr key={res.id} className="hover:bg-rose-50/50 cursor-pointer" onClick={() => onNavigate('Reservations', { viewReservationId: res.id })}>
+                          <td className="px-3 py-2 font-mono font-bold text-slate-800">RSV-{res.id}</td>
+                          <td className="px-3 py-2 font-medium text-slate-700">{res.guestName}</td>
+                          <td className="px-3 py-2 text-slate-600">{hotelName}</td>
+                          <td className="px-3 py-2 text-right font-mono font-bold text-rose-700">{owed.toLocaleString()} SAR</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${daysSince > 0 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {daysSince > 0 ? `${daysSince}d overdue` : 'Due today'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center" onClick={e => e.stopPropagation()}>
+                            {phone && (
+                              <button
+                                onClick={() => {
+                                  const msg = encodeURIComponent(
+                                    `Dear ${res.guestName},\n\n` +
+                                    `This is a friendly reminder that your payment of ${owed.toLocaleString()} SAR for booking RSV-${res.id} ` +
+                                    `(${hotelName}, Check-in: ${res.checkIn}) is outstanding.\n\n` +
+                                    `Please arrange payment at your earliest convenience.\n\n` +
+                                    `Thank you,\nZumra Hotels`
+                                  );
+                                  window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+                                }}
+                                className="bg-green-100 hover:bg-green-200 text-green-700 font-bold px-2 py-1 rounded text-[9px] transition"
+                              >
+                                📱 Remind
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {overdueList.length > 10 && (
+                <div className="text-center py-2 text-[10px] text-rose-500 font-bold border-t border-rose-100">
+                  +{overdueList.length - 10} more overdue bookings
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Contract Expiry Alerts */}
       {expiringContracts.length > 0 && (
         <div>
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-3">
@@ -927,6 +1154,17 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
           </div>
         </div>
       </div>
+
+      {/* Daily Ops Sheet Modal */}
+      {showDailyOps && (
+        <DailyOpsSheetPDF
+          reservations={reservations}
+          agents={agents}
+          hotels={hotels}
+          todayStr={todayStr}
+          onClose={() => setShowDailyOps(false)}
+        />
+      )}
 
     </div>
   );

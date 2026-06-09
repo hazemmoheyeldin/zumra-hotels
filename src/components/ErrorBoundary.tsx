@@ -22,6 +22,19 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    // Log error to localStorage for debugging
+    try {
+      const logKey = 'zumra_error_log';
+      const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
+      existing.push({
+        timestamp: new Date().toISOString(),
+        message: error.message,
+        stack: error.stack?.substring(0, 500),
+        componentStack: errorInfo.componentStack?.toString().substring(0, 500),
+      });
+      // Keep only last 50 entries
+      localStorage.setItem(logKey, JSON.stringify(existing.slice(-50)));
+    } catch { /* ignore logging errors */ }
   }
 
   handleRetry = () => {

@@ -8,7 +8,7 @@ import { Reservation, Agent, Hotel, Transaction, Account, OtherService, TaxSetti
 import ArrivalReportPDF from './ArrivalReportPDF';
 import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
-import { getReservationTotals, getAgentActualBalance, exportToCSV } from '../lib/storage';
+import { getReservationTotals, getAgentActualBalance, exportToCSV, exportToExcel, loadCommissions } from '../lib/storage';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 
@@ -137,6 +137,67 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
     }
   };
 
+  const handleExportExcel = () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (activeReportTab === 'arrival') {
+      const data = arrivalList.map(res => {
+        const c = agents.find(ac => ac.id === res.clientId);
+        const h = hotels.find(h => h.id === res.hotelId);
+        const totals = getReservationTotals(res);
+        return {
+          'Booking Ref': `RSV-${res.id}`,
+          'Status': res.status,
+          'Client': c?.companyName || c?.name || '',
+          'Guest Name': res.guestName,
+          'Hotel': h?.name || '',
+          'Check In': res.checkIn,
+          'Check Out': res.checkOut,
+          'Nights': res.nights,
+          'Total Sale (SAR)': totals.totalSell,
+          'Total Cost (SAR)': totals.totalBuy,
+          'Profit (SAR)': totals.profit,
+          'Paid by Client': res.amountPaidByClient || 0,
+          'Outstanding': totals.totalSell - (res.amountPaidByClient || 0),
+        };
+      });
+      exportToExcel(`Arrivals Report ${today}.xlsx`, data, 'Arrivals');
+    } else if (activeReportTab === 'cancellation') {
+      const data = cancellationList.map(res => {
+        const c = agents.find(ac => ac.id === res.clientId);
+        const h = hotels.find(h => h.id === res.hotelId);
+        const totals = getReservationTotals(res);
+        return {
+          'Booking Ref': `RSV-${res.id}`,
+          'Client': c?.companyName || c?.name || '',
+          'Guest Name': res.guestName,
+          'Hotel': h?.name || '',
+          'Check In': res.checkIn,
+          'Check Out': res.checkOut,
+          'Total Sale (SAR)': totals.totalSell,
+          'Cancel Fee (SAR)': res.cancellationFee || 0,
+          'Reason': res.cancellationReason || '',
+        };
+      });
+      exportToExcel(`Cancellations Report ${today}.xlsx`, data, 'Cancellations');
+    } else if (activeReportTab === 'reminders') {
+      const data = reminderList.map(res => {
+        const totals = getReservationTotals(res);
+        const h = hotels.find(h => h.id === res.hotelId);
+        return {
+          'Booking Ref': `RSV-${res.id}`,
+          'Guest Name': res.guestName,
+          'Hotel': h?.name || '',
+          'Check In': res.checkIn,
+          'Supplier Due': totals.totalBuy,
+          'Paid to Supplier': res.amountPaidToSupplier || 0,
+          'Unpaid (SAR)': totals.totalBuy - (res.amountPaidToSupplier || 0),
+        };
+      });
+      exportToExcel(`Reminders Report ${today}.xlsx`, data, 'Reminders');
+    }
+    showToast('Excel exported successfully', 'success');
+  };
+
   return (
     <div className="space-y-5 text-xs">
       
@@ -174,12 +235,21 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             <p className="text-xs text-slate-500 font-serif">{t('reports.subtitleDesc')}</p>
           </div>
           {(activeReportTab === 'arrival' || activeReportTab === 'cancellation' || activeReportTab === 'reminders') && (
-            <button
-              onClick={handleExportCSV}
-              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-1.5 rounded-lg transition border border-indigo-200"
-            >
-              ⬇️ {t('reports.exportCSV')}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleExportExcel}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-[10px] px-3 py-1.5 rounded-lg transition border border-emerald-200"
+                title="Export to Excel"
+              >
+                📊 Excel
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-1.5 rounded-lg transition border border-indigo-200"
+              >
+                ⬇️ {t('reports.exportCSV')}
+              </button>
+            </div>
           )}
         </div>
         
@@ -1249,7 +1319,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     rows.push({
                       'Sales Person': d.sp.name, 'RSV#': r.id, 'Guest': r.guestName, 'Hotel': hotels.find(h => h.id === r.hotelId)?.name || '',
                       'Check-In': r.checkIn, 'Check-Out': r.checkOut, 'Nights': r.nights,
-                      'Sell Total': totals.totalSell, 'Commission %': d.sp.commission,
+                      'Sell Total': totals.totalSell, 'Commission (SAR/room/night)': d.sp.commission,
+                      'Total Rooms': r.rooms.reduce((s: number, rm: any) => s + rm.qty, 0),
                       'Commission Amount': r.salesPersonCommissionAmount || 0,
                       'Commission Paid': r.commissionPaidToSalesPerson ? 'Yes' : 'No',
                       'Commission Paid Date': r.commissionPaidDate || '',
@@ -1304,7 +1375,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   <tr>
                     <th className="text-left px-2 py-2 font-semibold text-slate-600"></th>
                     <th className="text-left px-2 py-2 font-semibold text-slate-600">Sales Person</th>
-                    <th className="text-center px-2 py-2 font-semibold text-slate-600">%</th>
+                    <th className="text-center px-2 py-2 font-semibold text-slate-600">SAR/room/night</th>
                     <th className="text-center px-2 py-2 font-semibold text-slate-600">Bookings</th>
                     <th className="text-right px-2 py-2 font-semibold text-slate-600">Commission</th>
                     <th className="text-right px-2 py-2 font-semibold text-slate-600">Paid</th>
@@ -1321,7 +1392,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                       <tr className="hover:bg-slate-50 cursor-pointer" onClick={() => setExpandedSP(expandedSP === d.sp.id ? null : d.sp.id)}>
                         <td className="px-2 py-2 text-slate-400">{expandedSP === d.sp.id ? '▼' : '▶'}</td>
                         <td className="px-2 py-2 font-medium">{d.sp.name}</td>
-                        <td className="px-2 py-2 text-center font-mono">{d.sp.commission}%</td>
+                        <td className="px-2 py-2 text-center font-mono">{d.sp.commission}</td>
                         <td className="px-2 py-2 text-center">{d.count}</td>
                         <td className="px-2 py-2 text-right font-mono font-bold text-amber-700">{d.totalCommission.toLocaleString()}</td>
                         <td className="px-2 py-2 text-right font-mono text-emerald-600">{d.totalPaid.toLocaleString()}</td>
@@ -1421,6 +1492,52 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               <span className="flex items-center gap-1"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span>Kept = Commission kept by sales person from collection</span>
               <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-100 border border-red-300 rounded"></span>⚠️ Pending = Amount sales person still owes to company</span>
             </div>
+
+            {/* Supplier Commission Section */}
+            {(() => {
+              const supplierCommissions = activeReservations.filter(r => r.supplierCommissionAmount && r.supplierCommissionAmount > 0 && r.supplierId !== 'DIRECT');
+              if (supplierCommissions.length === 0) return null;
+              const bySupplier: Record<string, { agent: Agent | undefined; bookings: Reservation[]; totalMarkup: number }> = {};
+              supplierCommissions.forEach(r => {
+                const sid = r.supplierId;
+                if (!bySupplier[sid]) {
+                  bySupplier[sid] = { agent: agents.find(a => a.id === sid), bookings: [], totalMarkup: 0 };
+                }
+                bySupplier[sid].bookings.push(r);
+                bySupplier[sid].totalMarkup += (r.supplierCommissionAmount || 0);
+              });
+              const grandSupplierMarkup = Object.values(bySupplier).reduce((s, d) => s + d.totalMarkup, 0);
+              return (
+                <div className="bg-white border rounded-xl overflow-hidden mt-4">
+                  <div className="bg-indigo-50 px-4 py-3 border-b border-indigo-100 flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-indigo-800">Supplier Commission / Markup</h4>
+                    <span className="text-xs font-mono font-bold text-indigo-700">Total: {grandSupplierMarkup.toLocaleString()} SAR</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Supplier</th>
+                          <th className="text-center px-3 py-2 font-semibold text-slate-600">Rate %</th>
+                          <th className="text-center px-3 py-2 font-semibold text-slate-600">Bookings</th>
+                          <th className="text-right px-3 py-2 font-semibold text-slate-600">Total Markup</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {Object.entries(bySupplier).map(([sid, data]) => (
+                          <tr key={sid} className="hover:bg-slate-50">
+                            <td className="px-3 py-2 font-medium">{data.agent?.name || 'Unknown'}</td>
+                            <td className="px-3 py-2 text-center font-mono">{data.agent?.supplierMarkupRate || 0}%</td>
+                            <td className="px-3 py-2 text-center">{data.bookings.length}</td>
+                            <td className="px-3 py-2 text-right font-mono font-bold text-indigo-700">{data.totalMarkup.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })()}

@@ -112,8 +112,8 @@ tbody tr {
 @media print {
 
   @page {
-    size: auto;
-    margin: 10mm;
+    size: A4;
+    margin: 12mm 10mm;
   }
 
   html, body {
@@ -127,6 +127,22 @@ tbody tr {
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+
+  /* Master PDF Header — locked height, no page break inside, color fidelity */
+  .master-pdf-header {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    height: auto !important;
+    min-height: 100px !important;
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  /* Prevent orphaned headers (heading without content following) */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 
   /* Always hide no-print elements */
@@ -241,6 +257,12 @@ tbody tr {
     break-before: avoid !important;
   }
 
+  /* Multi-page report sections force new page */
+  .report-page-section {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
   /* User-inserted page break markers */
   .page-break-marker {
     page-break-before: always !important;
@@ -339,8 +361,8 @@ tbody tr {
     font-size: 16px; /* Prevents iOS zoom on focus */
   }
 
-  /* Stack grid layouts on mobile */
-  .grid {
+  /* Stack multi-column grids on mobile, but keep 2-col on tablets (sm:) */
+  .grid:not(.grid-cols-1) {
     grid-template-columns: 1fr !important;
   }
 
@@ -365,6 +387,11 @@ tbody tr {
   /* Sidebar icons alignment */
   nav .flex {
     gap: 0.5rem;
+  }
+
+  /* Smoother sidebar overlay */
+  .fixed.inset-0.bg-black\/50 {
+    transition: opacity 0.3s ease;
   }
 }
 

@@ -10,6 +10,7 @@ interface CalendarViewProps {
   agents: Agent[];
   hotels: Hotel[];
   onNavigate?: (tab: string, filters?: any) => void;
+  onSaveReservation?: (res: Reservation) => void;
 }
 
 interface CalendarEvent {
@@ -23,10 +24,13 @@ interface CalendarEvent {
   reservationId?: number;
 }
 
-export default function CalendarView({ reservations, transactions, followUps, agents, hotels, onNavigate }: CalendarViewProps) {
+export default function CalendarView({ reservations, transactions, followUps, agents, hotels, onNavigate, onSaveReservation }: CalendarViewProps) {
   const { t, lang } = useLang();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [dragConfirm, setDragConfirm] = useState<{ res: Reservation; newCheckIn: string; newCheckOut: string; oldCheckIn: string; oldCheckOut: string } | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -78,14 +82,17 @@ export default function CalendarView({ reservations, transactions, followUps, ag
       const guest = r.guestName || 'Guest';
       const hotel = hotelMap.get(r.hotelId) || 'Hotel';
       const client = agentMap.get(r.clientId) || '';
+      const statusColor = r.status === 'Confirmed'
+        ? { color: 'text-emerald-700', bgColor: 'bg-emerald-100 border-emerald-300' }
+        : { color: 'text-amber-700', bgColor: 'bg-amber-100 border-amber-300' };
       events.push({
         id: `arr-${r.id}`,
         date: r.checkIn,
         type: 'arrival',
         title: `${guest}`,
         subtitle: `${hotel} (RSV-${r.id})${client ? ` - ${client}` : ''}`,
-        color: 'text-emerald-700',
-        bgColor: 'bg-emerald-100 border-emerald-300',
+        color: statusColor.color,
+        bgColor: statusColor.bgColor,
         reservationId: r.id,
       });
       if (r.checkOut) {
@@ -257,10 +264,42 @@ export default function CalendarView({ reservations, transactions, followUps, ag
                 <button
                   key={i}
                   onClick={() => setSelectedDate(day.date)}
+                  onDragOver={(e) => {
+                    if (!draggedEvent || !draggedEvent.reservationId) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDragOverDate(day.date);
+                  }}
+                  onDragLeave={() => { if (dragOverDate === day.date) setDragOverDate(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverDate(null);
+                    if (!draggedEvent || !draggedEvent.reservationId || !onSaveReservation) return;
+                    const res = reservations.find(r => r.id === draggedEvent.reservationId);
+                    if (!res || res.status === 'Cancelled') return;
+                    const targetDate = day.date;
+                    // Calculate new dates based on which event was dragged
+                    let newCheckIn = res.checkIn;
+                    let newCheckOut = res.checkOut;
+                    if (draggedEvent.type === 'arrival') {
+                      const shiftDays = Math.round((new Date(targetDate).getTime() - new Date(res.checkIn).getTime()) / (1000 * 60 * 60 * 24));
+                      newCheckIn = targetDate;
+                      const co = new Date(res.checkOut);
+                      co.setDate(co.getDate() + shiftDays);
+                      newCheckOut = co.toISOString().split('T')[0];
+                    } else if (draggedEvent.type === 'departure') {
+                      if (targetDate <= res.checkIn) return; // Can't checkout before checkin
+                      newCheckOut = targetDate;
+                    }
+                    if (newCheckIn === res.checkIn && newCheckOut === res.checkOut) return;
+                    setDragConfirm({ res, newCheckIn, newCheckOut, oldCheckIn: res.checkIn, oldCheckOut: res.checkOut });
+                    setDraggedEvent(null);
+                  }}
                   className={`min-h-[70px] md:min-h-[90px] border-b border-r border-slate-100 p-1 text-left transition-all
                     ${day.isCurrentMonth ? 'bg-white' : 'bg-slate-50/50'}
                     ${isSelected ? 'ring-2 ring-blue-500 ring-inset bg-blue-50/50' : ''}
                     ${isToday ? 'bg-amber-50/50' : ''}
+                    ${dragOverDate === day.date ? 'ring-2 ring-indigo-400 ring-inset bg-indigo-50/50' : ''}
                     hover:bg-slate-50`}
                 >
                   <div className={`text-xs font-semibold mb-0.5 flex items-center gap-1
@@ -276,11 +315,28 @@ export default function CalendarView({ reservations, transactions, followUps, ag
                     )}
                   </div>
                   <div className="space-y-0.5 overflow-hidden max-h-[50px] md:max-h-[65px]">
-                    {dayEvents.slice(0, 3).map(ev => (
-                      <div key={ev.id} className={`text-[9px] md:text-[10px] leading-tight truncate px-1 py-0.5 rounded border ${ev.bgColor} ${ev.color}`}>
-                        {eventTypeIcon(ev.type)} {ev.title.substring(0, 18)}
-                      </div>
-                    ))}
+                    {dayEvents.slice(0, 3).map(ev => {
+                      const evRes = ev.reservationId ? reservations.find(r => r.id === ev.reservationId) : null;
+                      const isDraggable = ev.reservationId && evRes && evRes.status !== 'Cancelled' && onSaveReservation && (ev.type === 'arrival' || ev.type === 'departure');
+                      return (
+                        <div
+                          key={ev.id}
+                          draggable={!!isDraggable}
+                          onDragStart={(e) => {
+                            if (!isDraggable) { e.preventDefault(); return; }
+                            setDraggedEvent(ev);
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', ev.id);
+                          }}
+                          onDragEnd={() => { setDraggedEvent(null); setDragOverDate(null); }}
+                          className={`text-[9px] md:text-[10px] leading-tight truncate px-1 py-0.5 rounded border ${ev.bgColor} ${ev.color}
+                            ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:shadow-sm' : ''}`}
+                          title={isDraggable ? 'Drag to move dates' : ev.title}
+                        >
+                          {eventTypeIcon(ev.type)} {ev.title.substring(0, 18)}
+                        </div>
+                      );
+                    })}
                     {dayEvents.length > 3 && (
                       <div className="text-[9px] text-slate-400 pl-1">+{dayEvents.length - 3} more</div>
                     )}
@@ -333,7 +389,50 @@ export default function CalendarView({ reservations, transactions, followUps, ag
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-400" /> {t('cal.payments')}</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-pink-400" /> {t('cal.followUps')}</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-purple-400" /> {t('cal.optionExpiries')}</span>
+        {onSaveReservation && <span className="flex items-center gap-1 text-slate-400 ml-auto">↔ Drag events to move dates</span>}
       </div>
+
+      {/* Drag-and-Drop Confirmation Dialog */}
+      {dragConfirm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setDragConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-base text-slate-800 mb-3">↔ Move Reservation Dates</h3>
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-4">
+              <p className="text-sm font-bold text-slate-700">RSV-{dragConfirm.res.id} — {dragConfirm.res.guestName}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <p className="text-slate-400 font-bold uppercase text-[9px] mb-1">Old Dates</p>
+                  <p className="text-slate-600 font-mono">{dragConfirm.oldCheckIn}</p>
+                  <p className="text-slate-600 font-mono">{dragConfirm.oldCheckOut}</p>
+                </div>
+                <div>
+                  <p className="text-indigo-600 font-bold uppercase text-[9px] mb-1">New Dates</p>
+                  <p className="text-indigo-700 font-mono font-bold">{dragConfirm.newCheckIn}</p>
+                  <p className="text-indigo-700 font-mono font-bold">{dragConfirm.newCheckOut}</p>
+                </div>
+              </div>
+              {(() => {
+                const oldNights = Math.round((new Date(dragConfirm.oldCheckOut).getTime() - new Date(dragConfirm.oldCheckIn).getTime()) / (1000 * 60 * 60 * 24));
+                const newNights = Math.round((new Date(dragConfirm.newCheckOut).getTime() - new Date(dragConfirm.newCheckIn).getTime()) / (1000 * 60 * 60 * 24));
+                return newNights !== oldNights ? (
+                  <p className="text-[10px] text-amber-600 font-bold mt-2">⚠ Nights changed: {oldNights} → {newNights}</p>
+                ) : null;
+              })()}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDragConfirm(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold text-xs hover:bg-slate-200 transition">Cancel</button>
+              <button
+                onClick={() => {
+                  const updated = { ...dragConfirm.res, checkIn: dragConfirm.newCheckIn, checkOut: dragConfirm.newCheckOut, nights: Math.round((new Date(dragConfirm.newCheckOut).getTime() - new Date(dragConfirm.newCheckIn).getTime()) / (1000 * 60 * 60 * 24)) };
+                  onSaveReservation!(updated);
+                  setDragConfirm(null);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs hover:bg-indigo-700 transition"
+              >Confirm Move</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

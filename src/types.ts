@@ -65,6 +65,8 @@ export interface Agent {
   pendingRefunds?: RefundAlert[];
   creditLimit?: number; // Optional credit limit for clients
   clientStatus?: 'Active' | 'Suspended' | 'Blacklisted'; // Client status flag
+  supplierMarkupRate?: number; // Default commission/markup % charged to this supplier
+  portalToken?: string; // Unique random token for secure client portal access
   auditLogs: AuditLogEntry[];
 }
 
@@ -182,7 +184,10 @@ export interface Reservation {
   visaExpiry?: string; // Guest visa expiry date
   bookingSource?: string; // Channel: Direct, Booking.com, Expedia, Agent, Walk-in, etc.
   salesPersonId?: string; // Linked sales person for commission tracking
+  salesPersonCommissionRate?: number; // Snapshot of SAR per room per night at booking time
   salesPersonCommissionAmount?: number; // Calculated commission amount for this booking
+  supplierCommissionRate?: number; // Snapshot of supplier markup % at booking time
+  supplierCommissionAmount?: number; // Calculated supplier commission/margin amount
   commissionPaidToSalesPerson?: boolean; // Whether commission has been paid to salesperson
   commissionPaidDate?: string; // When commission was paid
   // Sales person direct collection tracking (KSA collections)
@@ -193,6 +198,9 @@ export interface Reservation {
   tags?: string[]; // Custom labels: VIP, Honeymoon, Corporate, etc.
   supplierDueDate?: string; // When supplier payment is due
   specialRequests?: string; // Guest special requests/preferences for this booking
+  internalNotes?: string; // Staff-only notes, not shown on PDFs or client portal
+  checkInStatus?: 'Expected' | 'Checked-In' | 'Checked-Out'; // Front-desk operational status
+  assignedTo?: string; // Staff user ID assigned to manage this booking
 }
 
 export interface Account {
@@ -294,7 +302,7 @@ export interface SalesPerson {
   name: string;
   phone: string;
   email: string;
-  commission: number; // Commission percentage
+  commission: number; // SAR per room per night (fixed rate, not percentage)
   active: boolean;
 }
 
@@ -491,4 +499,47 @@ export interface EmailTemplate {
   active: boolean;
   createdBy?: string;
   createdAt?: string;
+}
+
+// Booking Templates — saved presets for quick reservation creation
+export interface BookingTemplate {
+  id: string;
+  name: string;
+  hotelId: string;
+  clientId: string;
+  supplierId: string;
+  rooms: RoomLine[];
+  tags?: string[];
+  bookingSource?: string;
+  specialRequests?: string;
+  guestNationality?: string;
+  createdAt: string;
+}
+
+// Commission Ledger — formal tracking of all commission entries
+export interface CommissionEntry {
+  id: string;
+  reservationId: number;
+  type: 'Supplier' | 'SalesPerson';
+  agentId?: string;       // Supplier agent ID (for Supplier type)
+  salesPersonId?: string; // Sales person ID (for SalesPerson type)
+  rate: number;           // Commission rate %
+  amount: number;         // Calculated commission amount
+  status: 'Pending' | 'Paid' | 'Reversed';
+  createdAt: string;
+  paidAt?: string;
+  reversedAt?: string;
+  note?: string;
+}
+
+// Credit / Debit Note tracking
+export interface CreditNoteEntry {
+  id: string;
+  reservationId: number;
+  type: 'ClientCredit' | 'ClientDebit' | 'SupplierCredit' | 'SupplierDebit';
+  amount: number;
+  reason: string;
+  docNo: string;
+  createdBy: string;
+  createdAt: string;
 }

@@ -447,8 +447,8 @@ export default function GeneralDataPage({
                 <input placeholder="Phone" value={spForm.phone || ''} onChange={e => setSpForm({ ...spForm, phone: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
                 <input placeholder="Email" type="email" value={spForm.email || ''} onChange={e => setSpForm({ ...spForm, email: e.target.value })} className="px-3 py-2 border rounded-lg text-sm" />
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Commission %:</label>
-                  <input type="number" min={0} max={100} step={0.5} value={spForm.commission ?? 0} onChange={e => setSpForm({ ...spForm, commission: Number(e.target.value) })} className="w-20 px-3 py-2 border rounded-lg text-sm" />
+                  <label className="text-sm text-gray-600">SAR / Room / Night:</label>
+                  <input type="number" min={0} step={1} value={spForm.commission ?? 0} onChange={e => setSpForm({ ...spForm, commission: Number(e.target.value) })} className="w-24 px-3 py-2 border rounded-lg text-sm" />
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={spForm.active !== false} onChange={e => setSpForm({ ...spForm, active: e.target.checked })} className="rounded" />
@@ -473,7 +473,7 @@ export default function GeneralDataPage({
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Name</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Phone</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Email</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Commission</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">SAR/Room/Night</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Actions</th>
                 </tr>
@@ -487,7 +487,7 @@ export default function GeneralDataPage({
                       <td className="px-4 py-3 font-medium">{sp.name}</td>
                       <td className="px-4 py-3 text-gray-600">{sp.phone || '-'}</td>
                       <td className="px-4 py-3 text-gray-600">{sp.email || '-'}</td>
-                      <td className="px-4 py-3">{sp.commission}%</td>
+                      <td className="px-4 py-3 font-mono">{sp.commission} SAR</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sp.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                           {sp.active ? 'Active' : 'Inactive'}

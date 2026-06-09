@@ -11,6 +11,18 @@ import { showToast } from './Toast';
 
 import { getAgentActualBalance, exportToExcel } from '../lib/storage';
 
+// Generate a unique random token for client portal access
+function generatePortalToken(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const randomValues = new Uint8Array(32);
+  crypto.getRandomValues(randomValues);
+  for (let i = 0; i < 32; i++) {
+    result += chars[randomValues[i] % chars.length];
+  }
+  return result;
+}
+
 interface AgentsPageProps {
   agents: Agent[];
   reservations: Reservation[];
@@ -37,6 +49,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [creditLimit, setCreditLimit] = useState<number | undefined>(undefined);
   const [clientStatus, setClientStatus] = useState<'Active' | 'Suspended' | 'Blacklisted'>('Active');
+  const [supplierMarkupRate, setSupplierMarkupRate] = useState<number | undefined>(undefined);
 
   const [showForm, setShowForm] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -85,6 +98,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setOpeningBalance(agent.balance);
     setCreditLimit(agent.creditLimit);
     setClientStatus(agent.clientStatus || 'Active');
+    setSupplierMarkupRate(agent.supplierMarkupRate);
     setShowForm(true);
     setActiveMenuId(null);
   };
@@ -130,6 +144,8 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
       balance: openingBalance,
       creditLimit,
       clientStatus,
+      supplierMarkupRate: (type === 'Supplier' || type === 'Both') ? supplierMarkupRate : undefined,
+      portalToken: editingId ? (agents.find(a => a.id === editingId)?.portalToken || generatePortalToken()) : generatePortalToken(),
       auditLogs: [newLog, ...pastLogs]
     };
 
@@ -149,6 +165,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setOpeningBalance(0);
     setCreditLimit(undefined);
     setClientStatus('Active');
+    setSupplierMarkupRate(undefined);
     setShowForm(false);
   };
 
@@ -321,6 +338,20 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 <option value="Blacklisted">Blacklisted</option>
               </select>
             </div>
+
+            {(type === 'Supplier' || type === 'Both') && (
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Commission / Markup Rate (%) <span className="text-slate-400 font-normal">Optional</span></label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={supplierMarkupRate ?? ''}
+                  onChange={(e) => setSupplierMarkupRate(e.target.value ? Number(e.target.value) : undefined)}
+                  placeholder="e.g. 10"
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2">
@@ -375,7 +406,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                     <div className="flex gap-1">
                       <button onClick={() => { setViewingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm" title="View Details">👁️</button>
                       {agent.type !== 'Supplier' && (
-                        <button onClick={() => window.open(`${window.location.origin}${window.location.pathname}?portal=${agent.id}`, '_blank')} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100" title="Open Client Portal">🚪 Portal</button>
+                        <button onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }} className="min-h-[36px] bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 rounded-lg text-[10px] border border-amber-100" title="Open Client Portal">🚪 Portal</button>
                       )}
                       <button onClick={() => handleEdit(agent)} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg text-sm" title="Edit">✏️</button>
                       <button onClick={() => { setAuditingAgent(agent); setActiveMenuId(null); }} className="min-w-[36px] min-h-[36px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg text-sm">📋</button>
@@ -475,7 +506,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                       </button>
                       {agent.type !== 'Supplier' && (
                         <button
-                          onClick={() => window.open(`${window.location.origin}${window.location.pathname}?portal=${agent.id}`, '_blank')}
+                          onClick={() => { const token = agent.portalToken || 'no-token'; window.open(`${window.location.origin}${window.location.pathname}?portal=${token}`, '_blank'); }}
                           className="bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 font-bold px-2 py-1 rounded text-[10px] border border-amber-100 min-h-[28px]"
                           title="Open Client Portal"
                         >

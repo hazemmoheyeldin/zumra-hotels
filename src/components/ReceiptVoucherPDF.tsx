@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Transaction, Agent, Reservation, StampPosition } from '../types';
-import ZumraLogo from './ZumraLogo';
+import MasterPDFHeader from './MasterPDFHeader';
 import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
@@ -135,23 +135,8 @@ export default function ReceiptVoucherPDF({ transaction, client, reservation, on
             onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
           />
           
-          {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-1 gap-4">
-            <div className="flex flex-col text-left font-sans flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
-                ZUMRA HOTELS
-              </span>
-              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
-                زمرة للفنادق
-              </span>
-            </div>
-            <div className="flex-shrink-0">
-              <ZumraLogo size="xxl" />
-            </div>
-          </div>
-
-          {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
+          {/* Document Header */}
+          <MasterPDFHeader />
 
           {/* Title bar banner */}
           <div className="bg-emerald-50 border border-emerald-205 text-center py-2 rounded-lg mb-4 flex justify-between px-4 items-center print:bg-emerald-50 font-sans">

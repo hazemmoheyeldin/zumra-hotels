@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
-import ZumraLogo from './ZumraLogo';
+import MasterPDFHeader from './MasterPDFHeader';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
 import { useLang } from '../lib/LanguageContext';
@@ -114,23 +114,8 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
         {/* Printable Paper Area (Landscape) */}
         <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
           
-          {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center mb-1 gap-4">
-            <div className="flex flex-col text-left font-sans flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
-                ZUMRA HOTELS
-              </span>
-              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
-                زمرة للفنادق
-              </span>
-            </div>
-            <div className="flex-shrink-0">
-              <ZumraLogo size="xxl" />
-            </div>
-          </div>
-
-          {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
+          {/* Document Header */}
+          <MasterPDFHeader />
 
           {/* Report Title Section */}
           <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">
@@ -147,7 +132,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
 
           {/* Arrivals Matrix Table */}
-          <div className="border border-slate-200 rounded-lg overflow-x-auto mb-6 print:overflow-visible print:border-none print:rounded-none arrival-report-table">
+          <div className="border border-slate-200 rounded-lg overflow-x-auto mb-6 print:overflow-visible print:rounded-none arrival-report-table">
             <table className="w-full text-left border-collapse text-[8.5px]" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '2.5%' }} />

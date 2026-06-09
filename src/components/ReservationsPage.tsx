@@ -4,9 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry } from '../types';
+import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry, BookingTemplate } from '../types';
 import ZumraLogo from './ZumraLogo';
-import { getReservationTotals, getEgyptTime, exportToCSV, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold } from '../lib/storage';
+import { getReservationTotals, getEgyptTime, exportToCSV, exportToExcel, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold, loadBookingTemplates, saveBookingTemplates, loadCommissions, saveCommissions, recordCommissionEntries, reverseCommissionEntries, calculateSalesPersonCommission, calculateSupplierCommission } from '../lib/storage';
 import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder, sendSupplierRateConfirmation } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
@@ -16,6 +16,10 @@ import { useToast, ToastContainer } from './Toast';
 import { hasDraft, loadDraft, clearDraft } from '../hooks/useDraft';
 import CancellationWizard, { CancellationResult } from './CancellationWizard';
 import SmartSelect, { SmartSelectOption } from './SmartSelect';
+import BookingTemplatesModal from './BookingTemplatesModal';
+import CreditNotePDF from './CreditNotePDF';
+import { loadCreditNotes, saveCreditNotes } from '../lib/storage';
+import { CreditNoteEntry } from '../types';
 
 interface RoomSelection {
   roomType: string;
@@ -45,6 +49,8 @@ interface RoomSelection {
   extraMeal2Label?: string;
   extraMeal2BuyNum?: number;
   extraMeal2SellNum?: number;
+  nightlyRates?: number | { [date: string]: number };
+  buyRate?: number | { [date: string]: number };
 }
 
 interface ReservationsPageProps {
@@ -104,6 +110,11 @@ export default function ReservationsPage({
   
   // View states
   const [showForm, setShowForm] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [bookingTemplates, setBookingTemplates] = useState<BookingTemplate[]>(() => loadBookingTemplates());
+  const [expandedNightlyGrid, setExpandedNightlyGrid] = useState<Set<number>>(new Set());
+  const [creditNoteEntry, setCreditNoteEntry] = useState<CreditNoteEntry | null>(null);
+  const [creditNotes, setCreditNotes] = useState<CreditNoteEntry[]>(() => loadCreditNotes());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -231,18 +242,16 @@ export default function ReservationsPage({
       setViewingId(String(initialFilters.viewReservationId));
       setSearchTerm(String(initialFilters.viewReservationId));
     }
+    if (initialFilters?.reservationId) {
+      setEditingId(String(initialFilters.reservationId));
+      setShowForm(true);
+      setViewingId(null);
+    }
     if (initialFilters?.showNewForm) {
       setShowForm(true);
       setEditingId(null);
       setViewingId(null);
-      // Pre-populate default form values when coming from Dashboard
-      if (hotels.length > 0 && !hotelId) {
-        setHotelId(hotels[0].id);
-      }
-      const defaultClient = agents.find(a => a.type === 'Customer' || a.type === 'Both');
-      const defaultSupplier = agents.find(a => a.type === 'Supplier' || a.type === 'Both');
-      if (defaultClient && !clientId) setClientId(defaultClient.id);
-      if (defaultSupplier && !supplierId) setSupplierId(defaultSupplier.id);
+      // Start with blank client/supplier — user must select explicitly
     }
   }, [initialFilters]);
 
@@ -301,10 +310,16 @@ export default function ReservationsPage({
   const [selectedTcId, setSelectedTcId] = useState('');
   const [bookingSource, setBookingSource] = useState('Direct');
   const [salesPersonId, setSalesPersonId] = useState('');
+  const [spCommissionRate, setSpCommissionRate] = useState<number>(0); // Manual SAR/room/night for this booking
   const [collectedBySalesPerson, setCollectedBySalesPerson] = useState(false);
   const [bookingTags, setBookingTags] = useState<string[]>([]);
   const [supplierDueDate, setSupplierDueDate] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
+  const [checkInStatus, setCheckInStatus] = useState<'Expected' | 'Checked-In' | 'Checked-Out'>('Expected');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [showRateCompare, setShowRateCompare] = useState(false);
+  const [rateCompareIdx, setRateCompareIdx] = useState<number | null>(null);
   const [compareIds, setCompareIds] = useState<number[]>([]);
 
   // Allotment booking state
@@ -316,12 +331,16 @@ export default function ReservationsPage({
   ]);
 
   // Auto-save draft when form is open
+  const [draftSavedAt, setDraftSavedAt] = useState<string>('');
   React.useEffect(() => {
     if (!showForm) return;
     const timer = setTimeout(() => {
       const draftData = { guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms, savedAt: Date.now() };
-      try { localStorage.setItem('zumra_draft_reservation_form', JSON.stringify(draftData)); } catch {}
-    }, 3000);
+      try {
+        localStorage.setItem('zumra_draft_reservation_form', JSON.stringify(draftData));
+        setDraftSavedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      } catch {}
+    }, 1000);
     return () => clearTimeout(timer);
   }, [showForm, guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms]);
 
@@ -527,10 +546,14 @@ export default function ReservationsPage({
     setSelectedTcId(res.tcId || '');
     setBookingSource(res.bookingSource || 'Direct');
     setSalesPersonId(res.salesPersonId || '');
+    setSpCommissionRate(res.salesPersonCommissionRate || 0);
     setCollectedBySalesPerson(res.collectedBySalesPerson || false);
     setBookingTags(res.tags || []);
     setSupplierDueDate(res.supplierDueDate || '');
     setSpecialRequests(res.specialRequests || '');
+    setInternalNotes(res.internalNotes || '');
+    setCheckInStatus(res.checkInStatus || 'Expected');
+    setAssignedTo(res.assignedTo || '');
     setSupplierVoucher(res.supplierVoucher || '');
     setCancellationFee(res.cancellationFee || 0);
     setCancellationReason(res.cancellationReason || '');
@@ -616,6 +639,36 @@ export default function ReservationsPage({
 
     const calculatedNights = calculateNightsCount();
 
+    // Duplicate booking detection: same guest + hotel + overlapping dates
+    if (!editingId && guestName && hotelId && checkIn && checkOut) {
+      const dupes = reservations.filter(r =>
+        r.id !== nextId &&
+        r.hotelId === hotelId &&
+        r.guestName.toLowerCase() === guestName.toLowerCase() &&
+        r.status !== 'Cancelled' &&
+        r.checkIn < checkOut && r.checkOut > checkIn
+      );
+      if (dupes.length > 0) {
+        const dupeList = dupes.map(d => `RSV-${d.id} (${d.checkIn} to ${d.checkOut})`).join(', ');
+        if (!confirm(`⚠️ Possible duplicate detected!\n\nGuest "${guestName}" already has booking(s) at this hotel with overlapping dates:\n${dupeList}\n\nSave anyway?`)) return;
+      }
+    }
+
+    // Auto-generate hotel confirmation number when confirming without one
+    let autoConfNo = hotelConfirmationNo;
+    if (status === 'Confirmed' && !autoConfNo) {
+      const year = new Date().getFullYear();
+      const existingConfNos = reservations
+        .map(r => r.hotelConfirmationNo || '')
+        .filter(n => n.startsWith(`ZUM-${year}-`));
+      const maxSeq = existingConfNos.reduce((max, n) => {
+        const parts = n.split('-');
+        const seq = parseInt(parts[2] || '0');
+        return seq > max ? seq : max;
+      }, 0);
+      autoConfNo = `ZUM-${year}-${String(maxSeq + 1).padStart(4, '0')}`;
+    }
+
     const buildNightlyRates = (baseDateStr: string, rate: number, hasWeekend?: boolean, wkRate?: number) => {
       if (!hasWeekend || wkRate === undefined) return rate;
       const map: Record<string, number> = {};
@@ -681,18 +734,30 @@ export default function ReservationsPage({
       amountPaidToSupplier,
       clientOptionDate: status === 'Tentative' ? clientOptionDate : undefined,
       supplierOptionDate: status === 'Tentative' ? supplierOptionDate : undefined,
-      hotelConfirmationNo: status === 'Confirmed' ? hotelConfirmationNo : undefined,
+      hotelConfirmationNo: status === 'Confirmed' ? autoConfNo : undefined,
       bankAccountId: bankAccountId || undefined,
       agreementNo,
       tcId: selectedTcId || undefined,
       bookingSource: bookingSource || undefined,
       salesPersonId: salesPersonId || undefined,
-      salesPersonCommissionAmount: salesPersonId ? (() => {
-        const sp = salesPersons.find(s => s.id === salesPersonId);
-        if (!sp || !sp.commission) return 0;
-        const totalSellCalc = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
-        return Math.round((totalSellCalc * sp.commission) / 100);
+      salesPersonCommissionRate: salesPersonId ? (spCommissionRate || 0) : undefined,
+      salesPersonCommissionAmount: salesPersonId && spCommissionRate > 0 ? (() => {
+        const totalRooms = rooms.reduce((s, rm) => s + rm.qty, 0);
+        const totalNights = calculateNightsCount();
+        return Math.round(spCommissionRate * totalRooms * totalNights);
       })() : undefined,
+      supplierCommissionRate: (() => {
+        if (!supplierId || supplierId === 'DIRECT') return undefined;
+        const sup = agents.find(a => a.id === supplierId);
+        return sup?.supplierMarkupRate || undefined;
+      })(),
+      supplierCommissionAmount: (() => {
+        if (!supplierId || supplierId === 'DIRECT') return undefined;
+        const sup = agents.find(a => a.id === supplierId);
+        if (!sup?.supplierMarkupRate) return undefined;
+        const totalBuyCalc = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
+        return Math.round((totalBuyCalc * sup.supplierMarkupRate!) / 100);
+      })(),
       commissionPaidToSalesPerson: editingId ? (reservations.find(r => r.id.toString() === editingId)?.commissionPaidToSalesPerson || false) : false,
       commissionPaidDate: editingId ? (reservations.find(r => r.id.toString() === editingId)?.commissionPaidDate) : undefined,
       collectedBySalesPerson: collectedBySalesPerson || undefined,
@@ -702,6 +767,9 @@ export default function ReservationsPage({
       tags: bookingTags.length > 0 ? bookingTags : undefined,
       supplierDueDate: supplierDueDate || undefined,
       specialRequests: specialRequests || undefined,
+      internalNotes: internalNotes || undefined,
+      checkInStatus: checkInStatus || 'Expected',
+      assignedTo: assignedTo || undefined,
       supplierVoucher,
       allotmentId: selectedAllotmentId || undefined,
       nonRefundable: nonRefundable || undefined,
@@ -797,6 +865,25 @@ export default function ReservationsPage({
 
     onSaveReservation(reservationToSave);
     clearDraft('reservation_form');
+
+    // Record commission ledger entries
+    const totalSellForComm = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
+    const totalBuyForComm = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
+    const spRate = reservationToSave.salesPersonCommissionRate;
+    const supRate = reservationToSave.supplierCommissionRate;
+    if ((spRate && spRate > 0) || (supRate && supRate > 0)) {
+      const newEntries = recordCommissionEntries(reservationToSave, spRate, supRate, totalSellForComm, totalBuyForComm);
+      if (newEntries.length > 0) {
+        const existing = loadCommissions();
+        // Remove previous entries for this reservation (in case of edit)
+        const filtered = existing.filter(c => c.reservationId !== reservationToSave.id);
+        saveCommissions([...filtered, ...newEntries]);
+      }
+    }
+    // Reverse commission entries if cancelled
+    if (reservationToSave.status === 'Cancelled') {
+      reverseCommissionEntries(reservationToSave.id);
+    }
 
     // Auto-create follow-up for option dates
     if (onSaveFollowUp && reservationToSave.status === 'Tentative') {
@@ -910,13 +997,144 @@ export default function ReservationsPage({
     setSelectedTcId('');
     setBookingSource('Direct');
     setSalesPersonId('');
+    setSpCommissionRate(0);
     setCollectedBySalesPerson(false);
     setBookingTags([]);
     setSupplierDueDate('');
     setSpecialRequests('');
+    setInternalNotes('');
+    setCheckInStatus('Expected');
+    setAssignedTo('');
     setCompareIds([]);
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
     setShowForm(false);
+  };
+
+  const cloneReservation = (res: Reservation) => {
+    resetForm();
+    // Populate from source reservation
+    setHotelId(res.hotelId);
+    setClientId(res.clientId);
+    setSupplierId(res.supplierId);
+    setGuestNationality(res.guestNationality || 'Egyptian');
+    setStatus('Tentative');
+    setNonRefundable(res.nonRefundable || false);
+    setBookingSource(res.bookingSource || 'Direct');
+    setSalesPersonId(res.salesPersonId || '');
+    setSpCommissionRate(res.salesPersonCommissionRate || 0);
+    setBookingTags(res.tags || []);
+    setSelectedTcId(res.tcId || '');
+    setSpecialRequests(res.specialRequests || '');
+    setInternalNotes(res.internalNotes || '');
+    setAssignedTo(res.assignedTo || '');
+    // Clone rooms with rates
+    if (res.rooms && res.rooms.length > 0) {
+      setRooms(res.rooms.map(r => ({
+        roomType: r.roomType,
+        view: r.view || 'City View',
+        mealPlan: r.mealPlan,
+        qty: r.qty,
+        pax: r.pax,
+        buyPriceNum: typeof r.buyRate === 'number' ? r.buyRate : 0,
+        sellPriceNum: typeof r.nightlyRates === 'number' ? r.nightlyRates : 0,
+        hasSeparateMealRate: r.hasSeparateMealRate || false,
+        mealRate: r.mealRate || 0,
+        mealBuyRate: r.mealBuyRate,
+        hasExtraBed: r.hasExtraBed,
+        extraBedRate: r.extraBedRate,
+        extraBedBuyRate: r.extraBedBuyRate,
+      })));
+    }
+    // Clear: guest name, dates, confirmation numbers (user must fill these)
+    setGuestName('');
+    setCheckIn('');
+    setCheckOut('');
+    setHotelConfirmationNo('');
+    setAgreementNo('');
+    setSupplierVoucher('');
+    setShowForm(true);
+    toast.success(`Cloned from RSV-${res.id} — modify details and save`);
+  };
+
+  // Booking Templates handlers
+  const handleSaveTemplate = (name: string) => {
+    if (!hotelId) { toast.warning('Select a hotel first'); return; }
+    const templateRooms: RoomLine[] = rooms.map((rm, rIdx) => ({
+      id: `rm_${Date.now()}_${rIdx}`,
+      roomType: rm.roomType,
+      qty: rm.qty,
+      nightlyRates: rm.sellPriceNum,
+      buyRate: rm.buyPriceNum,
+      mealPlan: rm.mealPlan,
+      hasSeparateMealRate: !!rm.hasSeparateMealRate,
+      mealRate: rm.mealRateSellNum || 0,
+      mealBuyRate: rm.mealRateBuyNum,
+      hasExtraBed: !!rm.hasExtraBed,
+      extraBedRate: rm.extraBedSellPriceNum || 0,
+      extraBedBuyRate: rm.extraBedBuyPriceNum,
+      pax: rm.pax,
+      view: rm.view,
+      hasViewSupplement: !!rm.hasViewSupplement,
+      viewSupplementRate: rm.viewSuppSellPriceNum || 0,
+      viewSupplementBuyRate: rm.viewSuppBuyPriceNum,
+    }));
+    const newTemplate: BookingTemplate = {
+      id: `tmpl_${Date.now()}`,
+      name,
+      hotelId,
+      clientId,
+      supplierId,
+      rooms: templateRooms,
+      tags: bookingTags.length > 0 ? [...bookingTags] : undefined,
+      bookingSource: bookingSource || undefined,
+      specialRequests: specialRequests || undefined,
+      guestNationality: guestNationality || undefined,
+      createdAt: getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
+    };
+    const updated = [...bookingTemplates, newTemplate];
+    setBookingTemplates(updated);
+    saveBookingTemplates(updated);
+    toast.success(`Template "${name}" saved`);
+  };
+
+  const handleLoadTemplate = (tmpl: BookingTemplate) => {
+    resetForm();
+    setHotelId(tmpl.hotelId);
+    setClientId(tmpl.clientId);
+    setSupplierId(tmpl.supplierId);
+    if (tmpl.bookingSource) setBookingSource(tmpl.bookingSource);
+    if (tmpl.specialRequests) setSpecialRequests(tmpl.specialRequests);
+    if (tmpl.guestNationality) setGuestNationality(tmpl.guestNationality);
+    if (tmpl.tags) setBookingTags(tmpl.tags);
+    if (tmpl.rooms && tmpl.rooms.length > 0) {
+      setRooms(tmpl.rooms.map(r => ({
+        roomType: r.roomType,
+        view: r.view || '',
+        mealPlan: r.mealPlan,
+        qty: r.qty,
+        pax: r.pax,
+        buyPriceNum: typeof r.buyRate === 'number' ? r.buyRate : 0,
+        sellPriceNum: typeof r.nightlyRates === 'number' ? r.nightlyRates : 0,
+        hasSeparateMealRate: r.hasSeparateMealRate,
+        mealRateSellNum: r.mealRate || 0,
+        mealRateBuyNum: r.mealBuyRate || 0,
+        hasExtraBed: r.hasExtraBed,
+        extraBedSellPriceNum: r.extraBedRate || 0,
+        extraBedBuyPriceNum: r.extraBedBuyRate || 0,
+        hasViewSupplement: r.hasViewSupplement,
+        viewSuppSellPriceNum: r.viewSupplementRate || 0,
+        viewSuppBuyPriceNum: r.viewSupplementBuyRate || 0,
+      })));
+    }
+    setShowForm(true);
+    toast.success(`Template "${tmpl.name}" loaded — fill guest name and dates`);
+  };
+
+  const handleDeleteTemplate = (id: string) => {
+    const updated = bookingTemplates.filter(t => t.id !== id);
+    setBookingTemplates(updated);
+    saveBookingTemplates(updated);
+    toast.success('Template deleted');
   };
 
   const handleUpdateConfirmationSpecs = () => {
@@ -1161,6 +1379,43 @@ export default function ReservationsPage({
     exportToCSV('reservations-full-report.csv', rows);
   };
 
+  const handleExportExcel = () => {
+    const spMap = new Map(salesPersons.map(sp => [sp.id, sp.name]));
+    const reportData = filteredReservations.map(res => {
+      const h = hotels.find(ht => ht.id === res.hotelId);
+      const c = agents.find(ac => ac.id === res.clientId);
+      const s = agents.find(as => as.id === res.supplierId);
+      const totals = getReservationTotals(res);
+      return {
+        'RSV #': res.id,
+        'Status': res.status,
+        'Guest Name': res.guestName,
+        'Nationality': res.guestNationality || '',
+        'Hotel': h?.name || '',
+        'Client': c?.companyName || c?.name || '',
+        'Supplier': s?.companyName || s?.name || '',
+        'Check In': res.checkIn,
+        'Check Out': res.checkOut,
+        'Nights': res.nights,
+        'Rooms': res.rooms.map(r => `${r.qty}x ${r.roomType} ${r.mealPlan}`).join(', '),
+        'Confirmation #': res.hotelConfirmationNo || '',
+        'Agreement #': res.agreementNo || '',
+        'Total Sell (SAR)': totals.totalSell,
+        'Total Buy (SAR)': totals.totalBuy,
+        'Profit (SAR)': totals.profit,
+        'Client Paid': res.amountPaidByClient || 0,
+        'Outstanding': Math.max(totals.totalSell - (res.amountPaidByClient || 0), 0),
+        'Non-Refundable': res.nonRefundable ? 'Yes' : 'No',
+        'Sales Person': spMap.get(res.salesPersonId || '') || '',
+        'Created By': res.createdBy || '',
+        'Booking Date': res.createdAt?.split(' ')[0] || '',
+        'Tags': (res.tags || []).join(', '),
+      };
+    });
+    exportToExcel(`Reservations ${new Date().toISOString().split('T')[0]}.xlsx`, reportData, 'Reservations');
+    toast.success('Excel exported successfully');
+  };
+
   const [printingRoomingList, setPrintingRoomingList] = useState<Reservation | null>(null);
 
   return (
@@ -1319,6 +1574,13 @@ export default function ReservationsPage({
                 </>
               )}
               <button
+                onClick={handleExportExcel}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-emerald-200"
+                title="Export to Excel"
+              >
+                📊 Excel
+              </button>
+              <button
                 onClick={handleExportCSV}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-indigo-200"
               >
@@ -1332,6 +1594,12 @@ export default function ReservationsPage({
               className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow flex items-center gap-1.5"
             >
                ➕ {t('res.newReservation')}
+            </button>
+            <button
+              onClick={() => setShowTemplates(true)}
+              className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1.5 border border-purple-200"
+            >
+              📋 Templates
             </button>
           </div>
         </div>
@@ -1409,6 +1677,12 @@ export default function ReservationsPage({
             <h3 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
               <span className="p-2 bg-amber-100 text-amber-700 rounded-xl">🏨</span>
               {editingId ? `${t('res.editBooking')} RSV-${editingId}` : t('res.newReservation')}
+              {/* Draft saved indicator */}
+              {showForm && !editingId && draftSavedAt && (
+                <span className="text-[9px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 ml-2">
+                  Draft saved {draftSavedAt}
+                </span>
+              )}
             </h3>
             <div className="flex items-center gap-3">
               {/* Payment Status Indicator (only in edit mode) */}
@@ -1474,6 +1748,63 @@ export default function ReservationsPage({
                       >
                         🎟️ Print Voucher
                       </button>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const editingRes = reservations.find(r => r.id.toString() === editingId);
+                          if (!editingRes) return;
+                          setPrintMenuOpen(false);
+                          // Print Confirmation first
+                          setPrintingDoc({ res: editingRes, isVoucher: false });
+                          await new Promise(r => setTimeout(r, 2000));
+                          // Then Voucher
+                          setPrintingDoc({ res: editingRes, isVoucher: true });
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50 transition"
+                      >
+                        📦 Print All (Conf + Voucher)
+                      </button>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      {(['ClientCredit', 'ClientDebit', 'SupplierCredit', 'SupplierDebit'] as const).map(type => {
+                        const isCredit = type.includes('Credit');
+                        const isClient = type.includes('Client');
+                        const label = `${isCredit ? '↩️' : '↗️'} ${isClient ? 'Client' : 'Supplier'} ${isCredit ? 'Credit' : 'Debit'} Note`;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => {
+                              const editingRes = reservations.find(r => r.id.toString() === editingId);
+                              if (!editingRes) return;
+                              const amountStr = prompt(`${label}\nEnter amount (SAR):`);
+                              if (!amountStr) return;
+                              const amount = parseFloat(amountStr);
+                              if (isNaN(amount) || amount <= 0) { toast.warning('Invalid amount'); return; }
+                              const reason = prompt('Enter reason:') || '';
+                              const docNo = `CN-${new Date().getFullYear()}-${String(creditNotes.length + 1).padStart(4, '0')}`;
+                              const entry: CreditNoteEntry = {
+                                id: `cn_${Date.now()}`,
+                                reservationId: editingRes.id,
+                                type,
+                                amount,
+                                reason,
+                                docNo,
+                                createdBy: currentUser,
+                                createdAt: getEgyptTime().toISOString().replace('T', ' ').substring(0, 19),
+                              };
+                              const updated = [...creditNotes, entry];
+                              setCreditNotes(updated);
+                              saveCreditNotes(updated);
+                              setCreditNoteEntry(entry);
+                              setPrintMenuOpen(false);
+                            }}
+                            className={`w-full text-left px-4 py-2 text-[10px] font-medium ${isCredit ? 'text-emerald-700 hover:bg-emerald-50' : 'text-rose-700 hover:bg-rose-50'} transition`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1663,8 +1994,7 @@ export default function ReservationsPage({
                 const totalRooms = rooms.reduce((s, rm) => s + rm.qty, 0);
                 const totalBuy = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
                 const totalSell = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
-                const selectedSP = salesPersonId ? salesPersons.find(sp => sp.id === salesPersonId) : null;
-                const commissionAmount = selectedSP && selectedSP.commission ? Math.round((totalSell * selectedSP.commission) / 100) : 0;
+                const commissionAmount = salesPersonId && spCommissionRate > 0 ? Math.round(spCommissionRate * totalRooms * calculateNightsCount()) : 0;
                 const totalProfit = totalSell - totalBuy;
                 const netProfit = totalProfit - commissionAmount;
                 const marginPercent = totalSell > 0 ? ((netProfit) / totalSell * 100) : 0;
@@ -1699,7 +2029,7 @@ export default function ReservationsPage({
                       <span className={totalProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}>Gross: <span className="font-mono font-extrabold">{totalProfit.toLocaleString()}</span></span>
                       {commissionAmount > 0 && (
                         <>
-                          <span className="text-purple-600">Commission ({selectedSP?.commission}%): <span className="font-mono font-bold">-{commissionAmount.toLocaleString()}</span></span>
+                          <span className="text-purple-600">Commission ({spCommissionRate} SAR/room/night): <span className="font-mono font-bold">-{commissionAmount.toLocaleString()}</span></span>
                           <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}>Net Profit: <span className="font-mono font-black">{netProfit.toLocaleString()}</span></span>
                         </>
                       )}
@@ -1768,7 +2098,8 @@ export default function ReservationsPage({
                       <div className="bg-slate-50 px-4 py-2 flex items-center justify-between border-b border-slate-200">
                         <span className="text-[10px] font-bold text-slate-500 uppercase">Room Line #{idx + 1}</span>
                         <div className="flex gap-1.5">
-                          <button type="button" onClick={() => handleCopyRoomRow(idx)} className="text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition" title="Copy this room line">📋 Copy</button>
+                          <button type="button" onClick={() => { setRateCompareIdx(idx); setShowRateCompare(true); }} className="text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded-lg transition" title="Compare supplier rates" disabled={!hotelId || !checkIn || !checkOut}>💰 Compare Rates</button>
+                                                    <button type="button" onClick={() => handleCopyRoomRow(idx)} className="text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition" title="Copy this room line">📋 Copy</button>
                           <button type="button" onClick={() => handleRemoveRoomRow(idx)} className="text-[9px] font-bold text-red-500 hover:bg-rose-50 px-2 py-1 rounded-lg transition" title="Delete room line">🗑️ Delete</button>
                         </div>
                       </div>
@@ -1895,6 +2226,75 @@ export default function ReservationsPage({
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.mealLabel')}</label><input type="text" value={rm.extraMeal2Label || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2Label: e.target.value })} placeholder="Dinner / Lunch" className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-slate-800 font-bold text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.buyPaxNight')}</label><input type="number" value={rm.extraMeal2BuyNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2BuyNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-red-600 font-bold font-mono text-xs" /></div>
                           <div><label className="text-[9px] uppercase font-bold text-teal-700 block mb-0.5">{t('res.sellPaxNight')}</label><input type="number" value={rm.extraMeal2SellNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { extraMeal2SellNum: Number(e.target.value) })} className="w-full px-2.5 py-1.5 border border-teal-200 bg-teal-50 rounded text-emerald-800 font-bold font-mono text-xs" /></div>
+                        </div>
+                      )}
+
+                      {/* Nightly Rate Grid Toggle */}
+                      {checkIn && checkOut && calculateNightsCount() > 0 && (
+                        <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = new Set(expandedNightlyGrid);
+                              next.has(idx) ? next.delete(idx) : next.add(idx);
+                              setExpandedNightlyGrid(next);
+                            }}
+                            className="text-[9px] font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition"
+                          >
+                            {expandedNightlyGrid.has(idx) ? '▼' : '▶'} 📅 Nightly Rate Breakdown ({calculateNightsCount()} nights)
+                          </button>
+                          {expandedNightlyGrid.has(idx) && (() => {
+                            const nights = calculateNightsCount();
+                            const [y, m, d] = checkIn.split('-').map(Number);
+                            const startDate = new Date(y, m - 1, d);
+                            return (
+                              <div className="mt-2 overflow-x-auto">
+                                <div className="flex gap-1 min-w-max pb-2">
+                                  {Array.from({ length: nights }, (_, i) => {
+                                    const curr = new Date(startDate.getTime() + i * 86400000);
+                                    const dayOfWeek = curr.getDay();
+                                    const isWeekend = dayOfWeek === 4 || dayOfWeek === 5;
+                                    const dayLabel = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek];
+                                    return (
+                                      <div key={i} className={`flex flex-col items-center rounded-lg border p-1.5 min-w-[68px] ${isWeekend ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                                        <span className={`text-[8px] font-bold uppercase ${isWeekend ? 'text-amber-700' : 'text-slate-400'}`}>{dayLabel}</span>
+                                        <span className={`text-[9px] font-mono ${isWeekend ? 'text-amber-800 font-bold' : 'text-slate-600'}`}>{String(curr.getDate()).padStart(2,'0')}/{String(curr.getMonth()+1).padStart(2,'0')}</span>
+                                        <input
+                                          type="number"
+                                          defaultValue={rm.buyPriceNum || 0}
+                                          onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            const currentMap = typeof rm.buyRate === 'object' ? { ...rm.buyRate } : {};
+                                            currentMap[`night_${i}`] = val;
+                                            handleUpdateRoomRow(idx, { buyRate: currentMap } as any);
+                                          }}
+                                          className="w-full mt-1 px-1 py-0.5 border border-red-200 rounded text-[9px] font-mono text-red-600 text-center bg-red-50/30"
+                                          title={`Buy rate night ${i+1}`}
+                                        />
+                                        <input
+                                          type="number"
+                                          defaultValue={rm.sellPriceNum || 0}
+                                          onChange={(e) => {
+                                            const val = Number(e.target.value);
+                                            const currentMap = typeof rm.nightlyRates === 'object' ? { ...rm.nightlyRates } : {};
+                                            currentMap[`night_${i}`] = val;
+                                            handleUpdateRoomRow(idx, { nightlyRates: currentMap } as any);
+                                          }}
+                                          className="w-full mt-0.5 px-1 py-0.5 border border-emerald-200 rounded text-[9px] font-mono text-emerald-700 text-center bg-emerald-50/30"
+                                          title={`Sell rate night ${i+1}`}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                <div className="flex gap-3 text-[8px] text-slate-400 font-bold uppercase mt-0.5">
+                                  <span>🔴 Buy</span>
+                                  <span>🟢 Sell</span>
+                                  <span className="text-amber-600">★ Thu/Fri = Weekend</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                       </div>
@@ -2026,23 +2426,50 @@ export default function ReservationsPage({
               </div>
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Sales Person</label>
-                <select value={salesPersonId} onChange={(e) => setSalesPersonId(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
+                <select value={salesPersonId} onChange={(e) => {
+                  const newId = e.target.value;
+                  setSalesPersonId(newId);
+                  // Pre-fill commission rate from salesperson default
+                  if (newId) {
+                    const sp = salesPersons.find(s => s.id === newId);
+                    setSpCommissionRate(sp?.commission || 0);
+                  } else {
+                    setSpCommissionRate(0);
+                  }
+                }} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
                   <option value="">— None —</option>
-                  {salesPersons.filter(sp => sp.active).map(sp => <option key={sp.id} value={sp.id}>{sp.name} ({sp.commission}%)</option>)}
+                  {salesPersons.filter(sp => sp.active).map(sp => <option key={sp.id} value={sp.id}>{sp.name} (default: {sp.commission} SAR/room/night)</option>)}
                 </select>
-                {salesPersonId && (() => {
-                  const sp = salesPersons.find(s => s.id === salesPersonId);
-                  if (!sp) return null;
-                  const spSellTotal = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
-                  const spCommission = Math.round((spSellTotal * sp.commission) / 100);
+                {salesPersonId && (
+                  <div className="mt-1.5">
+                    <label className="text-[9px] uppercase font-bold text-purple-500 block mb-0.5">Commission Rate (SAR / room / night)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={spCommissionRate || ''}
+                      onChange={(e) => setSpCommissionRate(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-purple-200 bg-purple-50 rounded-lg text-sm font-mono font-bold text-purple-800 focus:bg-white focus:border-purple-400"
+                      placeholder="0"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Assigned To</label>
+                <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white">
+                  <option value="">— Unassigned —</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                </select>
+                {salesPersonId && spCommissionRate > 0 && (() => {
+                  const spRooms = rooms.reduce((s, rm) => s + rm.qty, 0);
                   const spNights = calculateNightsCount();
-                  const perNight = spNights > 0 ? Math.round(spCommission / spNights) : 0;
-                  const amountToRemit = spSellTotal - spCommission; // What sales person should send to company
+                  const spCommission = Math.round(spCommissionRate * spRooms * spNights);
+                  const amountToRemit = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0) - spCommission;
                   return (
                     <div className="mt-1 space-y-1">
                       <div className="px-2 py-1 bg-purple-50 border border-purple-200 rounded-lg text-[9px] font-bold text-purple-800">
-                        💼 Commission: <span className="font-mono">{spCommission.toLocaleString()} SAR</span> ({sp.commission}% of sell)
-                        {spNights > 0 && <span className="text-purple-600 ml-1">• {perNight.toLocaleString()}/night</span>}
+                        💼 Commission: <span className="font-mono">{spCommission.toLocaleString()} SAR</span> ({spCommissionRate} SAR × {spRooms} rooms × {spNights} nights)
                       </div>
                       <label className="flex items-center gap-2 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
                         <input
@@ -2090,6 +2517,10 @@ export default function ReservationsPage({
               <div className="col-span-2">
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Special Requests / Guest Preferences</label>
                 <textarea value={specialRequests} onChange={(e) => setSpecialRequests(e.target.value)} placeholder="Early check-in, extra pillows, dietary requirements..." rows={2} className="w-full px-3 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:bg-white resize-none" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] uppercase font-bold text-orange-600 block mb-1">🔒 Internal Notes (Staff Only — not visible to client)</label>
+                <textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} placeholder="Internal communication, shift handoff notes, issues to track..." rows={2} className="w-full px-3 py-2.5 border-2 border-orange-200 bg-orange-50/50 rounded-xl text-sm focus:bg-white focus:border-orange-300 resize-none" />
               </div>
               <div className="col-span-2 flex items-center gap-3 bg-rose-50/50 border border-rose-200 rounded-xl px-4 py-3">
                 <button
@@ -2234,6 +2665,7 @@ export default function ReservationsPage({
                   <button onClick={() => setPrintingDoc({ res, isVoucher: false })} className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2.5 rounded-lg border border-indigo-200 text-[10px]">{t('res.confirmation')}</button>
                   <button onClick={() => setPrintingDoc({ res, isVoucher: true })} className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2.5 rounded-lg border border-emerald-200 text-[10px]">{t('res.voucher')}</button>
                   <button onClick={() => handleEdit(res)} className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-lg border border-amber-200 text-[10px]">{t('common.edit')}</button>
+                  <button onClick={() => cloneReservation(res)} className="bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-2.5 rounded-lg border border-cyan-200 text-[10px]">📋 Clone</button>
                   <button onClick={() => { onDeleteReservation(res.id.toString()); }} className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2.5 rounded-lg border border-rose-200 text-[10px]">{t('common.delete')}</button>
                 </div>
               </div>
@@ -2543,6 +2975,13 @@ export default function ReservationsPage({
                           WhatsApp
                         </button>
                         <button
+                          onClick={() => cloneReservation(res)}
+                          className="bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-1.5 py-1 rounded border border-cyan-200 text-[9px] whitespace-nowrap hidden lg:block"
+                          title="Clone this reservation"
+                        >
+                          📋 Clone
+                        </button>
+                        <button
                           onClick={() => handleEdit(res)}
                           className="p-1 hover:bg-amber-55/35 text-amber-800 rounded"
                           title="Edit booking"
@@ -2615,7 +3054,30 @@ export default function ReservationsPage({
                     resObj.status === 'Cancelled' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
                     'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}>{resObj.status}</span>
+                  {/* Check-In/Check-Out Status Toggle */}
+                  {resObj.status !== 'Cancelled' && (
+                    <div className="flex rounded-lg overflow-hidden border border-white/20 text-[9px] font-bold">
+                      {(['Expected', 'Checked-In', 'Checked-Out'] as const).map(st => (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            const updated = { ...resObj, checkInStatus: st };
+                            onSaveReservation(updated);
+                            toast.success(`Status → ${st}`);
+                          }}
+                          className={`px-2 py-1 transition whitespace-nowrap ${
+                            (resObj.checkInStatus || 'Expected') === st
+                              ? st === 'Checked-In' ? 'bg-blue-500 text-white' : st === 'Checked-Out' ? 'bg-purple-500 text-white' : 'bg-amber-500 text-white'
+                              : 'bg-white/10 text-white/70 hover:bg-white/20'
+                          }`}
+                        >
+                          {st === 'Expected' ? '⏳' : st === 'Checked-In' ? '🔑' : '✅'} {st}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <button onClick={() => { setViewingId(null); handleEdit(resObj); }} className="bg-white/10 hover:bg-white/20 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] transition">{t('common.edit')}</button>
+                  <button onClick={() => { setViewingId(null); cloneReservation(resObj); }} className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold py-1.5 px-3 rounded-lg text-[10px] transition border border-cyan-500/30">📋 Clone</button>
                   <button onClick={() => setViewingId(null)} className="text-slate-400 hover:text-white text-lg transition"> ✕</button>
                 </div>
               </div>
@@ -2782,6 +3244,47 @@ export default function ReservationsPage({
                         </div>
                       </div>
                     </div>
+
+                    {/* Commission Summary */}
+                    {(resObj.salesPersonCommissionAmount || resObj.supplierCommissionAmount) && (() => {
+                      const spName = resObj.salesPersonId ? (salesPersons.find(sp => sp.id === resObj.salesPersonId)?.name || 'Unknown') : null;
+                      const supName = resObj.supplierId && resObj.supplierId !== 'DIRECT' ? (agents.find(a => a.id === resObj.supplierId)?.name || 'Unknown') : null;
+                      return (
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+                          <h5 className="font-bold text-[10px] uppercase text-purple-500 tracking-widest border-b border-purple-200 pb-1.5 mb-3">Commission Summary</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {spName && resObj.salesPersonCommissionAmount != null && (
+                              <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-[10px] font-bold text-purple-700">Sales Person</span>
+                                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${resObj.commissionPaidToSalesPerson ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {resObj.commissionPaidToSalesPerson ? 'PAID' : 'PENDING'}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] font-semibold text-slate-700">{spName}</div>
+                                <div className="flex justify-between items-end mt-1">
+                                  <span className="text-[9px] font-mono text-slate-500">{resObj.salesPersonCommissionRate || 0} SAR/room/night</span>
+                                  <span className="font-mono font-bold text-purple-800 text-sm">{resObj.salesPersonCommissionAmount?.toLocaleString()} SAR</span>
+                                </div>
+                              </div>
+                            )}
+                            {supName && resObj.supplierCommissionAmount != null && (
+                              <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="text-[10px] font-bold text-indigo-700">Supplier Markup</span>
+                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{resObj.status === 'Cancelled' ? 'REVERSED' : 'ACTIVE'}</span>
+                                </div>
+                                <div className="text-[10px] font-semibold text-slate-700">{supName}</div>
+                                <div className="flex justify-between items-end mt-1">
+                                  <span className="text-[9px] font-mono text-slate-500">{resObj.supplierCommissionRate || 0}% of Buy</span>
+                                  <span className="font-mono font-bold text-indigo-800 text-sm">{resObj.supplierCommissionAmount?.toLocaleString()} SAR</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Payment History */}
                     {relatedTrs.length > 0 && (
@@ -3342,6 +3845,119 @@ export default function ReservationsPage({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Booking Templates Modal */}
+      {showTemplates && (
+        <BookingTemplatesModal
+          templates={bookingTemplates}
+          hotels={hotels}
+          agents={agents}
+          onSave={handleSaveTemplate}
+          onLoad={handleLoadTemplate}
+          onDelete={handleDeleteTemplate}
+          onClose={() => setShowTemplates(false)}
+        />
+      )}
+
+      {/* Credit Note PDF Modal */}
+      {creditNoteEntry && (() => {
+        const resForCN = reservations.find(r => r.id === creditNoteEntry.reservationId);
+        if (!resForCN) return null;
+        return (
+          <CreditNotePDF
+            reservation={resForCN}
+            agents={agents}
+            hotels={hotels}
+            entry={creditNoteEntry}
+            onClose={() => setCreditNoteEntry(null)}
+          />
+        );
+      })()}
+
+      {/* Supplier Rate Comparison Modal */}
+      {showRateCompare && rateCompareIdx !== null && (() => {
+        const rm = rooms[rateCompareIdx];
+        if (!rm) return null;
+        const matchingAllotments = allotments.filter(a => {
+          if (a.hotelId !== hotelId) return false;
+          if (a.roomType !== rm.roomType) return false;
+          if (!checkIn || !checkOut) return false;
+          return a.startDate < checkOut && a.endDate > checkIn;
+        });
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setShowRateCompare(false); setRateCompareIdx(null); }}>
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">💰 Supplier Rate Comparison</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">{rm.roomType} • {checkIn} → {checkOut} ({calculateNightsCount()}N)</p>
+                </div>
+                <button onClick={() => { setShowRateCompare(false); setRateCompareIdx(null); }} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+              </div>
+              {matchingAllotments.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <div className="text-4xl mb-3">📭</div>
+                  <p className="font-bold">No matching allotments found</p>
+                  <p className="text-xs mt-1">Try different dates or room type</p>
+                </div>
+              ) : (
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-emerald-50">
+                      <th className="text-left p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Supplier</th>
+                      <th className="text-left p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Room Type</th>
+                      <th className="text-left p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Period</th>
+                      <th className="text-right p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Cost/Night</th>
+                      <th className="text-right p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Sell/Night</th>
+                      <th className="text-right p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Available</th>
+                      <th className="text-center p-2.5 font-bold text-emerald-800 border-b border-emerald-200">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matchingAllotments.map(a => {
+                      const supplier = agents.find(ag => ag.id === a.supplierId);
+                      const applicablePeriod = a.ratePeriods?.find(rp => rp.startDate < checkOut && rp.endDate > checkIn);
+                      const avail = a.totalRooms - a.bookedRooms;
+                      return (
+                        <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="p-2.5 font-bold text-slate-800">{supplier?.name || a.supplierId}</td>
+                          <td className="p-2.5 text-slate-600">{a.roomType}</td>
+                          <td className="p-2.5 text-slate-500 font-mono text-[10px]">{applicablePeriod ? `${applicablePeriod.startDate} → ${applicablePeriod.endDate}` : `${a.startDate} → ${a.endDate}`}</td>
+                          <td className="p-2.5 text-right font-bold text-red-600">{applicablePeriod ? applicablePeriod.costPerNight.toLocaleString() : '-'}</td>
+                          <td className="p-2.5 text-right font-bold text-emerald-600">{applicablePeriod ? applicablePeriod.sellRatePerNight.toLocaleString() : '-'}</td>
+                          <td className={`p-2.5 text-right font-bold ${avail > 3 ? 'text-green-600' : avail > 0 ? 'text-amber-600' : 'text-red-500'}`}>{avail} / {a.totalRooms}</td>
+                          <td className="p-2.5 text-center">
+                            <button
+                              onClick={() => {
+                                if (applicablePeriod) {
+                                  const updated = [...rooms];
+                                  updated[rateCompareIdx] = {
+                                    ...updated[rateCompareIdx],
+                                    buyPriceNum: applicablePeriod.costPerNight,
+                                    sellPriceNum: applicablePeriod.sellRatePerNight,
+                                  };
+                                  setRooms(updated);
+                                  setShowRateCompare(false);
+                                  setRateCompareIdx(null);
+                                  toast.success('Rates applied from allotment');
+                                }
+                              }}
+                              disabled={!applicablePeriod}
+                              className="px-2 py-1 bg-emerald-500 text-white rounded text-[9px] font-bold hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                            >
+                              Apply Rates
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Reservation, Agent, Hotel, Transaction, StampPosition } from '../types';
 import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
-import ZumraLogo from './ZumraLogo';
+import MasterPDFHeader from './MasterPDFHeader';
 import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { useLang } from '../lib/LanguageContext';
@@ -94,21 +94,8 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
               opacity={0.85}
               onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
             />
-            {/* Header: Company Name LEFT + Logo RIGHT */}
-            <div className="flex items-center justify-between border-b-2 border-slate-300 pb-4 mb-4 gap-4">
-              <div className="flex flex-col text-left font-sans flex-1">
-                <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">
-                  ZUMRA HOTELS
-                </span>
-                <span className="text-lg font-bold text-slate-800 tracking-wider font-serif mt-0.5" dir="rtl">
-                  زمرة للفنادق
-                </span>
-                <p className="text-sm text-slate-500 mt-1">{t('ipdf.invoiceTitle')}</p>
-              </div>
-              <div className="flex-shrink-0">
-                <ZumraLogo size="xxl" />
-              </div>
-            </div>
+            {/* Header */}
+            <MasterPDFHeader />
 
             {/* Invoice details */}
             <div className="grid grid-cols-2 gap-6 mb-6">

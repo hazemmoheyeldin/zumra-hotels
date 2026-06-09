@@ -43,6 +43,7 @@ import InvoicePDF from './components/InvoicePDF';
 import ErrorBoundary from './components/ErrorBoundary';
 import ConfirmDialog from './components/ConfirmDialog';
 import EditApprovalModal from './components/EditApprovalModal';
+import GlobalSearchModal from './components/GlobalSearchModal';
 import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
 import { seedHotelsIfEmpty } from './lib/hotelSeed';
@@ -68,7 +69,38 @@ function arraysEqual(a: any[], b: any[]): boolean {
   return true;
 }
 
-const THEMES = [
+// Theme type — all themes must satisfy this shape
+interface AppTheme {
+  id: string; name: string; emoji: string;
+  // Sidebar
+  sidebarBg: string; sidebarBorder: string; sidebarHover: string;
+  sidebarActive: string; sidebarText: string;
+  // Brand
+  brandBg: string; brandText: string; brandLetterColor: string;
+  // Buttons / badges
+  btnPrimary: string; badgeBg: string;
+  // Footer
+  footerText: string;
+  // Top bar gradient
+  topBarGradient: string;
+  // Full-app surface colors (main content, header, cards, dropdowns)
+  mainBg: string;       // Main content area background
+  headerBg: string;     // Top header bar background
+  headerBorder: string; // Top header bar bottom border
+  headerText: string;   // Header text color (page title)
+  headerIcon: string;   // Header icon/button text color
+  headerHover: string;  // Header button hover background
+  cardBg: string;       // Card/panel/dropdown background
+  cardBorder: string;   // Card/panel/dropdown border
+  cardText: string;     // Card/panel text
+  inputBg: string;      // Theme selector / input backgrounds
+  inputText: string;    // Theme selector / input text
+  footerBg: string;     // Status bar background
+  footerBorder: string; // Status bar border
+  isDark: boolean;      // True = dark surfaces (white text), False = light surfaces
+}
+
+const THEMES: AppTheme[] = [
   {
     id: 'zumra-signature',
     name: 'Zumra Signature',
@@ -85,12 +117,16 @@ const THEMES = [
     badgeBg: 'bg-slate-100 text-slate-700',
     footerText: 'text-slate-500',
     topBarGradient: 'from-[#0f172a] via-slate-700 to-slate-900',
+    mainBg: 'bg-slate-50', headerBg: 'bg-white', headerBorder: 'border-slate-200',
+    headerText: 'text-slate-900', headerIcon: 'text-slate-500', headerHover: 'hover:bg-slate-100',
+    cardBg: 'bg-white', cardBorder: 'border-slate-200', cardText: 'text-slate-700',
+    inputBg: 'bg-slate-100 hover:bg-slate-200/80', inputText: 'text-slate-700',
+    footerBg: 'bg-white', footerBorder: 'border-slate-200', isDark: false,
   },
   {
     id: 'executive',
     name: 'Executive White',
     emoji: '🏛️',
-    mainBg: 'bg-slate-100 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-slate-800',
     sidebarBg: 'bg-white',
     sidebarBorder: 'border-slate-200',
     sidebarHover: 'hover:bg-slate-50',
@@ -103,6 +139,11 @@ const THEMES = [
     badgeBg: 'bg-slate-100 text-slate-700',
     footerText: 'text-slate-500',
     topBarGradient: 'from-slate-700 via-slate-500 to-slate-300',
+    mainBg: 'bg-slate-100', headerBg: 'bg-white', headerBorder: 'border-slate-200',
+    headerText: 'text-slate-900', headerIcon: 'text-slate-500', headerHover: 'hover:bg-slate-100',
+    cardBg: 'bg-white', cardBorder: 'border-slate-200', cardText: 'text-slate-700',
+    inputBg: 'bg-slate-100 hover:bg-slate-200/80', inputText: 'text-slate-700',
+    footerBg: 'bg-white', footerBorder: 'border-slate-200', isDark: false,
   },
   {
     id: 'harbor',
@@ -120,6 +161,11 @@ const THEMES = [
     badgeBg: 'bg-teal-50 text-teal-700',
     footerText: 'text-slate-500',
     topBarGradient: 'from-teal-500 via-slate-600 to-[#0c1929]',
+    mainBg: 'bg-[#0a1628]', headerBg: 'bg-[#0e1d35]', headerBorder: 'border-white/[0.08]',
+    headerText: 'text-slate-100', headerIcon: 'text-slate-400', headerHover: 'hover:bg-white/[0.08]',
+    cardBg: 'bg-[#111f36]', cardBorder: 'border-white/[0.08]', cardText: 'text-slate-300',
+    inputBg: 'bg-[#111f36] hover:bg-[#162742]', inputText: 'text-slate-200',
+    footerBg: 'bg-[#0e1d35]', footerBorder: 'border-white/[0.08]', isDark: true,
   },
   {
     id: 'graphite',
@@ -137,12 +183,16 @@ const THEMES = [
     badgeBg: 'bg-amber-50 text-amber-800',
     footerText: 'text-slate-500',
     topBarGradient: 'from-amber-500 via-neutral-600 to-[#1a1a1a]',
+    mainBg: 'bg-[#1f1f1f]', headerBg: 'bg-[#262626]', headerBorder: 'border-white/[0.08]',
+    headerText: 'text-slate-100', headerIcon: 'text-neutral-400', headerHover: 'hover:bg-white/[0.08]',
+    cardBg: 'bg-[#2a2a2a]', cardBorder: 'border-white/[0.08]', cardText: 'text-neutral-300',
+    inputBg: 'bg-[#2a2a2a] hover:bg-[#333]', inputText: 'text-neutral-200',
+    footerBg: 'bg-[#262626]', footerBorder: 'border-white/[0.08]', isDark: true,
   },
   {
     id: 'dark-mode',
     name: 'Dark Mode',
     emoji: '🌙',
-    mainBg: 'bg-gray-900 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-gray-100',
     sidebarBg: 'bg-gray-950',
     sidebarBorder: 'border-gray-800',
     sidebarHover: 'hover:bg-gray-800',
@@ -155,6 +205,33 @@ const THEMES = [
     badgeBg: 'bg-gray-800 text-gray-200',
     footerText: 'text-gray-500',
     topBarGradient: 'from-gray-800 via-gray-700 to-gray-900',
+    mainBg: 'bg-gray-900', headerBg: 'bg-gray-950', headerBorder: 'border-gray-800',
+    headerText: 'text-gray-100', headerIcon: 'text-gray-400', headerHover: 'hover:bg-gray-800',
+    cardBg: 'bg-gray-800', cardBorder: 'border-gray-700', cardText: 'text-gray-300',
+    inputBg: 'bg-gray-800 hover:bg-gray-700', inputText: 'text-gray-200',
+    footerBg: 'bg-gray-950', footerBorder: 'border-gray-800', isDark: true,
+  },
+  {
+    id: 'royal-navy',
+    name: 'Royal Navy',
+    emoji: '👑',
+    sidebarBg: 'bg-[#0F0F1A]',
+    sidebarBorder: 'border-white/[0.06]',
+    sidebarHover: 'hover:bg-[#0F3460]/40',
+    sidebarActive: 'bg-[#0F3460]/60 text-white',
+    sidebarText: 'text-slate-400',
+    brandBg: 'bg-amber-400',
+    brandText: 'text-amber-400',
+    brandLetterColor: 'text-white',
+    btnPrimary: 'bg-amber-500 hover:bg-amber-600 text-[#0F0F1A] shadow-sm',
+    badgeBg: 'bg-[#0F3460] text-amber-200',
+    footerText: 'text-slate-500',
+    topBarGradient: 'from-[#0F3460] via-[#16213E] to-[#0F0F1A]',
+    mainBg: 'bg-[#16213E]', headerBg: 'bg-[#0F0F1A]', headerBorder: 'border-white/[0.08]',
+    headerText: 'text-white', headerIcon: 'text-slate-400', headerHover: 'hover:bg-white/[0.08]',
+    cardBg: 'bg-[#1a2744]', cardBorder: 'border-white/[0.08]', cardText: 'text-slate-300',
+    inputBg: 'bg-[#1a2744] hover:bg-[#1e2f52]', inputText: 'text-slate-200',
+    footerBg: 'bg-[#0F0F1A]', footerBorder: 'border-white/[0.08]', isDark: true,
   },
 ];
 
@@ -379,7 +456,24 @@ export default function App() {
       localStorage.setItem('zumra_test_data_seeded', 'true');
     }
     // Reload agents/reservations in case test data was seeded
-    setAgents(ZumraDB.getAgents());
+    const loadedAgents = ZumraDB.getAgents();
+    // Backfill portal tokens for existing agents that don't have one
+    const agentsNeedToken = loadedAgents.some((a: Agent) => !a.portalToken && a.type !== 'Supplier');
+    if (agentsNeedToken) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      const withTokens = loadedAgents.map((a: Agent) => {
+        if (a.portalToken || a.type === 'Supplier') return a;
+        const rv = new Uint8Array(32);
+        crypto.getRandomValues(rv);
+        let token = '';
+        for (let i = 0; i < 32; i++) token += chars[rv[i] % chars.length];
+        return { ...a, portalToken: token };
+      });
+      ZumraDB.saveAgents(withTokens);
+      setAgents(withTokens);
+    } else {
+      setAgents(loadedAgents);
+    }
     setReservations(ZumraDB.getReservations());
     setSalesPersons(ZumraDB.getSalesPersons());
 
@@ -1640,6 +1734,7 @@ export default function App() {
             agents={agents}
             hotels={hotels}
             onNavigate={handleNavigate}
+            onSaveReservation={handleSaveReservation}
           />
           </ErrorBoundary>
         );
@@ -1914,21 +2009,44 @@ export default function App() {
 
   // Keyboard shortcuts
   const [showShortcuts, setShowShortcuts] = useState(false);
+    const [showCalc, setShowCalc] = useState(false);
+    const [calcBuy, setCalcBuy] = useState<number>(0);
+    const [calcMarkup, setCalcMarkup] = useState<number>(15);
+    const [calcSell, setCalcSell] = useState<number>(0);
+    const [calcMode, setCalcMode] = useState<'buyToSell' | 'sellToBuy'>('buyToSell');
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!currentUser) return;
       const mod = e.ctrlKey || e.metaKey;
-      if (e.key === '?' && !mod && !e.shiftKey) return; // ignore unmodified ?
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
+
+      // Global Search: Ctrl+K / Cmd+K (works even in inputs)
+      if (mod && e.key.toLowerCase() === 'k') { setShowGlobalSearch(true); e.preventDefault(); return; }
+
+      // Shortcuts that work even in inputs
+      if (e.key === 'Escape') { setShowShortcuts(false); setIsAlertsOpen(false); setShowGlobalSearch(false); return; }
       if (e.shiftKey && e.key === '?') { setShowShortcuts(s => !s); e.preventDefault(); return; }
-      if (e.key === 'Escape') { setShowShortcuts(false); setIsAlertsOpen(false); return; }
-      if (!mod) return; // remaining shortcuts require Ctrl/Cmd
+
+      // Skip remaining shortcuts when user is typing in an input
+      if (isInput) return;
+
+      if (!mod) {
+        // Non-modifier shortcuts
+        if (e.key === 'n' || e.key === 'N') { navigateTo('Reservations', { showNewForm: true }); e.preventDefault(); return; }
+        if (e.key === 'c' || e.key === 'C') { setShowCalc(s => !s); e.preventDefault(); return; }
+        return;
+      }
+
+      // Ctrl/Cmd + key shortcuts
       switch (e.key.toLowerCase()) {
         case '1': navigateTo('Dashboard'); e.preventDefault(); break;
         case '2': navigateTo('Reservations'); e.preventDefault(); break;
         case '3': navigateTo('Hotels'); e.preventDefault(); break;
         case '4': navigateTo('Agents'); e.preventDefault(); break;
         case '5': navigateTo('Transactions'); e.preventDefault(); break;
-        case 'k': navigateTo('Calendar'); e.preventDefault(); break;
+        case 'k': setShowGlobalSearch(true); e.preventDefault(); break;
         case 'b': navigateTo('Reports'); e.preventDefault(); break;
         case 'j': navigateTo('Sales'); e.preventDefault(); break;
         case '.': setSidebarOpen(s => !s); e.preventDefault(); break;
@@ -1975,9 +2093,12 @@ export default function App() {
 
   if (!currentUser) {
     // Check for client portal URL
-    const portalId = new URLSearchParams(window.location.search).get('portal');
-    if (portalId) {
-      return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={portalId} onUpdateAgreementStatus={handleUpdateAgreementStatus} />;
+    const portalTokenParam = new URLSearchParams(window.location.search).get('portal');
+    if (portalTokenParam) {
+      // Look up client by secure portal token, not by ID
+      const matchedAgent = agents.find(a => a.portalToken === portalTokenParam);
+      const clientId = matchedAgent?.id || '';
+      return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={clientId} onUpdateAgreementStatus={matchedAgent ? handleUpdateAgreementStatus : undefined} />;
     }
     return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={doAddUser} />;
   }
@@ -2007,10 +2128,10 @@ export default function App() {
   });
 
   // Determine if sidebar is dark (for text color adjustments)
-  const isDarkSidebar = currentTheme.id !== 'executive';
+  const isDarkSidebar = currentTheme.isDark;
 
   return (
-    <div className={currentTheme.mainBg || 'bg-slate-50 min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none text-slate-800'}>
+    <div className={`min-h-screen font-sans flex flex-col md:flex-row print:bg-white print:min-h-0 select-none ${currentTheme.mainBg}`}>
       
       {/* Decorative top accent bar (mobile only) */}
       <div className={`h-0.5 bg-gradient-to-r ${currentTheme.topBarGradient} w-full no-print absolute top-0 left-0 right-0 md:hidden z-[60]`}></div>
@@ -2059,15 +2180,15 @@ export default function App() {
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-60'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-all duration-200 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:static z-50 md:z-auto h-screen md:h-auto top-0 left-0 ${sidebarCollapsed ? 'md:w-[72px]' : 'md:w-72'} w-64 flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-b md:border-b-0 md:border-r ${currentTheme.sidebarBorder} transform transition-transform duration-300 ease-in-out will-change-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Brand Header */}
-        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-2' : 'px-5'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
-          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-1' : 'p-1.5'} rounded-lg shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-indigo-300 transition-all duration-200`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
-            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" />
+        <div className={`flex flex-col items-center ${sidebarCollapsed ? 'px-1' : 'px-4'} py-4 border-b ${currentTheme.sidebarBorder} flex-shrink-0 transition-all duration-200`}>
+          <button className={`flex items-center justify-center bg-white ${sidebarCollapsed ? 'p-0.5' : 'p-2'} rounded-xl shadow-sm flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-amber-300 transition-all duration-200 ${sidebarCollapsed ? 'w-full' : ''}`} onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
+            <ZumraLogo size={sidebarCollapsed ? 'sm' : 'xl'} variant="dark" className={sidebarCollapsed ? 'overflow-hidden' : ''} />
           </button>
           {!sidebarCollapsed && (
             <button className="cursor-pointer mt-2" onClick={() => { navigateTo('Dashboard'); setSidebarOpen(false); }} title="Go to Dashboard">
@@ -2178,10 +2299,10 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 bg-slate-50">
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0 ${currentTheme.mainBg}`}>
         
         {/* Top Header Bar */}
-        <header className="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print">
+        <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print`}>
           {/* Left: hamburger + page title */}
           <div className="flex items-center gap-3">
             <button
@@ -2192,7 +2313,7 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h2 className="text-[15px] font-bold text-slate-900 flex items-center gap-2">
+            <h2 className={`text-[15px] font-bold ${currentTheme.headerText} flex items-center gap-2`}>
               {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
             </h2>
           </div>
@@ -2202,11 +2323,11 @@ export default function App() {
             {/* Edit Approvals - visible for Admin/ReservationsManager */}
             {(currentUser.role === 'Admin' || currentUser.role === 'ReservationsManager') && (
               <button
-                className="relative p-2 hover:bg-slate-100 rounded-lg transition"
+                className={`relative p-2 ${currentTheme.headerHover} rounded-lg transition`}
                 onClick={() => setShowEditApprovalModal(true)}
                 title="Edit Approvals"
               >
-                <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
+                <svg className={`w-[18px] h-[18px] ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" /></svg>
                 {editApprovals.filter(a => a.status === 'Pending').length > 0 && (
                   <span className="absolute top-1 right-1 bg-amber-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
                     {editApprovals.filter(a => a.status === 'Pending').length}
@@ -2243,11 +2364,11 @@ export default function App() {
 
             {/* Inbox */}
             <button
-              className="relative p-2 hover:bg-slate-100 rounded-lg transition"
+              className={`relative p-2 ${currentTheme.headerHover} rounded-lg transition`}
               onClick={() => setIsInboxOpen(true)}
               title="Messages"
             >
-              <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
+              <svg className={`w-[18px] h-[18px] ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
               {(() => {
                 const unread = ZumraDB.getMessages().filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
                 return unread > 0 ? (
@@ -2261,11 +2382,11 @@ export default function App() {
             {/* Alerts */}
             <div className="relative" onMouseLeave={() => setIsAlertsOpen(false)}>
               <button
-                className="relative p-2 hover:bg-slate-100 rounded-lg transition"
+                className={`relative p-2 ${currentTheme.headerHover} rounded-lg transition`}
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)}
                 title="Notifications"
               >
-                <svg className="w-[18px] h-[18px] text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+                <svg className={`w-[18px] h-[18px] ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
                 {alertCount > 0 && (
                   <span className="absolute top-1 right-1 bg-red-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full animate-pulse">
                     {alertCount > 9 ? '9+' : alertCount}
@@ -2275,9 +2396,9 @@ export default function App() {
               
               {isAlertsOpen && (
                 <div className="absolute right-0 pt-2 w-80 max-w-[calc(100vw-2rem)] z-[1000] animate-fade-in-up">
-                  <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Notifications</h3>
+                  <div className={`${currentTheme.cardBg} rounded-xl shadow-xl border ${currentTheme.cardBorder} overflow-hidden`}>
+                  <div className={`px-4 py-3 border-b ${currentTheme.cardBorder}`}>
+                    <h3 className={`text-xs font-bold ${currentTheme.headerText} uppercase tracking-wider`}>Notifications</h3>
                   </div>
                   <div className="max-h-64 overflow-y-auto thin-scrollbar">
                     {alertCount > 0 ? (
@@ -2285,19 +2406,19 @@ export default function App() {
                         {currentAlerts.map(alert => (
                           <div 
                             key={alert.id}
-                            className="p-3 text-xs hover:bg-slate-50 border-b border-slate-100 cursor-pointer transition flex flex-col gap-0.5"
+                            className={`p-3 text-xs ${currentTheme.headerHover} border-b ${currentTheme.cardBorder} cursor-pointer transition flex flex-col gap-0.5`}
                             onClick={() => {
                               navigateTo('Reservations', { viewReservationId: alert.resId });
                               setIsAlertsOpen(false);
                             }}
                           >
                             <span className="font-semibold text-amber-600">{alert.type}</span>
-                            <span className="text-slate-600">{alert.message}</span>
+                            <span className={`${currentTheme.cardText} opacity-80`}>{alert.message}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="p-6 text-xs text-slate-400 text-center">
+                      <div className="p-6 text-xs text-center opacity-50">
                         No new notifications
                       </div>
                     )}
@@ -2308,17 +2429,17 @@ export default function App() {
             </div>
 
             {/* Separator */}
-            <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block"></div>
+            <div className={`w-px h-6 ${isDarkSidebar ? 'bg-white/10' : 'bg-slate-200'} mx-1 hidden md:block`}></div>
 
             {/* Language toggle */}
             <LangToggle />
 
             {/* Theme switcher */}
-            <div className="flex items-center bg-slate-100 hover:bg-slate-200/80 px-2 py-1 rounded-lg transition cursor-pointer">
+            <div className={`flex items-center ${currentTheme.inputBg} px-2 py-1 rounded-lg transition cursor-pointer`}>
               <select
                 value={activeThemeId}
                 onChange={(e) => handleSetTheme(e.target.value)}
-                className="bg-transparent text-slate-700 font-semibold py-0 border-none text-[10px] focus:outline-none focus:ring-0 cursor-pointer appearance-none max-w-[80px]"
+                className={`bg-transparent ${currentTheme.inputText} font-semibold py-0 border-none text-[10px] focus:outline-none focus:ring-0 cursor-pointer appearance-none max-w-[100px]`}
                 title="Change Theme"
               >
                 {THEMES.map(th => (
@@ -2334,7 +2455,7 @@ export default function App() {
               <div className="relative" onMouseLeave={() => setIsUserMenuOpen(false)}>
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center gap-2 hover:bg-slate-100 rounded-lg transition p-1.5 cursor-pointer"
+                  className={`flex items-center gap-2 ${currentTheme.headerHover} rounded-lg transition p-1.5 cursor-pointer`}
                 >
                   <div className={`w-8 h-8 rounded-full ${currentTheme.btnPrimary} flex items-center justify-center font-bold text-[10px] overflow-hidden`}>
                     {currentUser.profileImage ? (
@@ -2344,18 +2465,18 @@ export default function App() {
                     )}
                   </div>
                   <div className="hidden md:block text-left">
-                    <p className="text-[11px] font-semibold text-slate-800 leading-none">{currentUser.name}</p>
-                    <p className="text-[9px] text-slate-400 leading-tight mt-0.5">{currentUser.role}</p>
+                    <p className={`text-[11px] font-semibold ${currentTheme.headerText} leading-none`}>{currentUser.name}</p>
+                    <p className={`text-[9px] ${currentTheme.headerIcon} leading-tight mt-0.5`}>{currentUser.role}</p>
                   </div>
-                  <svg className="h-3 w-3 text-slate-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className={`h-3 w-3 ${currentTheme.headerIcon} hidden md:block`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
 
                 {isUserMenuOpen && (
-                  <div className="absolute right-0 pt-2 w-64 bg-white z-[1000] animate-fade-in-up">
-                    <div className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                  <div className="absolute right-0 pt-2 w-64 z-[1000] animate-fade-in-up">
+                    <div className={`${currentTheme.cardBg} rounded-xl shadow-2xl border ${currentTheme.cardBorder} overflow-hidden`}>
+                    <div className={`px-4 py-3 border-b ${currentTheme.cardBorder} flex items-center gap-3`}>
                       {currentUser.profileImage ? (
                         <img src={currentUser.profileImage} alt="" className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer" onClick={() => profileImageRef.current?.click()} title="Change profile image" />
                       ) : (
@@ -2367,8 +2488,8 @@ export default function App() {
                         </div>
                       )}
                       <div>
-                        <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{currentUser.email}</p>
+                        <p className={`text-xs font-bold ${currentTheme.headerText}`}>{currentUser.name}</p>
+                        <p className={`text-[10px] ${currentTheme.headerIcon} mt-0.5`}>{currentUser.email}</p>
                         <span className={`inline-block mt-1 text-[9px] font-bold px-2 py-0.5 rounded-full ${currentTheme.badgeBg}`}>
                           {currentUser.role}
                         </span>
@@ -2377,40 +2498,40 @@ export default function App() {
                     <div className="py-1">
                       <button
                         onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
+                        <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" /></svg>
                         {t('users.myProfile')}
                       </button>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
+                        <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" /></svg>
                         {t('users.changePassword')}
                       </button>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); navigateTo('Users'); }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                         {t('users.userSettings')}
                       </button>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); downloadBackup(); toast.success('Backup downloaded successfully'); }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                        <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                         Download Data Backup
                       </button>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); navigateTo('Dashboard'); }}
-                        className="w-full text-left px-4 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                        className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
+                        <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
                         Dashboard
                       </button>
-                      <div className="border-t border-slate-100 my-1"></div>
+                      <div className={`border-t ${currentTheme.cardBorder} my-1`}></div>
                       <button
                         onClick={() => { setIsUserMenuOpen(false); handleSetCurrentUser(null as any); }}
                         className="w-full text-left px-4 py-2.5 text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition cursor-pointer"
@@ -2503,7 +2624,7 @@ export default function App() {
         </div>
 
         {/* Status Bar */}
-        <footer className={`${currentTheme.mainBg ? 'bg-transparent border-t border-white/10' : 'bg-white border-t border-slate-200'} h-8 px-6 flex items-center justify-between text-[10px] text-slate-400 font-medium flex-shrink-0 no-print select-none`}>
+        <footer className={`${currentTheme.footerBg} border-t ${currentTheme.footerBorder} h-8 px-6 flex items-center justify-between text-[10px] font-medium flex-shrink-0 no-print select-none ${currentTheme.isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full ${syncStatus.online ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
@@ -2539,6 +2660,17 @@ export default function App() {
         />
       )}
 
+      {/* Global Search Modal (Ctrl+K) */}
+      {showGlobalSearch && (
+        <GlobalSearchModal
+          reservations={reservations}
+          agents={agents}
+          hotels={hotels}
+          onClose={() => setShowGlobalSearch(false)}
+          onNavigate={navigateTo}
+        />
+      )}
+
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcuts(false)}>
@@ -2550,6 +2682,8 @@ export default function App() {
             <div className="space-y-2 text-sm">
               <div className="grid grid-cols-2 gap-2">
                 {[
+                  ['Ctrl + K', 'Global Search'],
+                  ['N', 'New Reservation'],
                   ['Shift + ?', 'Show shortcuts'],
                   ['Esc', 'Close modals'],
                   ['Ctrl + 1', 'Dashboard'],
@@ -2557,7 +2691,6 @@ export default function App() {
                   ['Ctrl + 3', 'Hotels'],
                   ['Ctrl + 4', 'Agents'],
                   ['Ctrl + 5', 'Transactions'],
-                  ['Ctrl + K', 'Calendar'],
                   ['Ctrl + B', 'Reports'],
                   ['Ctrl + J', 'Sales'],
                   ['Ctrl + .', 'Toggle sidebar'],
@@ -2588,6 +2721,67 @@ export default function App() {
 
       {/* API Warning Banner - non-intrusive alerts when external services are down */}
       <ApiWarningBanner />
+
+      {/* Quick Revenue Calculator Widget */}
+      {!showCalc && (
+        <button
+          onClick={() => setShowCalc(true)}
+          className="fixed bottom-4 right-4 z-40 bg-slate-800 hover:bg-slate-700 text-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-sm font-bold transition hover:scale-110"
+          title="Quick Calculator (C)"
+        >
+          🧮
+        </button>
+      )}
+      {showCalc && (
+        <div className="fixed bottom-4 right-4 z-40 bg-white rounded-2xl shadow-2xl border border-slate-200 w-72 animate-in slide-in-from-bottom-4">
+          <div className="bg-slate-800 text-white px-4 py-2.5 rounded-t-2xl flex items-center justify-between">
+            <span className="text-xs font-bold flex items-center gap-1.5">🧮 Quick Calculator</span>
+            <button onClick={() => setShowCalc(false)} className="text-slate-400 hover:text-white text-sm transition">&times;</button>
+          </div>
+          <div className="p-4 space-y-3">
+            {/* Mode Toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-slate-200 text-[10px] font-bold">
+              <button onClick={() => setCalcMode('buyToSell')} className={`flex-1 py-1.5 transition ${calcMode === 'buyToSell' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Buy → Sell</button>
+              <button onClick={() => setCalcMode('sellToBuy')} className={`flex-1 py-1.5 transition ${calcMode === 'sellToBuy' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Sell → Buy</button>
+            </div>
+            {calcMode === 'buyToSell' ? (
+              <>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-red-500 block mb-1">Buy Rate (SAR)</label>
+                  <input type="number" value={calcBuy || ''} onChange={e => setCalcBuy(Number(e.target.value))} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm font-mono font-bold text-red-700 bg-red-50/30" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Markup %</label>
+                  <input type="number" value={calcMarkup || ''} onChange={e => setCalcMarkup(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800" placeholder="15" />
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200">
+                  <span className="text-[9px] uppercase font-bold text-emerald-500 block">Sell Rate</span>
+                  <span className="text-xl font-black text-emerald-700 font-mono">{calcBuy > 0 ? (calcBuy * (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}</span>
+                  <span className="text-[10px] text-emerald-500 ml-1">SAR</span>
+                  <div className="text-[9px] text-emerald-500 font-bold mt-0.5">Profit: {calcBuy > 0 ? (calcBuy * calcMarkup / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} SAR | Margin: {calcMarkup > 0 ? (calcMarkup / (100 + calcMarkup) * 100).toFixed(1) : '0'}%</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-emerald-600 block mb-1">Sell Rate (SAR)</label>
+                  <input type="number" value={calcSell || ''} onChange={e => setCalcSell(Number(e.target.value))} className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm font-mono font-bold text-emerald-700 bg-emerald-50/30" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">Markup %</label>
+                  <input type="number" value={calcMarkup || ''} onChange={e => setCalcMarkup(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800" placeholder="15" />
+                </div>
+                <div className="bg-red-50 rounded-xl p-3 border border-red-200">
+                  <span className="text-[9px] uppercase font-bold text-red-500 block">Buy Rate</span>
+                  <span className="text-xl font-black text-red-700 font-mono">{calcSell > 0 && calcMarkup > 0 ? (calcSell / (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'}</span>
+                  <span className="text-[10px] text-red-500 ml-1">SAR</span>
+                  <div className="text-[9px] text-red-500 font-bold mt-0.5">Profit: {calcSell > 0 && calcMarkup > 0 ? (calcSell - calcSell / (1 + calcMarkup / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} SAR | Margin: {calcMarkup > 0 ? (calcMarkup / (100 + calcMarkup) * 100).toFixed(1) : '0'}%</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

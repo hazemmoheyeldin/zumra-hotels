@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { ConsolidatedInvoice, Agent, StampPosition } from '../types';
-import ZumraLogo from './ZumraLogo';
+import MasterPDFHeader from './MasterPDFHeader';
 import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { exportPDF, compressImagesForPrint } from '../lib/pdfGenerator';
 
@@ -103,15 +103,8 @@ export default function ConsolidatedInvoicePDF({ invoice, client, onClose }: Con
               onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
             />
 
-            {/* Header: Company Name LEFT + Logo RIGHT */}
-            <div className="flex justify-between items-center mb-1 gap-4">
-              <div className="flex flex-col text-left font-sans flex-1">
-                <span className="text-2xl font-extrabold tracking-tight text-slate-900 leading-none">ZUMRA HOTELS</span>
-                <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-0.5" dir="rtl">زمرة للفنادق</span>
-              </div>
-              <div className="flex-shrink-0"><ZumraLogo size="xxl" /></div>
-            </div>
-            <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
+            {/* Header */}
+            <MasterPDFHeader />
 
             {/* Title */}
             <div className="flex justify-between items-center mb-4">

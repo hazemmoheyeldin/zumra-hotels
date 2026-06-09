@@ -9,7 +9,7 @@ import { getReservationTotals } from '../lib/storage';
 import { round2, sumAmounts, safeAdd, safeSubtract, absAmount } from '../lib/finance';
 // NOTE: All financial accumulations use safeAdd/safeSubtract/round2 from finance.ts
 // to prevent IEEE 754 floating-point drift across large transaction sets.
-import ZumraLogo from './ZumraLogo';
+import MasterPDFHeader from './MasterPDFHeader';
 import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
 import { downloadPDF, compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
 import { usePageBreaks } from '../lib/usePageBreaks';
@@ -335,23 +335,8 @@ export default function StatementReportPDF({ client, reservations, transactions,
             onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
           />
           
-          {/* Document Header: Company Name LEFT + Logo RIGHT */}
-          <div className="flex justify-between items-center pb-2 gap-4">
-            <div className="flex flex-col text-left font-sans flex-1">
-              <span className="text-3xl font-extrabold tracking-tight text-slate-900 leading-none">
-                ZUMRA HOTELS
-              </span>
-              <span className="text-xl font-bold text-slate-800 tracking-wider font-serif mt-1" dir="rtl">
-                زمرة للفنادق
-              </span>
-            </div>
-            <div className="flex-shrink-0">
-              <ZumraLogo size="xxl" />
-            </div>
-          </div>
-
-          {/* Golden Separator Line */}
-          <div className="border-t-4 border-[#C1A168] w-full my-2"></div>
+          {/* Document Header */}
+          <MasterPDFHeader />
 
           {/* Title bar */}
           <div className="flex justify-between items-baseline mb-3 mt-1 border-b border-slate-200 pb-2">

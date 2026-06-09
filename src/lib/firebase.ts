@@ -249,6 +249,7 @@ export const COLLECTIONS = {
   EXPENSE_CATEGORIES: 'expense_categories',
   CONSOLIDATED_INVOICES: 'consolidated_invoices',
   AUDIT_LOG: 'audit_log',
+  COMMISSIONS: 'commissions',
 };
 
 /**
@@ -308,24 +309,35 @@ export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> 
 }
 
 /**
- * Helper: Save a single document to Firestore
+ * Helper: Save a single document to Firestore with exponential backoff retry
  */
 export async function firestoreSave(collectionName: string, id: string, data: any): Promise<void> {
   if (!db) {
     console.warn(`[Firebase] firestoreSave: db is null, skipping ${collectionName}/${id}`);
     return;
   }
-  try {
-    const timeoutMs = 10000;
-    const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
-    );
-    await Promise.race([savePromise, timeoutPromise]);
-  } catch (error: any) {
-    console.error(`[Firebase] Error saving ${collectionName}/${id}:`, error?.message || error);
-    throw error; // Re-throw so caller can handle/queue
+  const maxRetries = 3;
+  let lastError: any;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const timeoutMs = 10000;
+      const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+      );
+      await Promise.race([savePromise, timeoutPromise]);
+      return; // success
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`[Firebase] Save attempt ${attempt + 1}/${maxRetries} failed for ${collectionName}/${id}:`, error?.message || error);
+      if (attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
+  console.error(`[Firebase] All ${maxRetries} save attempts failed for ${collectionName}/${id}`);
+  throw lastError;
 }
 
 /**

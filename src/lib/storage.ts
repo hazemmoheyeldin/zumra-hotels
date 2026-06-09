@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate } from '../types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
 import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
@@ -853,7 +853,34 @@ export function exportToCSV(filename: string, rows: object[]) {
 export function exportToExcel(filename: string, rows: object[], sheetName: string = 'Sheet1') {
   if (!rows || !rows.length) return;
   import('xlsx').then((XLSX) => {
-    const ws = XLSX.utils.json_to_sheet(rows);
+    // Deep-clone rows so we don't mutate caller data
+    const sanitized = rows.map(row => {
+      const clean: Record<string, any> = {};
+      Object.entries(row).forEach(([key, val]) => {
+        if (val === null || val === undefined) {
+          clean[key] = '';
+        } else if (typeof val === 'number') {
+          clean[key] = Math.round(val * 100) / 100; // 2dp precision
+        } else {
+          clean[key] = val;
+        }
+      });
+      return clean;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(sanitized);
+
+    // Auto-size columns: measure max content length per column
+    const colKeys = Object.keys(sanitized[0] || {});
+    ws['!cols'] = colKeys.map(key => {
+      const maxDataLen = sanitized.reduce((max, row) => {
+        const cellVal = String(row[key] ?? '');
+        return Math.max(max, cellVal.length);
+      }, key.length);
+      // Cap width between 8 and 40 characters
+      return { wch: Math.min(40, Math.max(8, maxDataLen + 2)) };
+    });
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
@@ -987,6 +1014,12 @@ if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => {
     isOnline = false;
     notifySyncListeners();
+  });
+  // Flush pending sync queue when app regains focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isOnline && loadSyncQueue().length > 0) {
+      flushSyncQueue();
+    }
   });
   // Retry queue every 60 seconds if items are pending
   setInterval(() => {
@@ -1350,6 +1383,103 @@ export function loadSentReminders(): string[] {
 }
 export function saveSentReminders(ids: string[]): void {
   localStorage.setItem(REMINDERS_SENT_KEY, JSON.stringify(ids));
+}
+
+// Booking Templates
+const BOOKING_TEMPLATES_KEY = 'zumra_booking_templates';
+export function loadBookingTemplates(): BookingTemplate[] {
+  try { return JSON.parse(localStorage.getItem(BOOKING_TEMPLATES_KEY) || '[]'); } catch { return []; }
+}
+export function saveBookingTemplates(templates: BookingTemplate[]): void {
+  localStorage.setItem(BOOKING_TEMPLATES_KEY, JSON.stringify(templates));
+}
+
+// Credit Note Entries
+const CREDIT_NOTES_KEY = 'zumra_credit_notes';
+export function loadCreditNotes(): CreditNoteEntry[] {
+  try { return JSON.parse(localStorage.getItem(CREDIT_NOTES_KEY) || '[]'); } catch { return []; }
+}
+export function saveCreditNotes(entries: CreditNoteEntry[]): void {
+  localStorage.setItem(CREDIT_NOTES_KEY, JSON.stringify(entries));
+}
+
+// Commission Ledger
+const COMMISSIONS_KEY = 'zumra_commissions';
+export function loadCommissions(): CommissionEntry[] {
+  try { return JSON.parse(localStorage.getItem(COMMISSIONS_KEY) || '[]'); } catch { return []; }
+}
+export function saveCommissions(entries: CommissionEntry[]): void {
+  localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(entries));
+}
+
+// Commission calculation helpers
+// SalesPerson commission = rate_per_room_per_night × total_rooms × nights
+export function calculateSalesPersonCommission(ratePerRoomNight: number, totalRooms: number, nights: number): number {
+  if (!ratePerRoomNight || ratePerRoomNight <= 0) return 0;
+  return Math.round(ratePerRoomNight * totalRooms * nights);
+}
+
+export function calculateSupplierCommission(totalSell: number, totalBuy: number, markupRate: number): number {
+  if (!markupRate || markupRate <= 0) return 0;
+  // Margin-based: markup % applied to buy cost
+  return Math.round((totalBuy * markupRate) / 100);
+}
+
+// Record commission entries for a reservation
+export function recordCommissionEntries(
+  reservation: Reservation,
+  salesPersonRate: number | undefined,
+  supplierMarkupRate: number | undefined,
+  totalSell: number,
+  totalBuy: number
+): CommissionEntry[] {
+  const entries: CommissionEntry[] = [];
+  const now = new Date().toISOString();
+
+  if (reservation.salesPersonId && salesPersonRate && salesPersonRate > 0) {
+    const totalRooms = reservation.rooms.reduce((s, rm) => s + rm.qty, 0);
+    const amount = calculateSalesPersonCommission(salesPersonRate, totalRooms, reservation.nights);
+    entries.push({
+      id: `comm_sp_${reservation.id}_${Date.now()}`,
+      reservationId: reservation.id,
+      type: 'SalesPerson',
+      salesPersonId: reservation.salesPersonId,
+      rate: salesPersonRate,
+      amount,
+      status: reservation.status === 'Cancelled' ? 'Reversed' : 'Pending',
+      createdAt: now,
+      reversedAt: reservation.status === 'Cancelled' ? now : undefined,
+    });
+  }
+
+  if (reservation.supplierId && supplierMarkupRate && supplierMarkupRate > 0 && reservation.supplierId !== 'DIRECT') {
+    const amount = calculateSupplierCommission(totalSell, totalBuy, supplierMarkupRate);
+    entries.push({
+      id: `comm_sup_${reservation.id}_${Date.now()}`,
+      reservationId: reservation.id,
+      type: 'Supplier',
+      agentId: reservation.supplierId,
+      rate: supplierMarkupRate,
+      amount,
+      status: reservation.status === 'Cancelled' ? 'Reversed' : 'Pending',
+      createdAt: now,
+      reversedAt: reservation.status === 'Cancelled' ? now : undefined,
+    });
+  }
+
+  return entries;
+}
+
+// Reverse commission entries for a cancelled reservation
+export function reverseCommissionEntries(reservationId: number): void {
+  const commissions = loadCommissions();
+  const now = new Date().toISOString();
+  const updated = commissions.map(c =>
+    c.reservationId === reservationId && c.status === 'Pending'
+      ? { ...c, status: 'Reversed' as const, reversedAt: now }
+      : c
+  );
+  saveCommissions(updated);
 }
 
 // Allotment capacity checker
