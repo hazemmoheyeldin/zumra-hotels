@@ -35,6 +35,7 @@ const GeneralDataPage = lazyWithRetry(() => import('./components/GeneralDataPage
 const OtherServicesPage = lazyWithRetry(() => import('./components/OtherServicesPage'));
 const PaymentGatewaysPage = lazyWithRetry(() => import('./components/PaymentGatewaysPage'));
 const ExpensesPage = lazyWithRetry(() => import('./components/ExpensesPage'));
+const GraphsPage = lazyWithRetry(() => import('./components/GraphsPage'));
 
 // Eagerly loaded (needed for modals/auth flow)
 import ZumraLogo from './components/ZumraLogo';
@@ -1754,6 +1755,17 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Graphs':
+        return (
+          <ErrorBoundary fallbackLabel="Graphs failed to load.">
+          <GraphsPage
+            reservations={reservations}
+            agents={agents}
+            hotels={hotels}
+            transactions={transactions}
+          />
+          </ErrorBoundary>
+        );
       case 'Reservations':
         return (
           <ErrorBoundary fallbackLabel="Reservations page failed to load.">
@@ -2125,6 +2137,7 @@ export default function App() {
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard', tip: 'Overview of bookings, revenue & occupancy' },
     { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar', tip: 'Visual calendar of all reservations' },
     { name: 'Analytics', icon: '📉', group: 'Overview', key: 'analytics', tip: 'Performance charts & trends' },
+        { name: 'Graphs', icon: '📊', group: 'Overview', key: 'graphs', tip: 'Cash flow, revenue & booking graphs' },
     { name: 'Reservations', icon: '📅', group: 'Operations', key: 'reservations', tip: 'Manage all bookings & reservations' },
     { name: 'Sales', icon: '🚀', group: 'Operations', key: 'sales', tip: 'Sales pipeline & tracking' },
     { name: 'Production', icon: '📈', group: 'Operations', key: 'production', tip: 'Room production & availability' },
@@ -2177,10 +2190,10 @@ export default function App() {
       return ['Dashboard', 'Calendar', 'Reservations', 'Sales', 'Production', 'Hotels', 'Agents', 'Guests', 'Allotments', 'Other Services'].includes(item.name);
     }
     if (currentUser.role === 'Finance') {
-      return ['Dashboard', 'Calendar', 'Analytics', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services', 'Expenses'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Analytics', 'Graphs', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services', 'Expenses'].includes(item.name);
     }
     if (currentUser.role === 'ReservationsManager') {
-      return ['Dashboard', 'Calendar', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data', 'Expenses'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Graphs', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data', 'Expenses'].includes(item.name);
     }
     return true; // Admin gets everything
   });

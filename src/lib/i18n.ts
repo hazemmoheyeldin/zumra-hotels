@@ -10,6 +10,7 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.dashboard': { en: 'Dashboard', ar: 'لوحة التحكم' },
   'nav.calendar': { en: 'Calendar', ar: 'التقويم' },
   'nav.analytics': { en: 'Analytics', ar: 'التحليلات' },
+  'nav.graphs': { en: 'Graphs', ar: 'الرسوم البيانية' },
   'nav.reservations': { en: 'Reservations', ar: 'الحجوزات' },
   'nav.sales': { en: 'Sales', ar: 'المبيعات' },
   'nav.production': { en: 'Production', ar: 'الإنتاج' },
