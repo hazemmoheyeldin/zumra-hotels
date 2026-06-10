@@ -252,11 +252,15 @@ export default function App() {
 
   // Desktop hover-reveal: open sidebar when mouse enters
   const handleSidebarMouseEnter = () => {
+    // Skip on touch devices (mobile) — only desktop uses hover-reveal
+    if (window.matchMedia && !window.matchMedia('(hover: hover)').matches) return;
     if (sidebarCloseTimer.current) { clearTimeout(sidebarCloseTimer.current); sidebarCloseTimer.current = null; }
     if (!sidebarOpen) setSidebarOpen(true);
   };
   // Desktop hover-reveal: close sidebar after short delay when mouse leaves
   const handleSidebarMouseLeave = () => {
+    // Skip on touch devices — mobile sidebar must stay open until explicitly closed
+    if (window.matchMedia && !window.matchMedia('(hover: hover)').matches) return;
     if (sidebarCloseTimer.current) clearTimeout(sidebarCloseTimer.current);
     sidebarCloseTimer.current = setTimeout(() => setSidebarOpen(false), 400);
   };

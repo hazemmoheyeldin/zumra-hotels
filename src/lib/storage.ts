@@ -980,6 +980,9 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
   notifySyncListeners();
 
   const queue = loadSyncQueue();
+  if (queue.length > 0) {
+    console.log(`[Sync] Flushing queue: ${queue.length} item(s) pending`);
+  }
   let success = 0;
   let failed = 0;
 
@@ -992,10 +995,11 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
       }
       removeFromQueue(item.id);
       success++;
-    } catch (err) {
+    } catch (err: any) {
       item.retries++;
+      console.warn(`[Sync] Failed to sync ${item.type} ${item.collection}/${item.docId} (attempt ${item.retries}/${MAX_RETRIES}):`, err?.code || err?.message || err);
       if (item.retries >= MAX_RETRIES) {
-        // Dropping sync item after max retries
+        console.error(`[Sync] DROPPED ${item.collection}/${item.docId} after ${MAX_RETRIES} failed attempts. Data may be out of sync.`);
         removeFromQueue(item.id);
       }
       failed++;
@@ -1005,7 +1009,10 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
   _isSyncing = false;
   notifySyncListeners();
   if (success > 0) {
-    // Sync queue flushed
+    console.log(`[Sync] Flushed ${success} item(s) successfully`);
+  }
+  if (failed > 0 && success === 0) {
+    console.warn(`[Sync] All ${failed} item(s) failed. Check Firestore rules and indexes.`);
   }
   return { success, failed };
 }
