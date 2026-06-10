@@ -273,6 +273,24 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     return diffDays <= 14 && diffDays >= 0;
   }).sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
+  // Fully paid but still Tentative (should be converted to Definite)
+  const fullyPaidTentative = reservations.filter(res => {
+    if (res.status === 'Cancelled' || res.status === 'Confirmed') return false;
+    if (res.status !== 'Tentative') return false;
+    const { totalSell } = getReservationTotals(res);
+    return totalSell > 0 && (res.amountPaidByClient || 0) >= totalSell;
+  });
+
+  // Bookings without guest name within 5 days of arrival
+  const missingGuestName = reservations.filter(res => {
+    if (res.status === 'Cancelled') return false;
+    if (res.guestName && res.guestName.trim()) return false;
+    const checkInDate = new Date(res.checkIn);
+    const today = new Date(todayStr);
+    const diffDays = Math.ceil((checkInDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays <= 5 && diffDays >= 0;
+  });
+
   return (
     <div className="space-y-6">
       
@@ -401,6 +419,67 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             >
               📱 Copy All Phones
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Alert: Fully paid but still Tentative — should convert to Definite */}
+      {fullyPaidTentative.length > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-xl p-3 px-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in slide-in-from-top-2 no-print">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base">✅</span>
+            <div>
+              <p className="font-semibold text-emerald-900">
+                {fullyPaidTentative.length} booking(s) fully paid but still Tentative
+              </p>
+              <p className="text-[10.5px] text-emerald-700 font-medium">Consider converting to Definite status.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-1">
+              {fullyPaidTentative.slice(0, 3).map(res => (
+                <button
+                  key={res.id}
+                  onClick={() => onNavigate('Reservations', { viewReservationId: res.id })}
+                  title={`RSV-${res.id} - Fully paid`}
+                  className="bg-white hover:bg-emerald-100/50 text-emerald-900 text-[10px] font-mono font-bold px-2 py-1 rounded-lg border border-emerald-200/60 transition cursor-pointer"
+                >
+                  RSV-{res.id}
+                </button>
+              ))}
+              {fullyPaidTentative.length > 3 && (
+                <span className="bg-emerald-200 text-emerald-900 text-[10px] font-bold px-2 py-1 rounded-lg">+{fullyPaidTentative.length - 3} more</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert: Missing guest names within 5 days of arrival */}
+      {missingGuestName.length > 0 && (
+        <div className="bg-purple-50 border border-purple-200 text-purple-950 rounded-xl p-3 px-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in slide-in-from-top-2 no-print">
+          <div className="flex items-center gap-2.5">
+            <span className="text-base animate-pulse">👤</span>
+            <div>
+              <p className="font-semibold text-purple-900">
+                {missingGuestName.length} booking(s) without guest name arriving within 5 days
+              </p>
+              <p className="text-[10.5px] text-purple-700 font-medium">Please add guest names before arrival.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-1">
+              {missingGuestName.slice(0, 3).map(res => (
+                <button
+                  key={res.id}
+                  onClick={() => onNavigate('Reservations', { viewReservationId: res.id })}
+                  title={`RSV-${res.id} - No guest name`}
+                  className="bg-white hover:bg-purple-100/50 text-purple-900 text-[10px] font-mono font-bold px-2 py-1 rounded-lg border border-purple-200/60 transition cursor-pointer"
+                >
+                  RSV-{res.id}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

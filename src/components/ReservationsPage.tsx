@@ -914,9 +914,14 @@ export default function ReservationsPage({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut || !guestName) {
+    if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut) {
       toast.warning('Please fill out all mandatory booking specs.');
       return;
+    }
+
+    // Blank guest name warning (non-blocking)
+    if (!guestName) {
+      toast.warning('Guest name is blank — this booking will be flagged for review.');
     }
 
     // Duplicate booking detection: check for same guest + overlapping dates + same hotel
@@ -956,8 +961,8 @@ export default function ReservationsPage({
       }
     }
 
-    // Weekend rate reminder: warn if booking spans weekend days but no weekend rate is set
-    if (hasWeekendDays(checkIn, checkOut) && !rooms.some(rm => rm.hasWeekend)) {
+    // Weekend rate reminder: warn if booking spans weekend days but ANY room is missing weekend rate
+    if (hasWeekendDays(checkIn, checkOut) && rooms.some(rm => !rm.hasWeekend)) {
       openConfirm(
         'Weekend Rate Reminder',
         'This booking contains weekend days (Thu/Fri) but no weekend rate is set.\n\nHotels sometimes sell at flat rates on weekdays same as weekends.\n\nDo you want to proceed without weekend rates, or go back and add them?',
@@ -1206,6 +1211,7 @@ export default function ReservationsPage({
         amount: computedAmount,
         fromAccountId: payAccountId,
         agentId: targetAgentId,
+        reservationId: resObj.id.toString(),
         description: isClientPayment 
           ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
           : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,

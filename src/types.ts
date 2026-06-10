@@ -67,6 +67,7 @@ export interface Agent {
   clientStatus?: 'Active' | 'Suspended' | 'Blacklisted'; // Client status flag
   supplierMarkupRate?: number; // Default commission/markup % charged to this supplier
   portalToken?: string; // Unique random token for secure client portal access
+  contactPersons?: { name: string; phone: string }[]; // Contact persons with phone numbers
   auditLogs: AuditLogEntry[];
 }
 

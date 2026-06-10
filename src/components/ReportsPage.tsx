@@ -47,6 +47,9 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
   const [selectedAgentId, setSelectedAgentId] = useState(agents.find(a => a.type === 'Customer' || a.type === 'Both')?.id || '');
   const [selectedSupplierId, setSelectedSupplierId] = useState(agents.find(a => a.type === 'Supplier' || a.type === 'Both')?.id || '');
 
+  // Commission tab expanded salesperson
+  const [expandedSP, setExpandedSP] = useState<string | null>(null);
+
   // Supplier email reminders states
   const [reminderDays, setReminderDays] = useState(3);
   const [selectedReminderRes, setSelectedReminderRes] = useState<Reservation | null>(null);
@@ -1285,7 +1288,6 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
       {/* ==================== COMMISSION REPORT ==================== */}
       {activeReportTab === 'commission' && (() => {
         const activeReservations = reservations.filter(r => r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
-        const [expandedSP, setExpandedSP] = React.useState<string | null>(null);
         const commissionData = salesPersons.filter(sp => sp.active).map(sp => {
           const spBookings = activeReservations.filter(r => r.salesPersonId === sp.id);
           const totalRevenue = spBookings.reduce((sum, r) => sum + getReservationTotals(r).totalSell, 0);

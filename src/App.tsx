@@ -999,8 +999,8 @@ export default function App() {
     ZumraSync.saveAgent(a);
     toast.success(`Agent "${a.name}" saved successfully`);
   };
-  const handleSaveAgent = (a: Agent) => {
-    showConfirm('Save Agent', `Save agent "${a.name}"?`, () => doSaveAgent(a));
+  const handleSaveAgent = (a: Agent, onSuccess?: () => void) => {
+    showConfirm('Save Agent', `Save agent "${a.name}"?`, () => { doSaveAgent(a); onSuccess?.(); });
   };
 
   const doDeleteAgent = (id: string) => {

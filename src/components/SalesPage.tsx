@@ -36,20 +36,23 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
 
   const todayStr = new Date().toISOString().split('T')[0];
 
+  // Filter out auto-created reservation system alerts (shown on Dashboard, not CRM)
+  const crmFollowUps = followUps.filter(f => !f.topic.startsWith('Option Expiry - RSV-'));
+
   // KPI metrics
   const kpis = useMemo(() => {
-    const pending = followUps.filter(f => f.status === 'Pending');
-    const completed = followUps.filter(f => f.status === 'Completed');
+    const pending = crmFollowUps.filter(f => f.status === 'Pending');
+    const completed = crmFollowUps.filter(f => f.status === 'Completed');
     const overdue = pending.filter(f => f.date < todayStr);
     const dueToday = pending.filter(f => f.date === todayStr);
     return {
-      total: followUps.length,
+      total: crmFollowUps.length,
       pending: pending.length,
       completed: completed.length,
       overdue: overdue.length,
       dueToday: dueToday.length,
     };
-  }, [followUps, todayStr]);
+  }, [crmFollowUps, todayStr]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +120,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
   const priorityWeight = (p: Priority): number => p === 'High' ? 0 : p === 'Medium' ? 1 : 2;
 
   const filtered = useMemo(() => {
-    let list = followUps;
+    let list = crmFollowUps;
     if (activeTab === 'Upcoming') list = list.filter(f => f.status === 'Pending');
     else if (activeTab === 'Completed') list = list.filter(f => f.status === 'Completed');
 
@@ -137,7 +140,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
       if (pw !== 0) return pw;
       return b.date.localeCompare(a.date);
     });
-  }, [followUps, activeTab, searchTerm]);
+  }, [crmFollowUps, activeTab, searchTerm]);
 
   const isOverdue = (fu: FollowUp) => fu.status === 'Pending' && fu.date < todayStr;
   const isDueToday = (fu: FollowUp) => fu.status === 'Pending' && fu.date === todayStr;

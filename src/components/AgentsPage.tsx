@@ -30,7 +30,7 @@ interface AgentsPageProps {
   accounts: Account[];
   transactions: Transaction[];
   currentUser: string;
-  onSaveAgent: (agent: Agent) => void;
+  onSaveAgent: (agent: Agent, onSuccess?: () => void) => void;
   onDeleteAgent: (id: string) => void;
   onBulkPaymentSave: (updatedReservations: Reservation[], updatedTransactions: Transaction[], updatedAccounts: Account[]) => void;
 }
@@ -52,6 +52,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
   const [creditLimit, setCreditLimit] = useState<number | undefined>(undefined);
   const [clientStatus, setClientStatus] = useState<'Active' | 'Suspended' | 'Blacklisted'>('Active');
   const [supplierMarkupRate, setSupplierMarkupRate] = useState<number | undefined>(undefined);
+  const [contactPersons, setContactPersons] = useState<{ name: string; phone: string }[]>([]);
 
   const [showForm, setShowForm] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -118,6 +119,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setCreditLimit(agent.creditLimit);
     setClientStatus(agent.clientStatus || 'Active');
     setSupplierMarkupRate(agent.supplierMarkupRate);
+    setContactPersons(agent.contactPersons || []);
     setShowForm(true);
     setActiveMenuId(null);
   };
@@ -127,6 +129,16 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     if (!name) {
       showToast('Please fill out the agent name field.', 'warning');
       return;
+    }
+
+    // Duplicate agent detection: same name + same type (skip when editing same agent)
+    const duplicate = agents.find(a =>
+      a.id !== editingId &&
+      a.name.toLowerCase().trim() === name.toLowerCase().trim() &&
+      a.type === type
+    );
+    if (duplicate) {
+      if (!confirm(`⚠️ Possible duplicate detected!\n\nAn agent "${duplicate.name}" (${duplicate.type}) already exists (Agent #${duplicate.agentNumber}).\n\nSave anyway?`)) return;
     }
 
     // Auto calculate incremental Agent Number
@@ -164,12 +176,13 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
       creditLimit,
       clientStatus,
       supplierMarkupRate: (type === 'Supplier' || type === 'Both') ? supplierMarkupRate : undefined,
+      contactPersons: contactPersons.filter(cp => cp.name.trim()),
       portalToken: editingId ? (agents.find(a => a.id === editingId)?.portalToken || generatePortalToken()) : generatePortalToken(),
       auditLogs: [newLog, ...pastLogs]
     };
 
-    onSaveAgent(newAgent);
-    resetForm();
+    onSaveAgent(newAgent, () => resetForm());
+    // Note: resetForm is NOT called here — it's called by the parent after successful save
   };
 
   const resetForm = () => {
@@ -185,6 +198,7 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
     setCreditLimit(undefined);
     setClientStatus('Active');
     setSupplierMarkupRate(undefined);
+    setContactPersons([]);
     setShowForm(false);
   };
 
@@ -373,6 +387,21 @@ export default function AgentsPage({ agents, reservations, accounts, transaction
                 />
               </div>
             )}
+          </div>
+
+          {/* Contact Persons */}
+          <div className="pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[10px] uppercase font-bold text-slate-500">Contact Persons</label>
+              <button type="button" onClick={() => setContactPersons([...contactPersons, { name: '', phone: '' }])} className="text-[10px] font-bold text-amber-600 hover:text-amber-700">+ Add Contact</button>
+            </div>
+            {contactPersons.map((cp, idx) => (
+              <div key={idx} className="flex gap-2 items-center mb-1.5">
+                <input type="text" value={cp.name} onChange={e => { const updated = [...contactPersons]; updated[idx] = { ...updated[idx], name: e.target.value }; setContactPersons(updated); }} placeholder="Contact name" className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-xs focus:border-amber-500 focus:outline-none" />
+                <input type="text" value={cp.phone} onChange={e => { const updated = [...contactPersons]; updated[idx] = { ...updated[idx], phone: e.target.value }; setContactPersons(updated); }} placeholder="Phone number" className="flex-1 px-2 py-1 border border-slate-200 rounded-lg text-xs focus:border-amber-500 focus:outline-none" />
+                <button type="button" onClick={() => setContactPersons(contactPersons.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600 text-sm font-bold">&times;</button>
+              </div>
+            ))}
           </div>
 
           <div className="flex gap-2 pt-2">
