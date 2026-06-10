@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
-import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, clearSyncQueue, SyncStatus } from './lib/storage';
+import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, clearSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth } from './lib/firebase';
@@ -588,9 +588,11 @@ export default function App() {
               // Firestore has data -> merge for users, use directly for others
               if (col.name === COLLECTIONS.USERS) {
                 // Merge: deduplicate by email AND username (not just ID)
-                // Firestore version takes priority as source of truth
+                // DEFAULT_USERS are always preserved; Firestore version takes priority
                 const localData = col.loader();
                 const mergedMap = new Map<string, any>();
+                // Start with DEFAULT_USERS as baseline (always present)
+                DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
                 // Index local users by email and username for dedup
                 const localByEmail = new Map<string, any>();
                 const localByUsername = new Map<string, any>();
@@ -790,8 +792,14 @@ export default function App() {
         }),
         firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
           if (!isRecentLocalWrite()) {
-            localStorage.setItem('zumra_users', JSON.stringify(data));
-            setUsers(prev => arraysEqual(prev, data) ? prev : data);
+            // Merge Firestore data with DEFAULT_USERS to prevent user loss
+            // DEFAULT_USERS are always preserved; Firestore data updates/overrides by ID
+            const mergedMap = new Map<string, User>();
+            DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
+            data.forEach(u => mergedMap.set(u.id, u));
+            const merged = Array.from(mergedMap.values());
+            localStorage.setItem('zumra_users', JSON.stringify(merged));
+            setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
           }
         }),
         firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {

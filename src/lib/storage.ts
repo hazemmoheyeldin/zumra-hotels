@@ -313,7 +313,7 @@ const DEFAULT_TRANSACTIONS: Transaction[] = [
 ];
 
 // Default Users
-const DEFAULT_USERS: User[] = [
+export const DEFAULT_USERS: User[] = [
   { id: 'u1', username: 'hazem', name: 'Hazem Mohey El-Din', role: 'Admin', email: 'hazem8383@gmail.com' },
   { id: 'u2', username: 'zaki', name: 'Zaki Makkawi', role: 'Reservationist', email: 'zaki@zumrahotels.com' },
   { id: 'u3', username: 'yasmeen', name: 'Yasmeen Madani', role: 'Finance', email: 'yasmeen@zumrahotels.com' },
