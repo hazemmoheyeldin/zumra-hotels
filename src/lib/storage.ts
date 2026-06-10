@@ -764,8 +764,11 @@ export function getReservationTotals(res: Reservation) {
     totalBuy = safeAdd(totalBuy, baseRoomBuy + mealBuy + extraBedBuy + viewSuppBuy + extraMeal1Buy + extraMeal2Buy);
   });
 
-  const profit = safeSubtract(totalSell, totalBuy);
-  const markupPct = totalBuy > 0 ? round2((profit / totalBuy) * 100) : 0;
+  const grossProfit = safeSubtract(totalSell, totalBuy);
+  const totalCommission = res.salesPersonCommissionAmount || 0;
+  const netProfit = safeSubtract(grossProfit, totalCommission);
+  const profit = grossProfit; // Backward-compatible alias
+  const markupPct = totalBuy > 0 ? round2((grossProfit / totalBuy) * 100) : 0;
   const vat = round2(totalSell * 0.15); // 15% VAT
   const totalWithVat = safeAdd(totalSell, vat);
 
@@ -773,6 +776,9 @@ export function getReservationTotals(res: Reservation) {
     totalSell,
     totalBuy,
     profit,
+    grossProfit,
+    totalCommission,
+    netProfit,
     markupPct,
     vat,
     totalWithVat

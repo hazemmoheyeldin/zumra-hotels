@@ -23,6 +23,7 @@ const TransactionsPage = lazyWithRetry(() => import('./components/TransactionsPa
 const ExternalTransfersPage = lazyWithRetry(() => import('./components/ExternalTransfersPage'));
 const AccountsPage = lazyWithRetry(() => import('./components/AccountsPage'));
 const ReportsPage = lazyWithRetry(() => import('./components/ReportsPage'));
+const LedgerReport = lazyWithRetry(() => import('./components/LedgerReport'));
 const UserManagementPage = lazyWithRetry(() => import('./components/UserManagementPage'));
 const SalesPage = lazyWithRetry(() => import('./components/SalesPage'));
 const ProductionPage = lazyWithRetry(() => import('./components/ProductionPage'));
@@ -2013,6 +2014,19 @@ export default function App() {
           />
           </ErrorBoundary>
         );
+      case 'Ledger':
+        return (
+          <ErrorBoundary fallbackLabel="Ledger report failed to load.">
+          <LedgerReport
+            reservations={reservations}
+            transactions={transactions}
+            agents={agents}
+            hotels={hotels}
+            expenses={expenses}
+            onNavigate={handleNavigate}
+          />
+          </ErrorBoundary>
+        );
       case 'Sales':
         return (
           <ErrorBoundary fallbackLabel="Sales page failed to load.">
@@ -2253,6 +2267,7 @@ export default function App() {
     { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers', tip: 'External bank transfers & wires' },
     { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes', tip: 'Bank accounts & safe boxes' },
     { name: 'Reports', icon: '📋', group: 'Finance', key: 'reports', tip: 'Generate financial & operational reports' },
+    { name: 'Ledger', icon: '📒', group: 'Finance', key: 'ledger', tip: 'Financial ledger — source of truth for revenue & commissions' },
     { name: 'Expenses', icon: '📤', group: 'Finance', key: 'expenses', tip: 'Track & manage expenses' },
     { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways', tip: 'Online payment gateway settings' },
     { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog', tip: 'System activity & change log' },

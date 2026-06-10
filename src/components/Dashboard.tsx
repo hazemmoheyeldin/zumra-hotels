@@ -65,8 +65,15 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
     const cancToday = reservations.filter(r => r.status === 'Cancelled' && r.cancellationReason && r.createdAt.startsWith(todayStr));
     const activeRes = reservations.filter(r => r.status !== 'Cancelled');
-    const totalRev = activeRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
-    const totalCst = activeRes.reduce((s, r) => s + getReservationTotals(r).totalBuy, 0);
+    let totalRev = 0, totalCst = 0, totalComm = 0;
+    activeRes.forEach(r => {
+      const totals = getReservationTotals(r);
+      totalRev += totals.totalSell;
+      totalCst += totals.totalBuy;
+      totalComm += totals.totalCommission;
+    });
+    const grossProfit = totalRev - totalCst;
+    const netProfit = grossProfit - totalComm;
     const summary = `Zumra Hotels - Daily Summary ${todayStr}\n\n` +
       `Check-ins Today: ${checkIns.length}\n` +
       `Check-outs Today: ${checkOuts.length}\n` +
@@ -75,7 +82,9 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       `Active Reservations: ${activeRes.length}\n\n` +
       `Total Revenue: ${totalRev.toLocaleString()} SAR\n` +
       `Total Cost: ${totalCst.toLocaleString()} SAR\n` +
-      `Total Profit: ${(totalRev - totalCst).toLocaleString()} SAR`;
+      `Gross Profit: ${grossProfit.toLocaleString()} SAR\n` +
+      `Commission: ${totalComm.toLocaleString()} SAR\n` +
+      `Net Profit: ${netProfit.toLocaleString()} SAR`;
     const result = await sendDailySummaryEmail(adminEmail, summary, `Daily Summary - ${todayStr}`);
     setSendingSummary(false);
     if (result.success) { alert('Daily summary sent to ' + adminEmail); } else { alert('Failed: ' + result.error); }

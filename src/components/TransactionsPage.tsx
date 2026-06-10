@@ -770,6 +770,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <th className="py-3 px-3 text-center hidden lg:table-cell">{t('trans.attachment')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.sumSAR')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.runningBal')}</th>
+                <th className="py-3 px-3 text-right hidden xl:table-cell">Gross Profit</th>
+                <th className="py-3 px-3 text-right hidden xl:table-cell">Net Profit</th>
                 <th className="py-3 px-3 text-center">{t('trans.voucherLayout')}</th>
                 <th className="py-3 px-3 text-center hidden md:table-cell">{lang === 'ar' ? 'أضافه' : 'Added By'}</th>
               </tr>
@@ -823,6 +825,26 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[idx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                     {runningBalances[idx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
+                  {(() => {
+                    if (tr.type === 'ClientPayment' && tr.reservationId) {
+                      const linkedRes = reservations.find(r => r.id.toString() === tr.reservationId);
+                      if (linkedRes) {
+                        const totals = getReservationTotals(linkedRes);
+                        return (
+                          <>
+                            <td className="py-3 px-3 text-right font-mono text-[10px] text-cyan-700 hidden xl:table-cell">{totals.grossProfit.toLocaleString()}</td>
+                            <td className="py-3 px-3 text-right font-mono text-[10px] text-emerald-700 font-bold hidden xl:table-cell">{totals.netProfit.toLocaleString()}</td>
+                          </>
+                        );
+                      }
+                    }
+                    return (
+                      <>
+                        <td className="py-3 px-3 text-right text-slate-300 hidden xl:table-cell">—</td>
+                        <td className="py-3 px-3 text-right text-slate-300 hidden xl:table-cell">—</td>
+                      </>
+                    );
+                  })()}
                   <td className="py-3 px-3 text-center">
                     <div className="flex items-center justify-center gap-1">
                       <button

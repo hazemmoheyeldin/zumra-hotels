@@ -53,7 +53,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
         const totals = getReservationTotals(r);
         entry.revenue += totals.totalSell;
         entry.cost += totals.totalBuy;
-        entry.profit += (totals.totalSell - totals.totalBuy);
+        entry.profit += totals.netProfit;
       }
     });
 
@@ -94,7 +94,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       const entry = map.get(r.clientId) || { name, revenue: 0, bookings: 0, profit: 0 };
       const totals = getReservationTotals(r);
       entry.revenue += totals.totalSell;
-      entry.profit += (totals.totalSell - totals.totalBuy);
+      entry.profit += totals.netProfit;
       entry.bookings++;
       map.set(r.clientId, entry);
     });
@@ -173,23 +173,27 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
   // KPI summary
   const kpis = useMemo(() => {
     const activeRes = filteredData.reservations.filter(r => r.status !== 'Cancelled');
-    let totalRevenue = 0, totalCost = 0, totalNights = 0, totalRooms = 0;
+    let totalRevenue = 0, totalCost = 0, totalCommission = 0, totalNights = 0, totalRooms = 0;
     activeRes.forEach(r => {
       const totals = getReservationTotals(r);
       totalRevenue += totals.totalSell;
       totalCost += totals.totalBuy;
+      totalCommission += totals.totalCommission;
       totalNights += r.nights;
       totalRooms += r.rooms.reduce((sum, rm) => sum + rm.qty, 0);
     });
     const totalPayments = filteredData.transactions
       .filter(t => t.type === 'ClientPayment')
       .reduce((sum, t) => sum + t.amount, 0);
+    const grossProfit = totalRevenue - totalCost;
 
     return {
       totalRevenue,
       totalCost,
-      totalProfit: totalRevenue - totalCost,
-      profitMargin: totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue * 100) : 0,
+      grossProfit,
+      totalCommission,
+      totalProfit: grossProfit - totalCommission, // Net Profit = Gross Profit - Commission
+      profitMargin: totalRevenue > 0 ? ((grossProfit - totalCommission) / totalRevenue * 100) : 0,
       totalBookings: activeRes.length,
       totalNights,
       totalRooms,
@@ -226,12 +230,13 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <KPICard label={t('analytics.totalRevenue')} value={`${formatMoney(kpis.totalRevenue)}`} sub="SAR" color="blue" />
-        <KPICard label={t('analytics.totalProfit')} value={`${formatMoney(kpis.totalProfit)}`} sub="SAR" color="emerald" />
-        <KPICard label={t('analytics.profitMargin')} value={`${kpis.profitMargin.toFixed(1)}%`} sub="" color="green" />
+        <KPICard label="Gross Profit" value={`${formatMoney(kpis.grossProfit)}`} sub="SAR" color="cyan" />
+        <KPICard label="Commission" value={`${formatMoney(kpis.totalCommission)}`} sub="SAR" color="amber" />
+        <KPICard label={t('analytics.totalProfit')} value={`${formatMoney(kpis.totalProfit)}`} sub="Net (after commission)" color="emerald" />
+        <KPICard label={t('analytics.profitMargin')} value={`${kpis.profitMargin.toFixed(1)}%`} sub="Net margin" color="green" />
         <KPICard label={t('analytics.bookings')} value={`${kpis.totalBookings}`} sub={`${kpis.totalRooms} ${t('analytics.rooms')}`} color="purple" />
-        <KPICard label={t('analytics.avgLeadTime')} value={`${kpis.avgLeadTime}`} sub={t('analytics.days')} color="amber" />
         <KPICard label={t('analytics.cancellationRate')} value={`${cancellationStats.cancellationRate.toFixed(1)}%`} sub={`${cancellationStats.cancelled} ${t('analytics.cancelled')}`} color="red" />
       </div>
 
