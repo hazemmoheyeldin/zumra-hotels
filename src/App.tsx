@@ -305,7 +305,7 @@ export default function App() {
   const [blackoutPeriods, setBlackoutPeriods] = useState<BlackoutPeriod[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   // Restore session from localStorage if user was previously logged in
-  const [authLoading, setAuthLoading] = useState(false); // App shell pattern: render UI immediately
+  const [authLoading, setAuthLoading] = useState(isFirebaseConfigured); // Block UI until Firebase Auth initializes
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const dataLoadedRef = useRef(false); // Prevents Phase 2 re-run on profile updates
   const listenersAttachedRef = useRef(false); // Prevents Firestore listener teardown on user switch
@@ -417,13 +417,13 @@ export default function App() {
   const alertCount = currentAlerts.length;
 
   // ═══════════════════════════════════════════════════════════
-  // PHASE 1: Lightweight auth-only effect (runs on mount)
-  // ONLY loads users for the login screen — NO heavy data loading.
-  // This ensures the login page is instantly interactive,
-  // even on a cold cache / first visit.
+  // PHASE 1: Auth initialization + users loading (runs on mount)
+  // Loads users for login screen AND waits for Firebase Auth state
+  // before unblocking the UI. Prevents race conditions where the
+  // dashboard renders before Firebase Auth has finished initializing.
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    // Only load users — needed for login form authentication
+    // Load users for login form
     const loadedUsers = ZumraDB.getUsers();
     const hasAdmin = loadedUsers.some(u => u.username === 'hazem');
     if (!hasAdmin) {
@@ -442,8 +442,52 @@ export default function App() {
     } else {
       setUsers(loadedUsers);
     }
-    // Auth is ready — login screen can render immediately
-    setAuthLoading(false);
+
+    if (!isFirebaseConfigured) {
+      // No Firebase — unblock immediately
+      setAuthLoading(false);
+      return;
+    }
+
+    // Wait for Firebase Auth to report its initial state before unblocking UI
+    let settled = false;
+    const unsub = onFirebaseAuthStateChanged((fbUser) => {
+      if (settled) return;
+      settled = true;
+      unsub();
+      console.log('[Firebase Auth] onAuthStateChanged:', fbUser ? `signed in as ${fbUser.email || fbUser.uid}` : 'not signed in (null)');
+
+      // If Firebase has a signed-in user, try to restore their app session
+      if (fbUser) {
+        const savedUser = localStorage.getItem('zumra_current_user');
+        if (savedUser) {
+          try {
+            const user = JSON.parse(savedUser);
+            if (user && user.username && user.role) {
+              setCurrentUser(user as User);
+              console.log('[Firebase Auth] Session restored for:', user.username);
+            }
+          } catch {}
+        }
+      }
+
+      setAuthLoading(false);
+    });
+
+    // Safety timeout: unblock after 5s even if onAuthStateChanged never fires
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        unsub();
+        console.warn('[Firebase Auth] onAuthStateChanged timeout after 5s — unblocking UI');
+        setAuthLoading(false);
+      }
+    }, 5000);
+
+    return () => {
+      unsub();
+      clearTimeout(timer);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ═══════════════════════════════════════════════════════════
