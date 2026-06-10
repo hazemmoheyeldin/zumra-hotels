@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, memo, useMemo } from 'react';
+import React, { useState, memo, useMemo, useCallback } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
@@ -254,17 +254,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
-        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
-        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
+      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(245,158,11,0.08)' }}></div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 250, height: 250, borderRadius: '50%', background: 'rgba(99,102,241,0.08)' }}></div>
       </div>
 
       <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
+        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.15)', borderRadius: '50%', transform: 'scale(1.5)' }}></div>
             <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
           <div style={{ margin: 0 }}>
@@ -340,17 +340,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
-        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
-        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
+      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(245,158,11,0.08)' }}></div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 250, height: 250, borderRadius: '50%', background: 'rgba(99,102,241,0.08)' }}></div>
       </div>
 
       <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
+        style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)' }}>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.15)', borderRadius: '50%', transform: 'scale(1.5)' }}></div>
             <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
           <div style={{ margin: 0 }}>
@@ -455,22 +455,94 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
       
-      {/* Animated background orbs — memoized to prevent re-render on input change */}
-      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
-        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
-        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
-        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(16,185,129,0.05)', filter: 'blur(80px)' }}></div>
-        <div style={{ position: 'absolute', inset: 0, opacity: 0.03, backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-      </div>
+      {/* Static background layer — never re-renders on input change */}
+      <LoginBackground />
 
-      {/* Glass card */}
-      <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
+      {/* Memoized form card — isolated from background */}
+      <LoginFormCard
+        username={username}
+        setUsername={setUsername}
+        password={password}
+        setPassword={setPassword}
+        showPassword={showPassword}
+        setShowPassword={setShowPassword}
+        rememberMe={rememberMe}
+        setRememberMe={setRememberMe}
+        errorMsg={errorMsg}
+        loading={loading}
+        handleLoginSubmit={handleLoginSubmit}
+        handleGoogleSignIn={handleGoogleSignIn}
+        setForgotMode={setForgotMode}
+        t={t}
+      />
+
+      {/* Bottom branding */}
+      <p className="mt-8 text-[10px] text-slate-500/50 font-mono tracking-widest uppercase relative z-10">
+        © {new Date().getFullYear()} Zumra Hotels. All Rights Reserved.
+      </p>
+    </div>
+  );
+}
+
+/* ============================================
+   STATIC BACKGROUND — never re-renders
+   ============================================ */
+const LoginBackground = memo(function LoginBackground() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '10%', right: '10%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(245,158,11,0.08)' }}></div>
+      <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 250, height: 250, borderRadius: '50%', background: 'rgba(99,102,241,0.08)' }}></div>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', width: 200, height: 200, borderRadius: '50%', background: 'rgba(16,185,129,0.04)' }}></div>
+      <div style={{ position: 'absolute', inset: 0, opacity: 0.03, backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+    </div>
+  );
+});
+
+/* ============================================
+   MEMOIZED LOGIN FORM CARD
+   Only re-renders when its own props change.
+   The heavy backdrop-filter is applied via a
+   separate layer that doesn't re-composite
+   when inputs change.
+   ============================================ */
+interface LoginFormCardProps {
+  username: string;
+  setUsername: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  showPassword: boolean;
+  setShowPassword: (v: boolean) => void;
+  rememberMe: boolean;
+  setRememberMe: (v: boolean) => void;
+  errorMsg: string;
+  loading: boolean;
+  handleLoginSubmit: (e: React.FormEvent) => void;
+  handleGoogleSignIn: () => void;
+  setForgotMode: (v: boolean) => void;
+  t: (key: string) => string;
+}
+
+const LoginFormCard = memo(function LoginFormCard({
+  username, setUsername,
+  password, setPassword,
+  showPassword, setShowPassword,
+  rememberMe, setRememberMe,
+  errorMsg, loading,
+  handleLoginSubmit, handleGoogleSignIn,
+  setForgotMode, t,
+}: LoginFormCardProps) {
+  return (
+    <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+      style={{
+        background: 'rgba(255,255,255,0.07)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 25px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+      }}>
         
         {/* Branding header */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.15)', borderRadius: '50%', transform: 'scale(1.5)' }}></div>
             <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
           <div style={{ margin: 0 }}>
@@ -484,7 +556,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
         {/* Error */}
         {errorMsg && (
-          <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2 backdrop-blur-sm">
+          <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 flex items-start gap-2">
             <span className="text-sm">⚠️</span>
             <p className="font-mono text-[10px] uppercase leading-snug">{errorMsg}</p>
           </div>
@@ -587,14 +659,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         {/* Google Sign-In */}
         {isFirebaseConfigured && (
           <>
-            {/* Divider */}
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
               <span className="text-[9px] text-slate-500 font-mono uppercase tracking-widest">or</span>
               <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
             </div>
-
-            {/* Google Sign-In Button */}
             <button
               onClick={handleGoogleSignIn}
               disabled={loading}
@@ -619,20 +688,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           <p className="text-[9px] text-slate-500 font-mono uppercase tracking-[0.2em]">{t('login.authorizedAccess')}</p>
           <p className="text-[9px] text-slate-600 font-serif">زمرة للفنادق — EST Zumra Hotels for Hotel Operation</p>
         </div>
-      </div>
 
-      {/* Bottom branding */}
-      <p className="mt-8 text-[10px] text-slate-500/50 font-mono tracking-widest uppercase relative z-10">
-        © {new Date().getFullYear()} Zumra Hotels. All Rights Reserved.
-      </p>
-
-      {/* Keyframe animation */}
-      <style>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
+        <style>{`
+          @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
     </div>
   );
-}
+});
