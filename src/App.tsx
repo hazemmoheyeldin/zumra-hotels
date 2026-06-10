@@ -308,6 +308,8 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false); // App shell pattern: render UI immediately
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const dataLoadedRef = useRef(false); // Prevents Phase 2 re-run on profile updates
+  const listenersAttachedRef = useRef(false); // Prevents Firestore listener teardown on user switch
+  const migrationDoneRef = useRef(false); // Migration only runs once per app session
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('zumra_current_user');
@@ -585,11 +587,31 @@ export default function App() {
             if (firestoreData.length > 0) {
               // Firestore has data -> merge for users, use directly for others
               if (col.name === COLLECTIONS.USERS) {
-                // Merge: keep all users from both Firestore and local
+                // Merge: deduplicate by email AND username (not just ID)
+                // Firestore version takes priority as source of truth
                 const localData = col.loader();
                 const mergedMap = new Map<string, any>();
-                localData.forEach((u: any) => mergedMap.set(u.id, u));
-                firestoreData.forEach((u: any) => mergedMap.set(u.id, u));
+                // Index local users by email and username for dedup
+                const localByEmail = new Map<string, any>();
+                const localByUsername = new Map<string, any>();
+                localData.forEach((u: any) => {
+                  if (u.email) localByEmail.set(u.email.toLowerCase(), u);
+                  localByUsername.set(u.username.toLowerCase(), u);
+                });
+                // Add Firestore users first (source of truth)
+                firestoreData.forEach((u: any) => {
+                  mergedMap.set(u.id, u);
+                  // Remove matching local user so it's not added again
+                  if (u.email) localByEmail.delete(u.email.toLowerCase());
+                  localByUsername.delete(u.username.toLowerCase());
+                });
+                // Add remaining local users (not in Firestore by email or username)
+                localData.forEach((u: any) => {
+                  const matchedByEmail = u.email && !localByEmail.has(u.email.toLowerCase());
+                  const matchedByUsername = !localByUsername.has(u.username.toLowerCase());
+                  if (matchedByEmail || matchedByUsername) return; // Already merged via Firestore
+                  mergedMap.set(u.id, u); // Unique local user, keep it
+                });
                 const merged = Array.from(mergedMap.values());
                 localStorage.setItem(col.key, JSON.stringify(merged));
                 col.setter(merged);
@@ -853,15 +875,31 @@ export default function App() {
       // Call attachFirestoreListeners after auth is confirmed, then run migration in background
       const wrappedWaitForAuth = async () => {
         try {
-          // Wait for auth first
-          await waitForAuthAndMigrate();
+          if (migrationDoneRef.current) {
+            // Migration already done — just re-authenticate as the new user for Firestore rules
+            if (user?.email) {
+              const fbPwd = user.password || `${user.username}123`;
+              const isAuthed = await firebaseSignIn(user.email, fbPwd).catch(() => false);
+              if (!isAuthed) {
+                console.warn(`[Firebase Auth] Re-auth failed for ${user.email} — creating account`);
+                await firebaseCreateUser(user.email, fbPwd).catch(() => {});
+                await firebaseSignIn(user.email, fbPwd).catch(() => {});
+              }
+            }
+          } else {
+            await waitForAuthAndMigrate();
+            migrationDoneRef.current = true;
+          }
         } catch (err) {
           console.error('[Firebase] Auth/Migration failed, proceeding with listeners anyway:', err);
         } finally {
-          // ALWAYS attach listeners — even if auth failed.
-          // This ensures mobile devices get real-time data from Firestore
-          // regardless of authentication state.
-          attachFirestoreListeners();
+          // ALWAYS attach listeners — but only once per session
+          if (!listenersAttachedRef.current) {
+            attachFirestoreListeners();
+            listenersAttachedRef.current = true;
+          } else {
+            console.log('[Firestore] Listeners already attached — skipping re-attachment');
+          }
         }
       };
       wrappedWaitForAuth();
@@ -875,8 +913,8 @@ export default function App() {
       window.addEventListener('storage', handleStorage);
 
       return () => {
-        firestoreListenerUnsubs.current.forEach(unsub => unsub());
-        firestoreListenerUnsubs.current = [];
+        // DO NOT tear down Firestore listeners on user switch — they persist for the session
+        // Only clean up on component unmount (listenersAttachedRef will be garbage collected)
         window.removeEventListener('storage', handleStorage);
       };
     } else {
