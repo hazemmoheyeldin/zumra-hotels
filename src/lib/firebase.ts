@@ -56,7 +56,8 @@ if (isFirebaseConfigured) {
     }).catch(err => {
       console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
     });
-    console.log('[Firebase] Initialized successfully');
+    console.log('[Firebase] Initialized successfully | Project:', firebaseConfig.projectId);
+    console.log('[Firebase] Mobile Debug — navigator.onLine:', navigator.onLine, '| userAgent:', navigator.userAgent.substring(0, 80));
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
     db = null;
@@ -386,18 +387,30 @@ export async function firestoreBulkSave(collectionName: string, items: any[]): P
  * Subscribe to real-time changes in a Firestore collection
  */
 export function firestoreSubscribe<T>(collectionName: string, callback: (data: T[]) => void): () => void {
-  if (!db) return () => {};
+  if (!db) {
+    console.warn(`[Firestore] firestoreSubscribe: db is null, cannot subscribe to ${collectionName}`);
+    return () => {};
+  }
   
   try {
     const q = query(collection(db, collectionName));
+    let firstEmission = true;
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+      if (firstEmission) {
+        console.log(`[Firestore] Listener: ${collectionName} — ${data.length} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
+        firstEmission = false;
+      }
       callback(data);
     }, (error) => {
-      console.error(`[Firebase] Snapshot error for ${collectionName}:`, error);
+      console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
+      if (error?.code === 'permission-denied') {
+        console.error(`[Firebase] PERMISSION DENIED: Firestore security rules are blocking read access to '${collectionName}'. Check your Firestore rules.`);
+      }
     });
     return unsubscribe;
-  } catch {
+  } catch (err: any) {
+    console.error(`[Firestore] Failed to subscribe to ${collectionName}:`, err?.message);
     return () => {};
   }
 }

@@ -1,6 +1,6 @@
 // Zumra Hotels RMS - Service Worker for Offline-First PWA
 // Version bumped to invalidate old caches on deploy
-const CACHE_VERSION = 'zumra-rms-v3';
+const CACHE_VERSION = 'zumra-rms-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -44,7 +44,7 @@ self.addEventListener('fetch', (event) => {
     return; // Let browser handle natively
   }
 
-  // HTML pages (SPA): network-first, cache fallback
+  // HTML pages (SPA): STRICT network-first, never serve stale HTML
   if (request.headers.get('accept')?.includes('text/html') || url.pathname === '/' || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(request)
@@ -55,38 +55,39 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match('/index.html').then((r) => r || new Response('Offline - Zumra Hotels RMS', { status: 503 })))
+        .catch(() => {
+          // Only serve cached HTML if truly offline (no network at all)
+          return caches.match('/index.html').then((r) => r || new Response('Offline - Zumra Hotels RMS. Please check your internet connection and reload.', { status: 503, headers: { 'Content-Type': 'text/html' } }));
+        })
     );
     return;
   }
 
-  // Hashed static assets (JS/CSS/image with content hash): cache-first, immutable
-  // These files have unique names like index-DULQDROE.js so they never go stale
+  // Hashed static assets: network-first with cache fallback (prevents stale chunk trap)
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+      fetch(request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone));
           }
           return response;
-        }).catch(() => {
-          // If a JS chunk fails to load (stale reference from old index.html),
-          // force the client page to reload to get fresh HTML with new chunk references
-          if (url.pathname.endsWith('.js')) {
-            // Navigate all windows to their current URL — forces a fresh index.html fetch
-            self.clients.matchAll({ type: 'window' }).then(clients => {
-              clients.forEach(client => client.navigate(client.url));
-            });
-            return new Response('// Stale chunk — page reloading', {
-              headers: { 'Content-Type': 'application/javascript' }
-            });
-          }
-          return new Response('', { status: 404 });
-        });
-      })
+        })
+        .catch(() => {
+          // Network failed — try cache
+          return caches.match(request).then((cached) => {
+            if (cached) return cached;
+            // Final fallback for JS: trigger page reload to get fresh HTML
+            if (url.pathname.endsWith('.js')) {
+              self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(client => client.navigate(client.url + '?_=' + Date.now()));
+              });
+              return new Response('// Stale chunk — reloading', { headers: { 'Content-Type': 'application/javascript' } });
+            }
+            return new Response('', { status: 404 });
+          });
+        })
     );
     return;
   }

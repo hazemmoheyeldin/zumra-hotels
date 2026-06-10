@@ -717,124 +717,125 @@ export default function App() {
 
       // Function to attach real-time Firestore listeners (called AFTER auth is confirmed)
       const attachFirestoreListeners = () => {
+        console.log('[Firestore] Attaching real-time listeners for all collections...');
         // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
         const unsubs = [
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
+          if (!isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
             setHotels(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_agents', JSON.stringify(data));
             setAgents(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_allotments', JSON.stringify(data));
             setAllotments(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_reservations', JSON.stringify(data));
             setReservations(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_accounts', JSON.stringify(data));
             setAccounts(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_transactions', JSON.stringify(data));
             setTransactions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
             setExternalTransfers(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_users', JSON.stringify(data));
             setUsers(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
             setFollowUps(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_sales_persons', JSON.stringify(data));
             setSalesPersons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_cancellation_reasons', JSON.stringify(data));
             setCancellationReasons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_terms_conditions', JSON.stringify(data));
             setTermsAndConditions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_other_services', JSON.stringify(data));
             setOtherServices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_payment_gateways', JSON.stringify(data));
             setPaymentGateways(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_pay_by_links', JSON.stringify(data));
             setPayByLinks(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_edit_approvals', JSON.stringify(data));
             setEditApprovals(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
             setTaxSettings(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_expenses', JSON.stringify(data));
             setExpenses(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
             setExpenseCategories(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
-          if (data.length > 0 && !isRecentLocalWrite()) {
+          if (!isRecentLocalWrite()) {
             localStorage.setItem('zumra_consolidated_invoices', JSON.stringify(data));
             setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
           }
@@ -842,6 +843,7 @@ export default function App() {
       ];
         // Store unsubs in ref for cleanup
         firestoreListenerUnsubs.current = unsubs;
+        console.log('[Firestore] All', unsubs.length, 'real-time listeners attached successfully');
       };
 
       // Call attachFirestoreListeners after auth is confirmed, then run migration in background
@@ -2514,9 +2516,9 @@ export default function App() {
       <main style={{ minHeight: '100dvh' }} className={`flex-1 flex flex-col min-w-0 w-full ${currentTheme.mainBg}`}>
         
         {/* Top Header Bar */}
-        <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print`}>
+        <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} min-h-14 flex items-center justify-between px-3 md:px-6 flex-shrink-0 no-print relative z-30`}>
           {/* Left: hamburger + page title */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="md:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
@@ -2525,13 +2527,13 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h2 className={`text-[15px] font-bold ${currentTheme.headerText} flex items-center gap-2`}>
+            <h2 className={`text-[13px] md:text-[15px] font-bold ${currentTheme.headerText} flex items-center gap-2 truncate`}>
               {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
             </h2>
           </div>
 
-          {/* Right: actions */}
-          <div className="flex items-center gap-1">
+          {/* Right: actions — responsive flex with wrap on mobile */}
+          <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
             {/* Edit Approvals - visible for Admin/ReservationsManager */}
             {(currentUser.role === 'Admin' || currentUser.role === 'ReservationsManager') && (
               <button
@@ -2643,11 +2645,11 @@ export default function App() {
             {/* Separator */}
             <div className={`w-px h-6 ${isDarkSidebar ? 'bg-white/10' : 'bg-slate-200'} mx-1 hidden md:block`}></div>
 
-            {/* Language toggle */}
-            <LangToggle />
+            {/* Language toggle — hidden on very small screens */}
+            <div className="hidden sm:block"><LangToggle /></div>
 
-            {/* Theme switcher */}
-            <div className={`flex items-center ${currentTheme.inputBg} px-2 py-1 rounded-lg transition cursor-pointer`}>
+            {/* Theme switcher — hidden on mobile to save space */}
+            <div className={`hidden sm:flex items-center ${currentTheme.inputBg} px-2 py-1 rounded-lg transition cursor-pointer`}>
               <select
                 value={activeThemeId}
                 onChange={(e) => handleSetTheme(e.target.value)}
