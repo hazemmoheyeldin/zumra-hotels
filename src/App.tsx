@@ -504,11 +504,11 @@ export default function App() {
     if (isFirebaseConfigured) {
       // One-time strategic database reset (clears transactional data, preserves hotels/config)
       const runResetIfNeeded = async () => {
-        if (!localStorage.getItem('zumra_db_reset_v3_done')) {
+        if (!localStorage.getItem('zumra_db_reset_v4_done')) {
           try {
             const result = await strategicDatabaseReset();
-            localStorage.setItem('zumra_db_reset_v3_done', 'true');
-            console.log(`[Migration] DB reset v3 complete: cleared ${result.cleared} records. Preserved:`, result.preserved);
+            localStorage.setItem('zumra_db_reset_v4_done', 'true');
+            console.log(`[Migration] DB reset v4 complete: cleared ${result.cleared} records. Preserved:`, result.preserved);
             // Reload fresh empty states
             setReservations([]);
             setTransactions([]);
@@ -1181,6 +1181,62 @@ export default function App() {
     ZumraSync.deleteReservation(id);
     toast.success(`Reservation RSV-${id} deleted`);
   };
+  const handleBulkAction = (action: 'confirm' | 'cancel' | 'delete', ids: number[]) => {
+    const count = ids.length;
+    if (count === 0) return;
+
+    if (action === 'delete') {
+      showConfirm(
+        `Delete ${count} Reservation(s)`,
+        `Are you sure you want to permanently delete ${count} reservation(s)? This cannot be undone.`,
+        () => {
+          const idSet = new Set(ids.map(id => id.toString()));
+          const updated = reservations.filter(r => !idSet.has(r.id.toString()));
+          setReservations(updated);
+          ZumraDB.saveReservations(updated);
+          ids.forEach(id => ZumraSync.deleteReservation(id.toString()));
+          toast.success(`${count} reservation(s) deleted`);
+        },
+        'destructive'
+      );
+    } else if (action === 'confirm') {
+      showConfirm(
+        `Confirm ${count} Reservation(s)`,
+        `Set status to Confirmed for ${count} reservation(s)?`,
+        () => {
+          const idSet = new Set(ids);
+          const updated = reservations.map(r =>
+            idSet.has(r.id) && r.status !== 'Confirmed'
+              ? { ...r, status: 'Confirmed' as const }
+              : r
+          );
+          setReservations(updated);
+          ZumraDB.saveReservations(updated);
+          updated.filter(r => idSet.has(r.id)).forEach(r => ZumraSync.saveReservation(r));
+          toast.success(`${count} reservation(s) confirmed`);
+        }
+      );
+    } else if (action === 'cancel') {
+      showConfirm(
+        `Cancel ${count} Reservation(s)`,
+        `Cancel ${count} reservation(s)? This action cannot be undone.`,
+        () => {
+          const idSet = new Set(ids);
+          const updated = reservations.map(r =>
+            idSet.has(r.id) && r.status !== 'Cancelled'
+              ? { ...r, status: 'Cancelled' as const, cancellationReason: 'Bulk cancellation' }
+              : r
+          );
+          setReservations(updated);
+          ZumraDB.saveReservations(updated);
+          updated.filter(r => idSet.has(r.id)).forEach(r => ZumraSync.saveReservation(r));
+          toast.success(`${count} reservation(s) cancelled`);
+        },
+        'destructive'
+      );
+    }
+  };
+
   const handleDeleteReservation = (id: string) => {
     const res = reservations.find(r => r.id.toString() === id);
     showConfirm(
@@ -1824,6 +1880,7 @@ export default function App() {
             initialFilters={activeFilters}
             onSaveReservation={handleSaveReservation}
             onDeleteReservation={handleDeleteReservation}
+            onBulkAction={handleBulkAction}
             accounts={accounts}
             onSaveTransaction={handleSaveTransaction}
             transactions={transactions}
@@ -2311,7 +2368,7 @@ export default function App() {
       {/* Implemented via document-level click listener below */}
 
       {/* Sidebar Navigation */}
-      <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-72'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         {/* Sidebar Top Bar — minimal, no branding */}
         <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
           {/* Desktop collapse toggle */}
@@ -2333,7 +2390,7 @@ export default function App() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-3 overflow-y-auto no-scrollbar px-3 flex flex-col">
+        <nav className="flex-1 py-2 overflow-y-auto no-scrollbar px-2 flex flex-col">
           {/* Categorized groups with subtle headers */}
           {Object.entries(navGroups).map(([group, items], groupIdx) => (
             <div key={group} className={groupIdx > 0 ? 'mt-4' : ''}>
@@ -2353,7 +2410,7 @@ export default function App() {
                         navigateTo(item.name);
                         setSidebarOpen(false);
                       }}
-                      className={`flex items-center w-full ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-3 rounded-xl text-[13px] font-semibold transition-all duration-150 relative group ${
+                      className={`flex items-center w-full ${sidebarCollapsed ? 'justify-center px-0' : 'gap-2 px-2'} py-2 rounded-lg text-[12px] font-semibold transition-all duration-150 relative group ${
                         isActive
                           ? `${currentTheme.sidebarActive} font-bold`
                           : `${currentTheme.sidebarText} ${currentTheme.sidebarHover} ${isDarkSidebar ? 'hover:text-white' : 'hover:text-slate-900'}`
@@ -2421,7 +2478,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ minHeight: '100dvh' }} className={`flex-1 flex flex-col min-w-0 w-full transition-[margin-left] duration-300 ease-in-out ${currentTheme.mainBg} ${sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-72'}`}>
+      <main style={{ minHeight: '100dvh' }} className={`flex-1 flex flex-col min-w-0 w-full transition-[margin-left] duration-300 ease-in-out ${currentTheme.mainBg} ${sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-56'}`}>
         
         {/* Top Header Bar */}
         <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print`}>

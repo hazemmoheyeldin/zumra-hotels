@@ -63,6 +63,7 @@ interface ReservationsPageProps {
   initialFilters?: any;
   onSaveReservation: (reservation: Reservation) => void;
   onDeleteReservation: (id: string) => void;
+  onBulkAction?: (action: 'confirm' | 'cancel' | 'delete', ids: number[]) => void;
   accounts?: Account[];
   onSaveTransaction?: (tr: Transaction) => void;
   transactions?: Transaction[];
@@ -92,6 +93,7 @@ export default function ReservationsPage({
   initialFilters,
   onSaveReservation,
   onDeleteReservation,
+  onBulkAction,
   accounts = [],
   onSaveTransaction,
   transactions = [],
@@ -2702,24 +2704,22 @@ export default function ReservationsPage({
             <span className="font-bold text-indigo-700">{selectedIds.size} selected</span>
             <button
               onClick={() => {
-                if (!confirm(`Confirm ${selectedIds.size} reservation(s)?`)) return;
-                const toConfirm = reservations.filter(r => selectedIds.has(r.id) && r.status !== 'Confirmed');
-                toConfirm.forEach(r => onSaveReservation({ ...r, status: 'Confirmed' as const }));
+                if (!onBulkAction) return;
+                const ids = Array.from(selectedIds);
+                onBulkAction('confirm', ids);
                 setSelectedIds(new Set());
-                toast.success(`${toConfirm.length} reservation(s) confirmed`);
               }}
               className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg font-bold text-xs hover:bg-emerald-200 transition border border-emerald-200"
-            >Bulk Confirm</button>
+            >Confirm</button>
             <button
               onClick={() => {
-                if (!confirm(`Cancel ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;
-                const toCancel = reservations.filter(r => selectedIds.has(r.id) && r.status !== 'Cancelled');
-                toCancel.forEach(r => onSaveReservation({ ...r, status: 'Cancelled' as const, cancellationReason: 'Bulk cancellation' }));
+                if (!onBulkAction) return;
+                const ids = Array.from(selectedIds);
+                onBulkAction('cancel', ids);
                 setSelectedIds(new Set());
-                toast.success(`${toCancel.length} reservation(s) cancelled`);
               }}
               className="px-3 py-1.5 bg-rose-100 text-rose-700 rounded-lg font-bold text-xs hover:bg-rose-200 transition border border-rose-200"
-            >Bulk Cancel</button>
+            >Cancel</button>
             <select
               onChange={e => {
                 const newStatus = e.target.value;
@@ -2787,13 +2787,14 @@ export default function ReservationsPage({
             >Export CSV</button>
             <button
               onClick={() => {
-                if (!confirm(`Delete ${selectedIds.size} reservation(s)? This cannot be undone.`)) return;
-                selectedIds.forEach(id => onDeleteReservation(id.toString()));
+                if (!onBulkAction) return;
+                const count = selectedIds.size;
+                const ids = Array.from(selectedIds);
+                onBulkAction('delete', ids);
                 setSelectedIds(new Set());
-                toast.success(`${selectedIds.size} reservation(s) deleted`);
               }}
               className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg font-bold text-xs hover:bg-red-200 transition border border-red-200"
-            >Bulk Delete</button>
+            >Delete</button>
             <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs text-indigo-500 hover:text-indigo-700 font-medium">Clear Selection</button>
           </div>
         )}
