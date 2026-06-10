@@ -530,6 +530,138 @@ table {
   .recharts-wrapper {
     width: 100% !important;
   }
+
+  /* === MOBILE TABLE-TO-CARD VIEW ===
+     Converts all data tables into vertical card layout.
+     Each <tr> becomes a card; each <td>/<th> becomes a full-width row. */
+  
+  /* Hide table headers on mobile — card rows are self-explanatory */
+  table thead {
+    display: none !important;
+  }
+
+  /* Break the table layout into individual card rows */
+  table,
+  table tbody,
+  table tr,
+  table td,
+  table th {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Each table row becomes a distinct card */
+  table tbody tr {
+    background: var(--zumra-surface);
+    border: 1px solid var(--zumra-border);
+    border-radius: var(--zumra-radius-md);
+    margin-bottom: 10px;
+    padding: 10px;
+    box-shadow: var(--zumra-shadow-sm);
+    position: relative;
+  }
+
+  /* Table cells: full-width stacked rows inside the card */
+  table td,
+  table tbody td {
+    padding: 5px 0 !important;
+    border: none !important;
+    font-size: 13px;
+    line-height: 1.5;
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Add separator between cells for readability */
+  table td + td {
+    border-top: 1px solid var(--zumra-border-light) !important;
+    padding-top: 6px !important;
+  }
+
+  /* Bold the first "key" part — typically left-side labels */
+  table td:first-child {
+    font-weight: 600;
+    color: var(--zumra-text-primary);
+    border-top: none !important;
+  }
+
+  /* Checkbox cells — keep compact */
+  table td:has(input[type="checkbox"]) {
+    padding: 2px 0 !important;
+    justify-content: flex-start;
+  }
+
+  /* Action button cells — wrap horizontally */
+  table td:has(button),
+  table td:has([role="button"]) {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 8px !important;
+    border-top: 1px solid var(--zumra-border-light) !important;
+    justify-content: flex-end;
+  }
+
+  /* Hide empty table footers on mobile */
+  table tfoot {
+    display: none !important;
+  }
+
+  /* Keep the table scroll wrapper functional */
+  .table-scroll-wrapper {
+    overflow-x: visible !important;
+  }
+
+  /* Exceptions: don't card-ify small inline tables (e.g., room breakdown, comparison) */
+  .no-card-mobile table,
+  table.no-card-mobile,
+  .modal-table,
+  [role="dialog"] table,
+  .print-clone table {
+    display: table !important;
+  }
+  .no-card-mobile table thead,
+  table.no-card-mobile thead,
+  .modal-table thead,
+  [role="dialog"] table thead,
+  .print-clone table thead {
+    display: table-header-group !important;
+  }
+  .no-card-mobile table tbody,
+  table.no-card-mobile tbody,
+  .modal-table tbody,
+  [role="dialog"] table tbody,
+  .print-clone table tbody {
+    display: table-row-group !important;
+  }
+  .no-card-mobile table tr,
+  table.no-card-mobile tr,
+  .modal-table tr,
+  [role="dialog"] table tr,
+  .print-clone table tr {
+    display: table-row !important;
+  }
+  .no-card-mobile table td,
+  table.no-card-mobile td,
+  .modal-table td,
+  [role="dialog"] table td,
+  .print-clone table td {
+    display: table-cell !important;
+    width: auto !important;
+  }
+  .no-card-mobile table tbody tr,
+  table.no-card-mobile tbody tr,
+  .modal-table tbody tr,
+  [role="dialog"] table tbody tr,
+  .print-clone table tbody tr {
+    border: none !important;
+    border-radius: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
 }
 
 /* Extra small devices (phones < 480px) */
