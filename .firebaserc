@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "zumrahotels-rms"
+  },
+  "targets": {
+    "zumrahotels-rms": {
+      "hosting": {
+        "primary": ["zumrahotels-rms"],
+        "custom": ["rms-zumrahotel"]
+      }
+    }
   }
 }

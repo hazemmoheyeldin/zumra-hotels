@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { User } from '../types';
-import { ZumraDB, getEgyptTime } from '../lib/storage';
+import { User, Message } from '../types';
 import { useLang } from '../lib/LanguageContext';
 
 interface InboxModalProps {
   currentUser: User;
   users: User[];
+  messages: Message[];
+  onSaveMessages: (messages: Message[]) => void;
   onClose: () => void;
 }
 
-export default function InboxModal({ currentUser, users, onClose }: InboxModalProps) {
+export default function InboxModal({ currentUser, users, messages, onSaveMessages, onClose }: InboxModalProps) {
   const { t } = useLang();
-  const [messages, setMessages] = useState(ZumraDB.getMessages());
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
 
@@ -25,7 +25,7 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeChatUser) return;
-    const msg = {
+    const msg: Message = {
       id: `msg_${Date.now()}`,
       senderId: currentUser.id,
       receiverId: activeChatUser.id,
@@ -34,8 +34,7 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
       read: false
     };
     const updated = [...messages, msg];
-    setMessages(updated);
-    ZumraDB.saveMessages(updated);
+    onSaveMessages(updated);
     setNewMessage('');
   };
 
@@ -61,8 +60,7 @@ export default function InboxModal({ currentUser, users, onClose }: InboxModalPr
                     setActiveChatUser(u);
                     // Mark as read
                     const updated = messages.map(m => (m.receiverId === currentUser.id && m.senderId === u.id ? { ...m, read: true } : m));
-                    setMessages(updated);
-                    ZumraDB.saveMessages(updated);
+                    onSaveMessages(updated);
                   }}
                   className={`p-3 rounded-xl cursor-pointer transition mb-1 flex justify-between items-center ${activeChatUser?.id === u.id ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-200 text-slate-700'}`}
                 >

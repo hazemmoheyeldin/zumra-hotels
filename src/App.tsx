@@ -6,9 +6,9 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, clearSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
 
@@ -304,6 +304,11 @@ export default function App() {
   // New feature states
   const [blackoutPeriods, setBlackoutPeriods] = useState<BlackoutPeriod[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
+  // Messages & Global Search
+  const [messages, setMessages] = useState<Message[]>(() => ZumraDB.getMessages());
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const globalSearchRef = useRef<HTMLDivElement>(null);
   // Restore session from localStorage if user was previously logged in
   const [authLoading, setAuthLoading] = useState(isFirebaseConfigured); // Block UI until Firebase Auth initializes
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
@@ -474,15 +479,16 @@ export default function App() {
       setAuthLoading(false);
     });
 
-    // Safety timeout: unblock after 5s even if onAuthStateChanged never fires
+    // Safety timeout: unblock after 8s even if onAuthStateChanged never fires
+    // (persistence may take longer on slow connections or custom domains)
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
         unsub();
-        console.warn('[Firebase Auth] onAuthStateChanged timeout after 5s — unblocking UI');
+        console.warn('[Firebase Auth] onAuthStateChanged timeout after 8s — unblocking UI');
         setAuthLoading(false);
       }
-    }, 5000);
+    }, 8000);
 
     return () => {
       unsub();
@@ -689,18 +695,18 @@ export default function App() {
       const waitForAuthAndMigrate = async () => {
         try {
           // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
-          // Strict 3-second timeout — no infinite spinners
+          // onFirebaseAuthStateChanged now awaits persistence internally
           await new Promise<void>((resolve) => {
             const unsub = onFirebaseAuthStateChanged((fbUser) => {
               unsub();
               resolve();
             });
-            // Safety timeout: 3 seconds max
+            // Safety timeout: 6 seconds max (persistence may take time on custom domains)
             setTimeout(() => {
               unsub();
-              console.warn('[Firebase Auth] Auth state timeout after 3s — proceeding without Firebase Auth');
+              console.warn('[Firebase Auth] Auth state timeout after 6s — proceeding without Firebase Auth');
               resolve();
-            }, 3000);
+            }, 6000);
           });
 
           // Check if already authenticated (from browserLocalPersistence)
@@ -918,6 +924,12 @@ export default function App() {
             setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
+        firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
+          if (!isRecentLocalWrite()) {
+            localStorage.setItem('zumra_messages', JSON.stringify(data));
+            setMessages(prev => arraysEqual(prev, data) ? prev : data);
+          }
+        }),
       ];
         // Store unsubs in ref for cleanup
         firestoreListenerUnsubs.current = unsubs;
@@ -1025,6 +1037,48 @@ export default function App() {
       console.log(`[Cleanup] Purged ${orphans.length} orphaned follow-up(s) from database`);
     }
   }, [currentUser, followUps, agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Global Search: click-outside to close
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (globalSearchRef.current && !globalSearchRef.current.contains(e.target as Node)) {
+        setGlobalSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Global Search: computed results
+  const searchResults = React.useMemo(() => {
+    if (!globalSearchQuery.trim()) return [];
+    const q = globalSearchQuery.trim().toLowerCase();
+    return reservations.filter(r => {
+      const rsvId = `RSV-${r.id}`.toLowerCase();
+      const guest = r.guestName?.toLowerCase() || '';
+      const hotel = hotels.find(h => h.id === r.hotelId)?.name?.toLowerCase() || '';
+      const agent = agents.find(a => a.id === r.clientId)?.name?.toLowerCase() || '';
+      const status = r.status?.toLowerCase() || '';
+      return rsvId.includes(q) || guest.includes(q) || hotel.includes(q) || agent.includes(q) || status.includes(q) || r.checkIn?.includes(q) || r.checkOut?.includes(q);
+    }).slice(0, 8);
+  }, [globalSearchQuery, reservations, hotels, agents]);
+
+  // Helper: save message to both localStorage and Firestore
+  const handleSaveMessages = (updatedMessages: Message[]) => {
+    setMessages(updatedMessages);
+    ZumraDB.saveMessages(updatedMessages);
+    // Sync each new message to Firestore
+    if (isFirebaseConfigured) {
+      const existing = new Set(messages.map(m => m.id));
+      updatedMessages.filter(m => !existing.has(m.id)).forEach(m => {
+        firestoreSave(COLLECTIONS.MESSAGES, m.id, m).catch(() => {});
+      });
+      // Also sync read-status changes
+      updatedMessages.forEach(m => {
+        firestoreSave(COLLECTIONS.MESSAGES, m.id, m).catch(() => {});
+      });
+    }
+  };
 
   // Edit Approval handlers
   const handleRequestEditApproval = (request: EditApprovalRequest) => {
@@ -1793,6 +1847,7 @@ export default function App() {
     }
     // Create Firebase Auth user (required for Firestore security rules)
     if (isFirebaseConfigured && user.email) {
+      addToStaffWhitelist(user.email); // Ensure new user can access via Google Sign-In too
       const fbPwd = user.password || `${user.username}123`;
       await firebaseCreateUser(user.email, fbPwd);
       // Re-authenticate as current admin (firebaseCreateUser signs in as the new user)
@@ -2653,6 +2708,58 @@ export default function App() {
             </h2>
           </div>
 
+          {/* Center: Global Booking Search */}
+          <div ref={globalSearchRef} className="relative hidden md:block mx-4 flex-1 max-w-xs">
+            <div className="relative">
+              <svg className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${currentTheme.headerIcon} pointer-events-none`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+              <input
+                type="text"
+                value={globalSearchQuery}
+                onChange={(e) => { setGlobalSearchQuery(e.target.value); setGlobalSearchOpen(true); }}
+                onFocus={() => globalSearchQuery.trim() && setGlobalSearchOpen(true)}
+                placeholder="Search bookings..."
+                className={`w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border ${currentTheme.headerBorder} ${currentTheme.headerBg} ${currentTheme.headerText} placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400 transition`}
+              />
+              {globalSearchQuery && (
+                <button onClick={() => { setGlobalSearchQuery(''); setGlobalSearchOpen(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+            {/* Search Results Dropdown */}
+            {globalSearchOpen && globalSearchQuery.trim() && (
+              <div className={`absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto`}>
+                {searchResults.length > 0 ? (
+                  searchResults.map(r => {
+                    const hotel = hotels.find(h => h.id === r.hotelId);
+                    const agent = agents.find(a => a.id === r.clientId);
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => {
+                          setGlobalSearchOpen(false);
+                          setGlobalSearchQuery('');
+                          setActiveTab('Reservations');
+                          setTabKey(k => k + 1);
+                          setActiveFilters({ viewReservationId: r.id });
+                        }}
+                        className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition flex items-center gap-3"
+                      >
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${r.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-700' : r.status === 'Cancelled' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{r.status}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-slate-800 truncate">RSV-{r.id} — {r.guestName}</div>
+                          <div className="text-[10px] text-slate-500 truncate">{hotel?.name || 'N/A'} · {agent?.name || 'N/A'} · {r.checkIn} → {r.checkOut}</div>
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-4 text-center text-xs text-slate-400">No bookings found for "{globalSearchQuery}"</div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Right: actions — responsive flex with wrap on mobile */}
           <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
             {/* Edit Approvals - visible for Admin/ReservationsManager */}
@@ -2710,7 +2817,7 @@ export default function App() {
             >
               <svg className={`w-[18px] h-[18px] ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
               {(() => {
-                const unread = ZumraDB.getMessages().filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
+                const unread = messages.filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
                 return unread > 0 ? (
                   <span className="absolute top-1 right-1 bg-blue-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
                     {unread > 9 ? '9+' : unread}
@@ -2985,6 +3092,8 @@ export default function App() {
         <InboxModal 
           currentUser={currentUser} 
           users={users} 
+          messages={messages}
+          onSaveMessages={handleSaveMessages}
           onClose={() => setIsInboxOpen(false)} 
         />
       )}

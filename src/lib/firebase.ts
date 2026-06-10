@@ -33,14 +33,20 @@ let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
 
+/**
+ * Resolves when Firebase Auth persistence is fully initialized.
+ * All auth-dependent operations MUST await this before proceeding.
+ * Prevents race condition where onAuthStateChanged fires before
+ * the persisted session is loaded from IndexedDB.
+ */
+let authReadyPromise: Promise<void> = Promise.resolve();
+
 if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     // Enable offline persistence (IndexedDB cache, multi-tab sync)
-    enableMultiTabIndexedDbPersistence(db).then(() => {
-      console.log('[Firestore] Offline persistence enabled (multi-tab)');
-    }).catch((err: any) => {
+    enableMultiTabIndexedDbPersistence(db).catch((err: any) => {
       if (err.code === 'failed-precondition') {
         console.warn('[Firestore] Persistence failed: browser not supported');
       } else if (err.code === 'unimplemented') {
@@ -50,14 +56,17 @@ if (isFirebaseConfigured) {
       }
     });
     auth = getAuth(app);
-    // Set persistence to LOCAL (survives browser close/refresh)
-    setPersistence(auth, browserLocalPersistence).then(() => {
-      console.log('[Firebase Auth] Persistence set to LOCAL');
-    }).catch(err => {
-      console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
-    });
+    // ★ CRITICAL: Await persistence before any auth operations.
+    // This prevents the "Verifying Session" loop and ensures
+    // onAuthStateChanged reports the correct persisted state.
+    authReadyPromise = setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        console.log('[Firebase Auth] Persistence set to LOCAL');
+      })
+      .catch(err => {
+        console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
+      });
     console.log('[Firebase] Initialized successfully | Project:', firebaseConfig.projectId);
-    console.log('[Firebase] Mobile Debug — navigator.onLine:', navigator.onLine, '| userAgent:', navigator.userAgent.substring(0, 80));
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
     db = null;
@@ -65,7 +74,7 @@ if (isFirebaseConfigured) {
   }
 }
 
-export { db, auth };
+export { db, auth, authReadyPromise };
 export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch };
 export type { FBUser };
 
@@ -121,6 +130,7 @@ export async function firebaseGoogleSignIn(): Promise<{
   photoURL: string;
 } | null> {
   if (!auth) return null;
+  await authReadyPromise; // Ensure persistence is ready before auth operations
   try {
     const cred = await signInWithPopup(auth, googleProvider);
     const user = cred.user;
@@ -158,6 +168,7 @@ export async function firebaseGoogleSignIn(): Promise<{
  */
 export async function firebaseCreateUser(email: string, password: string): Promise<{ uid: string } | null> {
   if (!auth) return null;
+  await authReadyPromise;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     console.log(`[Firebase Auth] Created user: ${cred.user.uid} (${email})`);
@@ -179,6 +190,7 @@ export async function firebaseCreateUser(email: string, password: string): Promi
  */
 export async function firebaseSignIn(email: string, password: string): Promise<boolean> {
   if (!auth) return false;
+  await authReadyPromise;
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
     console.log(`[Firebase Auth] Signed in: ${cred.user.uid}`);
@@ -192,8 +204,10 @@ export async function firebaseSignIn(email: string, password: string): Promise<b
 /**
  * Sign out from Firebase Auth.
  */
+
 export async function firebaseSignOut(): Promise<void> {
   if (!auth) return;
+  await authReadyPromise;
   try {
     await fbSignOut(auth);
     console.log('[Firebase Auth] Signed out');
@@ -204,6 +218,9 @@ export async function firebaseSignOut(): Promise<void> {
 
 /**
  * Listen to Firebase Auth state changes.
+ * Waits for persistence to be ready before registering the listener.
+ * This ensures onAuthStateChanged reports the CORRECT persisted session,
+ * not a premature null that causes the "Verifying Session" loop.
  * Returns a cleanup function.
  */
 export function onFirebaseAuthStateChanged(callback: (user: FBUser | null) => void): () => void {
@@ -211,7 +228,17 @@ export function onFirebaseAuthStateChanged(callback: (user: FBUser | null) => vo
     callback(null);
     return () => {};
   }
-  return fbOnAuthStateChanged(auth, callback);
+  let cancelled = false;
+  let innerUnsub: (() => void) | null = null;
+  // Wait for persistence before listening — prevents premature null auth state
+  authReadyPromise.then(() => {
+    if (cancelled) return;
+    innerUnsub = fbOnAuthStateChanged(auth, callback);
+  });
+  return () => {
+    cancelled = true;
+    innerUnsub?.();
+  };
 }
 
 /**
@@ -263,6 +290,7 @@ export const COLLECTIONS = {
   CONSOLIDATED_INVOICES: 'consolidated_invoices',
   AUDIT_LOG: 'audit_log',
   COMMISSIONS: 'commissions',
+  MESSAGES: 'messages',
 };
 
 /**
