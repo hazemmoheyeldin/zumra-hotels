@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, memo, useMemo } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
@@ -254,22 +254,24 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-        <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
-        <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
+      </div>
 
-        <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
-              <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
-            </div>
-            <div style={{ margin: 0 }}>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
-              <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Reset</p>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
+          <div style={{ margin: 0 }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
+            <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Reset</p>
+          </div>
+        </div>
 
           <div className="h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
 
@@ -338,22 +340,24 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
-        <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
-        <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
+      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
+      </div>
 
-        <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-          style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+      <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
+        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
-              <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
-            </div>
-            <div style={{ margin: 0 }}>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
-              <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Change Required</p>
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          <div style={{ width: '280px', height: 'auto', position: 'relative', margin: 0, padding: 0 }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(193,162,116,0.2)', borderRadius: '50%', filter: 'blur(40px)', transform: 'scale(1.5)' }}></div>
+            <img src={loginLogoUrl} alt="Zumra Hotels" style={{ display: 'block', width: '100%', height: 'auto', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', position: 'relative', zIndex: 1, filter: 'brightness(1.3) drop-shadow(0 0 8px rgba(255,255,255,0.2))' }} />
           </div>
+          <div style={{ margin: 0 }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'white', letterSpacing: '0.05em', margin: 0, textAlign: 'center' }}>ZUMRA HOTELS</h1>
+            <p style={{ fontSize: '10px', color: 'rgba(193,162,116,0.8)', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.3em', marginTop: '4px', textAlign: 'center' }}>Password Change Required</p>
+          </div>
+        </div>
 
           <div className="h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
 
@@ -451,17 +455,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans"
       style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 40%, #0f172a 70%, #1a1a2e 100%)' }}>
       
-      {/* Animated background orbs */}
-      <div className="absolute top-[10%] right-[10%] w-[500px] h-[500px] rounded-full bg-amber-500/10 blur-[120px] pointer-events-none animate-pulse"></div>
-      <div className="absolute bottom-[5%] left-[5%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[100px] pointer-events-none"></div>
-      <div className="absolute top-[50%] left-[50%] w-[300px] h-[300px] rounded-full bg-emerald-500/5 blur-[80px] pointer-events-none"></div>
-
-      {/* Subtle grid pattern overlay */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+      {/* Animated background orbs — memoized to prevent re-render on input change */}
+      <div aria-hidden="true" className="pointer-events-none" style={{ position: 'absolute', inset: 0, zIndex: 0, contain: 'strict' }}>
+        <div style={{ position: 'absolute', top: '10%', right: '10%', width: 500, height: 500, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', filter: 'blur(120px)' }}></div>
+        <div style={{ position: 'absolute', bottom: '5%', left: '5%', width: 400, height: 400, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', filter: 'blur(100px)' }}></div>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(16,185,129,0.05)', filter: 'blur(80px)' }}></div>
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.03, backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+      </div>
 
       {/* Glass card */}
       <div className="w-full max-w-md rounded-3xl p-8 space-y-6 relative z-10 animate-[fadeInUp_0.6s_ease-out]"
-        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)' }}>
+        style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 50px rgba(0,0,0,0.4)', contain: 'layout style' }}>
         
         {/* Branding header */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
