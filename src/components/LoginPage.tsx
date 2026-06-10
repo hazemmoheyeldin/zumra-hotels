@@ -111,6 +111,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     setLoading(true);
 
+    // ═══ DIAGNOSTIC: Log all available users at login time ═══
+    const userLower = username.trim().toLowerCase();
+    console.log('═══════ LOGIN DIAGNOSTIC ═══════');
+    console.log('[Login] Attempting login as:', userLower);
+    console.log('[Login] Users prop count:', users.length);
+    console.log('[Login] Users prop:', users.map(u => ({ id: u.id, username: u.username, email: u.email, role: u.role })));
+    const localUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+    console.log('[Login] localStorage zumra_users count:', localUsers.length);
+    console.log('[Login] localStorage zumra_users:', localUsers.map((u: any) => ({ id: u.id, username: u.username, email: u.email })));
+    console.log('══════════════════════════════════');
+
     // Helper to validate credentials against a matched user
     const validateLogin = async (matchedUser: User, allUsers: User[]) => {
       // ===== Access Control: Check user status =====
@@ -141,11 +152,15 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         // Sign in to Firebase Auth (required for Firestore security rules)
         if (isFirebaseConfigured && matchedUser.email) {
           const fbPwd = matchedUser.password || `${matchedUser.username}123`;
+          console.log('[Login] Attempting Firebase Auth sign-in for:', matchedUser.email);
           const fbOk = await firebaseSignIn(matchedUser.email, fbPwd);
+          console.log('[Login] Firebase Auth sign-in result:', fbOk ? 'SUCCESS' : 'FAILED');
           if (!fbOk) {
             // Try creating the Firebase Auth user first, then sign in
+            console.log('[Login] Creating Firebase Auth account for:', matchedUser.email);
             await firebaseCreateUser(matchedUser.email, fbPwd);
-            await firebaseSignIn(matchedUser.email, fbPwd);
+            const retryOk = await firebaseSignIn(matchedUser.email, fbPwd);
+            console.log('[Login] Firebase Auth retry result:', retryOk ? 'SUCCESS' : 'FAILED');
           }
         }
 
@@ -162,7 +177,6 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     };
 
     // First try local users
-    const userLower = username.trim().toLowerCase();
     let matchedUser = users.find(u => 
       u.username.toLowerCase() === userLower || 
       (u.email && u.email.toLowerCase() === userLower)
@@ -177,27 +191,36 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     if (isFirebaseConfigured) {
       try {
         const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
+        console.log('[Login] Firestore returned', firestoreUsers.length, 'users:', firestoreUsers.map(u => ({ id: u.id, username: u.username, email: u.email })));
         if (firestoreUsers.length > 0) {
-          // Update localStorage with Firestore data
-          localStorage.setItem('zumra_users', JSON.stringify(firestoreUsers));
-          matchedUser = firestoreUsers.find(u =>
+          // Merge with DEFAULT_USERS to prevent loss
+          const { DEFAULT_USERS } = await import('../lib/storage');
+          const mergedMap = new Map<string, any>();
+          DEFAULT_USERS.forEach((u: any) => mergedMap.set(u.id, u));
+          firestoreUsers.forEach((u: any) => mergedMap.set(u.id, u));
+          const merged = Array.from(mergedMap.values());
+          console.log('[Login] After merge with DEFAULT_USERS:', merged.length, 'users:', merged.map((u: any) => ({ id: u.id, username: u.username })));
+          // Update localStorage with merged data
+          localStorage.setItem('zumra_users', JSON.stringify(merged));
+          matchedUser = merged.find((u: any) =>
             u.username.toLowerCase() === userLower ||
             (u.email && u.email.toLowerCase() === userLower)
           );
           if (matchedUser) {
             onUpdateUser?.(matchedUser);
-            validateLogin(matchedUser!, firestoreUsers);
+            validateLogin(matchedUser!, merged);
             return;
           }
-          console.warn(`[Login] User "${username}" not found in Firestore`);
+          console.warn(`[Login] FATAL: User "${username}" not found in merged user set`);
         } else {
-          // Firestore empty — use local data
+          console.warn('[Login] Firestore users collection is EMPTY');
         }
       } catch (err) {
-        console.warn('[Login] Firestore user lookup failed:', err);
+        console.error('[Login] Firestore user lookup FAILED:', err);
       }
     }
 
+    console.error('[Login] FATAL: User "' + username + '" not found anywhere. Available users:', users.map(u => u.username));
     setLoading(false);
     setErrorMsg('User identity not recognized.');
   };
