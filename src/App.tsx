@@ -247,6 +247,18 @@ export default function App() {
   const [tabKey, setTabKey] = useState(0);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarRef = React.useRef<HTMLElement>(null);
+  const sidebarCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Desktop hover-reveal: open sidebar when mouse enters
+  const handleSidebarMouseEnter = () => {
+    if (sidebarCloseTimer.current) { clearTimeout(sidebarCloseTimer.current); sidebarCloseTimer.current = null; }
+    if (!sidebarOpen) setSidebarOpen(true);
+  };
+  // Desktop hover-reveal: close sidebar after short delay when mouse leaves
+  const handleSidebarMouseLeave = () => {
+    if (sidebarCloseTimer.current) clearTimeout(sidebarCloseTimer.current);
+    sidebarCloseTimer.current = setTimeout(() => setSidebarOpen(false), 400);
+  };
   const { t, lang } = useLang();
   const toast = useToast();
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -2347,13 +2359,27 @@ export default function App() {
       {/* Hidden file input for profile image upload */}
       <input ref={profileImageRef} type="file" accept="image/*" className="hidden" onChange={handleProfileImageChange} />
 
-      {/* Sidebar backdrop — dims content behind open sidebar (all screen sizes) */}
+      {/* Mobile sidebar backdrop — tap to close */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/30 z-40 animate-fade-in" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-0 bg-black/30 z-40 md:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* Desktop hover-reveal strip — invisible zone on left edge that opens sidebar on hover */}
+      {!sidebarOpen && (
+        <div
+          className="hidden md:block fixed top-0 left-0 w-4 h-full z-50"
+          onMouseEnter={handleSidebarMouseEnter}
+        />
       )}
 
       {/* Sidebar Navigation */}
-      <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside
+        ref={sidebarRef}
+        style={{ height: '100dvh' }}
+        className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
+      >
         {/* Sidebar Top Bar — minimal, no branding */}
         <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
           {/* Collapse toggle (desktop only) */}
@@ -2368,8 +2394,8 @@ export default function App() {
             {!sidebarCollapsed && <span>Collapse</span>}
           </button>
           </Tooltip>
-          {/* Close sidebar (all screen sizes) */}
-          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+          {/* Close sidebar (mobile only — desktop uses mouse-leave) */}
+          <button onClick={() => setSidebarOpen(false)} className={`md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -2471,7 +2497,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
+              className="md:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
