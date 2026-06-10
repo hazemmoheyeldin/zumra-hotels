@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
-import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, clearSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
+import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist } from './lib/firebase';
@@ -963,6 +963,12 @@ export default function App() {
             listenersAttachedRef.current = true;
           } else {
             console.log('[Firestore] Listeners already attached — skipping re-attachment');
+          }
+          // Flush any items queued while auth was initializing
+          const queueLen = getSyncStatus().pendingCount;
+          if (queueLen > 0) {
+            console.log(`[Sync] Auth ready — flushing ${queueLen} queued item(s)`);
+            flushSyncQueue();
           }
         }
       };
@@ -2778,33 +2784,26 @@ export default function App() {
                 )}
               </button>
             )}
-            {/* Sync Status Indicator */}
+            {/* Sync Status — invisible indicator, no manual buttons */}
             {isFirebaseConfigured && (
-              <div className="flex items-center gap-1" title={
+              <div className="flex items-center" title={
                 syncStatus.pendingCount > 0
-                  ? `${syncStatus.pendingCount} pending sync(s) — click to retry, double-click to clear`
-                  : syncStatus.online ? 'All data synced' : 'Offline - changes queued'
+                  ? `${syncStatus.pendingCount} item(s) syncing automatically...`
+                  : syncStatus.online ? 'All data synced' : 'Offline — changes will sync automatically'
               }>
                 {!syncStatus.online ? (
-                  <button onClick={() => flushSyncQueue()} className="flex items-center gap-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-[9px] font-bold text-amber-700 hover:bg-amber-100 transition cursor-pointer animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    OFFLINE
-                    {syncStatus.pendingCount > 0 && <span className="bg-amber-200 text-amber-800 px-1 rounded-full">{syncStatus.pendingCount}</span>}
-                  </button>
+                  <span className="flex items-center gap-1 px-1.5 py-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    {syncStatus.pendingCount > 0 && <span className="text-[9px] font-medium text-amber-500">{syncStatus.pendingCount}</span>}
+                  </span>
                 ) : syncStatus.pendingCount > 0 ? (
-                  <div className="flex items-center gap-0.5">
-                    <button onClick={() => flushSyncQueue()} onDoubleClick={() => clearSyncQueue()} className="flex items-center gap-1 px-2 py-1 bg-orange-50 border border-orange-200 rounded-lg text-[9px] font-bold text-orange-700 hover:bg-orange-100 transition cursor-pointer">
-                      <span className={`w-1.5 h-1.5 rounded-full bg-orange-500 ${syncStatus.isSyncing ? 'animate-spin' : 'animate-pulse'}`}></span>
-                      {syncStatus.isSyncing ? 'SYNCING' : 'PENDING'}
-                      <span className="bg-orange-200 text-orange-800 px-1 rounded-full">{syncStatus.pendingCount}</span>
-                    </button>
-                    <button onClick={() => clearSyncQueue()} title="Retry & clear stuck sync queue (data stays in localStorage)" className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
+                  <span className="flex items-center gap-1 px-1.5 py-1">
+                    <span className={`w-2 h-2 rounded-full bg-orange-400 ${syncStatus.isSyncing ? 'animate-spin' : 'animate-pulse'}`}></span>
+                    <span className="text-[9px] font-medium text-orange-500">{syncStatus.pendingCount}</span>
+                  </span>
                 ) : (
-                  <span className="flex items-center gap-1 px-1.5 py-1 text-[9px] font-bold text-emerald-600">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="flex items-center gap-1 px-1.5 py-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
                   </span>
                 )}
               </div>
@@ -3079,7 +3078,7 @@ export default function App() {
               {syncStatus.online ? <FooterLabel field="systemLive" /> : <span className="text-rose-400">Reconnecting...</span>}
             </span>
             {syncStatus.pendingCount > 0 && (
-              <span className="text-amber-400">· {syncStatus.pendingCount} pending</span>
+              <span className="text-amber-400">· {syncStatus.pendingCount} syncing</span>
             )}
             <span className="hidden sm:inline text-slate-300">·</span>
             <span className="hidden sm:inline"><FooterLabel field="activeNodes" /></span>

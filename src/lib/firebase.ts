@@ -357,28 +357,30 @@ export async function firestoreSave(collectionName: string, id: string, data: an
     console.warn(`[Firebase] firestoreSave: db is null, skipping ${collectionName}/${id}`);
     return;
   }
-  const maxRetries = 3;
-  let lastError: any;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const timeoutMs = 10000;
-      const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
-      );
-      await Promise.race([savePromise, timeoutPromise]);
-      return; // success
-    } catch (error: any) {
-      lastError = error;
-      console.warn(`[Firebase] Save attempt ${attempt + 1}/${maxRetries} failed for ${collectionName}/${id}:`, error?.message || error);
-      if (attempt < maxRetries - 1) {
-        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-        await new Promise(resolve => setTimeout(resolve, delay));
+  const timeoutMs = 8000;
+  try {
+    const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+    );
+    await Promise.race([savePromise, timeoutPromise]);
+  } catch (error: any) {
+    // Single retry for transient errors (network blip, contention)
+    if (error?.code !== 'permission-denied' && error?.code !== 'unauthenticated') {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+        const timeoutPromise2 = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+        );
+        await Promise.race([savePromise2, timeoutPromise2]);
+        return; // success on retry
+      } catch (retryErr: any) {
+        throw retryErr; // let sync queue handle it
       }
     }
+    throw error;
   }
-  console.error(`[Firebase] All ${maxRetries} save attempts failed for ${collectionName}/${id}`);
-  throw lastError;
 }
 
 /**

@@ -1033,7 +1033,7 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
   return { success, failed };
 }
 
-// --- Network status tracking ---
+// --- Network status tracking + aggressive auto-flush ---
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     isOnline = true;
@@ -1044,18 +1044,18 @@ if (typeof window !== 'undefined') {
     isOnline = false;
     notifySyncListeners();
   });
-  // Flush pending sync queue when app regains focus
+  // Flush when app regains focus
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && isOnline && loadSyncQueue().length > 0) {
       flushSyncQueue();
     }
   });
-  // Retry queue every 60 seconds if items are pending
+  // Aggressive retry: every 15 seconds
   setInterval(() => {
     if (isOnline && loadSyncQueue().length > 0) {
       flushSyncQueue();
     }
-  }, 60000);
+  }, 15000);
 }
 
 // --- Sync functions (queue-aware) ---
@@ -1064,9 +1064,10 @@ export async function syncItemToFirestore(collectionName: string, item: any): Pr
     console.warn(`[Sync] Skipped ${collectionName}/${item?.id}: firebase=${isFirebaseConfigured}, id=${item?.id}`);
     return;
   }
-  // Skip if not authenticated — writes would be rejected by Firestore rules
+  // If not authenticated or offline, ALWAYS queue — never silently drop
   if (!isFirebaseAuthSignedIn()) {
-    console.warn(`[Sync] Skipped ${collectionName}/${item.id}: not authenticated`);
+    console.log(`[Sync] Auth not ready — queued ${collectionName}/${item.id}`);
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
     return;
   }
   if (!isOnline) {
@@ -1078,10 +1079,9 @@ export async function syncItemToFirestore(collectionName: string, item: any): Pr
     await firestoreSave(collectionName, item.id, item);
     console.log(`[Sync] Saved ${collectionName}/${item.id} to Firestore`);
   } catch (err: any) {
-    // Don't queue permission-denied errors — they won't succeed on retry
     if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
       console.error(`[Sync] PERMISSION DENIED for ${collectionName}/${item.id}: ${err.message}. Check Firestore rules.`);
-      return;
+      return; // Don't retry permission errors — they won't succeed
     }
     console.error(`[Sync] Failed to save ${collectionName}/${item.id}:`, err?.code || err?.message || err);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
