@@ -37,22 +37,21 @@ const PaymentGatewaysPage = lazyWithRetry(() => import('./components/PaymentGate
 const ExpensesPage = lazyWithRetry(() => import('./components/ExpensesPage'));
 const GraphsPage = lazyWithRetry(() => import('./components/GraphsPage'));
 
-// Eagerly loaded (needed for modals/auth flow)
+// Eagerly loaded (needed for login/auth flow — kept lightweight)
 import ZumraLogo from './components/ZumraLogo';
-import Tooltip from './components/Tooltip';
 import LoginPage from './components/LoginPage';
-import InboxModal from './components/InboxModal';
-import InvoicePDF from './components/InvoicePDF';
 import ErrorBoundary from './components/ErrorBoundary';
-import ConfirmDialog from './components/ConfirmDialog';
-import EditApprovalModal from './components/EditApprovalModal';
-import GlobalSearchModal from './components/GlobalSearchModal';
-import { SessionTimeout } from './lib/security';
 import { ToastContainer, useToast } from './components/Toast';
-import { seedHotelsIfEmpty } from './lib/hotelSeed';
-import { sendPreArrivalReminder } from './lib/email';
-import ApiWarningBanner from './components/ApiWarningBanner';
-import { downloadBackup, getDataSummary } from './lib/dataBackup';
+import { SessionTimeout } from './lib/security';
+
+// Lazy-loaded (only needed AFTER login — reduces initial bundle size)
+const Tooltip = lazyWithRetry(() => import('./components/Tooltip'));
+const InboxModal = lazyWithRetry(() => import('./components/InboxModal'));
+const InvoicePDF = lazyWithRetry(() => import('./components/InvoicePDF'));
+const ConfirmDialog = lazyWithRetry(() => import('./components/ConfirmDialog'));
+const EditApprovalModal = lazyWithRetry(() => import('./components/EditApprovalModal'));
+const GlobalSearchModal = lazyWithRetry(() => import('./components/GlobalSearchModal'));
+const ApiWarningBanner = lazyWithRetry(() => import('./components/ApiWarningBanner'));
 
 // Page loading fallback
 const PageLoader = () => (
@@ -291,6 +290,7 @@ export default function App() {
   // Restore session from localStorage if user was previously logged in
   const [authLoading, setAuthLoading] = useState(false); // App shell pattern: render UI immediately
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
+  const dataLoadedRef = useRef(false); // Prevents Phase 2 re-run on profile updates
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('zumra_current_user');
@@ -397,18 +397,15 @@ export default function App() {
   const currentAlerts = getAlerts();
   const alertCount = currentAlerts.length;
 
-  // Initial DB loading, Firestore migration, and real-time sync
+  // ═══════════════════════════════════════════════════════════
+  // PHASE 1: Lightweight auth-only effect (runs on mount)
+  // ONLY loads users for the login screen — NO heavy data loading.
+  // This ensures the login page is instantly interactive,
+  // even on a cold cache / first visit.
+  // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    // 1. Instant UI load from localStorage
-    setHotels(ZumraDB.getHotels());
-    setAgents(ZumraDB.getAgents());
-    setAllotments(ZumraDB.getAllotments());
-    setReservations(ZumraDB.getReservations());
-    setAccounts(ZumraDB.getAccounts());
-    setTransactions(ZumraDB.getTransactions());
-    setExternalTransfers(ZumraDB.getExternalTransfers());
+    // Only load users — needed for login form authentication
     const loadedUsers = ZumraDB.getUsers();
-    // Ensure default admin user always exists
     const hasAdmin = loadedUsers.some(u => u.username === 'hazem');
     if (!hasAdmin) {
       const defaultAdmin: User = {
@@ -423,13 +420,32 @@ export default function App() {
       const updatedUsers = [...loadedUsers, defaultAdmin];
       ZumraDB.saveUsers(updatedUsers);
       setUsers(updatedUsers);
-      // Sync to Firestore if available
-      if (isFirebaseConfigured) {
-        ZumraSync.saveUser(defaultAdmin);
-      }
     } else {
       setUsers(loadedUsers);
     }
+    // Auth is ready — login screen can render immediately
+    setAuthLoading(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ═══════════════════════════════════════════════════════════
+  // PHASE 2: Heavy data loading (runs ONLY after user authenticates)
+  // Loads all collections, seeds data, attaches Firestore listeners.
+  // This does NOT block the login page — it runs after login success.
+  // ═══════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!currentUser) return; // ← GATE: skip until user is authenticated
+    if (dataLoadedRef.current) return; // ← GATE: already loaded, skip re-run
+    dataLoadedRef.current = true;
+    const user = currentUser; // capture for closures
+
+    // 1. Load all collections from localStorage into state
+    setHotels(ZumraDB.getHotels());
+    setAgents(ZumraDB.getAgents());
+    setAllotments(ZumraDB.getAllotments());
+    setReservations(ZumraDB.getReservations());
+    setAccounts(ZumraDB.getAccounts());
+    setTransactions(ZumraDB.getTransactions());
+    setExternalTransfers(ZumraDB.getExternalTransfers());
     setFollowUps(ZumraDB.getFollowUps());
     setAuditLog(ZumraDB.getAuditLog());
     // Load new collections
@@ -447,14 +463,17 @@ export default function App() {
     // Load new feature data
     setBlackoutPeriods(loadBlackoutPeriods());
     setWaitlist(loadWaitlist());
-    // Seed hotels if empty (first run or force reset)
-    const seededHotels = seedHotelsIfEmpty(false);
-    if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
-      setHotels(seededHotels);
-    }
+    // Seed hotels if empty (first run or force reset) — dynamic import to keep login bundle small
+    import('./lib/hotelSeed').then(({ seedHotelsIfEmpty }) => {
+      const seededHotels = seedHotelsIfEmpty(false);
+      if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
+        setHotels(seededHotels);
+      }
+    });
     // Seed test data (clients, suppliers, reservations) ONLY for first admin
     // New staff members should see data from Firestore, not get their own seeded copies
-    const isFirstAdmin = loadedUsers.length <= 1 && loadedUsers.some(u => u.username === 'hazem' || u.role === 'Admin');
+    const allUsers = ZumraDB.getUsers();
+    const isFirstAdmin = allUsers.length <= 1 && allUsers.some(u => u.username === 'hazem' || u.role === 'Admin');
     if (isFirstAdmin && !localStorage.getItem('zumra_test_data_seeded')) {
       seedTestDataIfEmpty();
       localStorage.setItem('zumra_test_data_seeded', 'true');
@@ -603,23 +622,23 @@ export default function App() {
           let isAuthed = !!auth?.currentUser;
 
           // If not authenticated, try to sign in with stored user credentials
-          if (!isAuthed && currentUser?.email) {
-            const fbPwd = currentUser.password || `${currentUser.username}123`;
-            isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
+          if (!isAuthed && user?.email) {
+            const fbPwd = user.password || `${user.username}123`;
+            isAuthed = await firebaseSignIn(user.email, fbPwd);
             if (!isAuthed) {
               // Firebase Auth user doesn't exist yet — create it
-              await firebaseCreateUser(currentUser.email, fbPwd);
-              isAuthed = await firebaseSignIn(currentUser.email, fbPwd);
+              await firebaseCreateUser(user.email, fbPwd);
+              isAuthed = await firebaseSignIn(user.email, fbPwd);
             }
             if (isAuthed) {
               // Session restored
             } else {
-              console.warn(`[Firebase Auth] Could not authenticate ${currentUser.email} — continuing with localStorage data`);
+              console.warn(`[Firebase Auth] Could not authenticate ${user.email} — continuing with localStorage data`);
             }
           }
 
-          // Fallback: if no currentUser (e.g., localStorage cleared), try default admin
-          if (!isAuthed && !currentUser) {
+          // Fallback: if no user (shouldn't happen due to gate), try default admin
+          if (!isAuthed && !user) {
             const defaultAdmins = ZumraDB.getUsers().filter(u => u.role === 'Admin');
             for (const admin of defaultAdmins) {
               if (admin.email) {
@@ -661,7 +680,7 @@ export default function App() {
             // Use a small delay to let the UI render first
             setTimeout(async () => {
               for (const u of allUsers) {
-                if (u.email && u.email !== currentUser?.email) {
+                if (u.email && u.email !== user?.email) {
                   const pwd = u.password || `${u.username}123`;
                   try {
                     await firebaseCreateUser(u.email, pwd);
@@ -669,9 +688,9 @@ export default function App() {
                 }
               }
               // Re-authenticate as current user after bulk creation
-              if (currentUser?.email) {
-                const fbPwd = currentUser.password || `${currentUser.username}123`;
-                await firebaseSignIn(currentUser.email, fbPwd).catch(() => {});
+              if (user?.email) {
+                const fbPwd = user.password || `${user.username}123`;
+                await firebaseSignIn(user.email, fbPwd).catch(() => {});
               }
             }, 3000);
           }
@@ -861,7 +880,7 @@ export default function App() {
         clearInterval(interval);
       };
     }
-  }, []);
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Session timeout - auto logout after 30 minutes of inactivity
   useEffect(() => {
@@ -1214,6 +1233,7 @@ export default function App() {
       if (!client?.email || !hotel) return;
       
       const roomTypes = r.rooms.map(rm => rm.roomType).join(', ');
+      const { sendPreArrivalReminder } = await import('./lib/email');
       const result = await sendPreArrivalReminder(
         client.email,
         r.guestName,
@@ -1629,6 +1649,7 @@ export default function App() {
       ZumraDB.setCurrentUser(user);
     } else {
       localStorage.removeItem('zumra_current_user');
+      dataLoadedRef.current = false; // Reset so next login triggers Phase 2 again
       // Sign out from Firebase Auth (required to clear request.auth for security rules)
       if (isFirebaseConfigured) {
         fbSignOut().catch(() => {});
@@ -2619,7 +2640,7 @@ export default function App() {
                         {t('users.userSettings')}
                       </button>
                       <button
-                        onClick={() => { setIsUserMenuOpen(false); downloadBackup(); toast.success('Backup downloaded successfully'); }}
+                        onClick={async () => { setIsUserMenuOpen(false); const { downloadBackup } = await import('./lib/dataBackup'); downloadBackup(); toast.success('Backup downloaded successfully'); }}
                         className={`w-full text-left px-4 py-2.5 text-xs font-medium ${currentTheme.cardText} ${currentTheme.headerHover} flex items-center gap-2.5 transition cursor-pointer`}
                       >
                         <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
