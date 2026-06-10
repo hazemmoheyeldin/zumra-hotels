@@ -180,7 +180,15 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
   const topSuppliers = getSupplierStats();
   const topClients = getClientStats();
 
-  const pendingFollowUps = followUps.filter(f => f.status === 'Pending' && f.date <= todayStr);
+  // Filter pending follow-ups: only show those referencing existing agents/clients
+  const agentIds = new Set(agents.map(a => a.id));
+  const pendingFollowUps = followUps.filter(f => {
+    if (f.status !== 'Pending') return false;
+    if (f.date > todayStr) return false;
+    // Skip orphaned follow-ups (client/agent no longer exists)
+    if (f.clientId && !agentIds.has(f.clientId)) return false;
+    return true;
+  });
 
   const missingRoomingList = reservations.filter(res => {
     if (res.status === 'Cancelled') return false;

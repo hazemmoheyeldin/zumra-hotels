@@ -957,6 +957,23 @@ export default function App() {
     return () => session.stop();
   }, [currentUser]);
 
+  // Auto-cleanup orphaned follow-ups (agent/client no longer exists)
+  const orphanCleanupDoneRef = useRef(false);
+  useEffect(() => {
+    if (!currentUser || orphanCleanupDoneRef.current) return;
+    if (followUps.length === 0 || agents.length === 0) return;
+    orphanCleanupDoneRef.current = true;
+    const agentIds = new Set(agents.map(a => a.id));
+    const orphans = followUps.filter(f => f.clientId && !agentIds.has(f.clientId));
+    if (orphans.length > 0) {
+      const cleaned = followUps.filter(f => !(f.clientId && !agentIds.has(f.clientId)));
+      setFollowUps(cleaned);
+      ZumraDB.saveFollowUps(cleaned);
+      orphans.forEach(f => ZumraSync.deleteFollowUp(f.id));
+      console.log(`[Cleanup] Purged ${orphans.length} orphaned follow-up(s) from database`);
+    }
+  }, [currentUser, followUps, agents]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Edit Approval handlers
   const handleRequestEditApproval = (request: EditApprovalRequest) => {
     const updated = [...editApprovals, request];
@@ -1061,6 +1078,16 @@ export default function App() {
     setAgents(updated);
     ZumraDB.saveAgents(updated);
     ZumraSync.deleteAgent(id);
+    // Cascade: remove follow-ups that reference this agent (prevents orphaned dashboard alerts)
+    const orphanedFollowUps = followUps.filter(f => f.clientId === id);
+    if (orphanedFollowUps.length > 0) {
+      const cleanedFollowUps = followUps.filter(f => f.clientId !== id);
+      setFollowUps(cleanedFollowUps);
+      ZumraDB.saveFollowUps(cleanedFollowUps);
+      // Sync each removed follow-up to Firestore
+      orphanedFollowUps.forEach(f => ZumraSync.deleteFollowUp(f.id));
+      console.log(`[Cascade] Removed ${orphanedFollowUps.length} orphaned follow-up(s) for agent "${a?.name || id}"`);
+    }
     toast.success(`Agent "${a?.name || id}" deleted`);
   };
   const handleDeleteAgent = (id: string) => {
