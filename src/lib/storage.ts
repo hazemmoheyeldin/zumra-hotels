@@ -939,10 +939,19 @@ function removeFromQueue(id: string): void {
   notifySyncListeners();
 }
 
-/** Clear all pending sync items — use when queue is stuck */
-export function clearSyncQueue(): void {
-  saveSyncQueue([]);
-  console.log('[Sync] Queue cleared by user');
+/** Clear all pending sync items — flushes first, then clears any remaining failures.
+ *  Data is NOT lost: all items already exist in localStorage. Only the retry queue is cleared. */
+export async function clearSyncQueue(): Promise<void> {
+  const queue = loadSyncQueue();
+  if (queue.length > 0) {
+    console.log(`[Sync] Attempting final flush of ${queue.length} item(s) before clearing...`);
+    await flushSyncQueue();
+  }
+  const remaining = loadSyncQueue();
+  if (remaining.length > 0) {
+    console.warn(`[Sync] Clearing ${remaining.length} failed item(s) from queue. Data remains in localStorage.`);
+    saveSyncQueue([]);
+  }
   notifySyncListeners();
 }
 
@@ -1105,12 +1114,20 @@ export function syncCollectionToFirestore(collectionName: string, items: any[]):
   return firestoreBulkSave(collectionName, items);
 }
 
-// Timestamp tracking to suppress real-time listener echo after local writes
+// Per-collection timestamp tracking to suppress real-time listener echo after local writes
+// This allows OTHER collections to still receive real-time updates during the suppression window
+const collectionWriteTimestamps: { [collection: string]: number } = {};
 let lastWriteTimestamp = 0;
-export function markLocalWrite(): void {
+export function markLocalWrite(collection?: string): void {
   lastWriteTimestamp = Date.now();
+  if (collection) {
+    collectionWriteTimestamps[collection] = Date.now();
+  }
 }
-export function isRecentLocalWrite(windowMs: number = 3000): boolean {
+export function isRecentLocalWrite(collection?: string, windowMs: number = 2000): boolean {
+  if (collection && collectionWriteTimestamps[collection]) {
+    return Date.now() - collectionWriteTimestamps[collection] < windowMs;
+  }
   return Date.now() - lastWriteTimestamp < windowMs;
 }
 
@@ -1226,46 +1243,46 @@ export async function loadFromFirestore<T>(collectionName: string, localStorageK
 }
 
 export const ZumraSync = {
-  saveHotel: (h: Hotel) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.HOTELS, h); },
-  saveAgent: (a: Agent) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.AGENTS, a); },
-  saveAllotment: (a: Allotment) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.ALLOTMENTS, a); },
-  saveReservation: (r: Reservation) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.RESERVATIONS, r); },
-  saveAccount: (a: Account) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.ACCOUNTS, a); },
-  saveTransaction: (t: Transaction) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TRANSACTIONS, t); },
-  saveUser: (u: User) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.USERS, u); },
-  saveFollowUp: (f: FollowUp) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f); },
-  saveExternalTransfer: (t: ExternalTransfer) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t); },
-  saveAuditEntry: (e: GlobalAuditEntry) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.AUDIT_LOG, e); },
-  saveSalesPerson: (s: SalesPerson) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.SALES_PERSONS, s); },
-  saveCancellationReason: (c: CancellationReason) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.CANCELLATION_REASONS, c); },
-  saveTermsAndConditions: (t: TermsAndConditions) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TERMS_CONDITIONS, t); },
-  saveOtherService: (s: OtherService) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.OTHER_SERVICES, s); },
-  savePaymentGateway: (p: PaymentGateway) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, p); },
-  savePayByLink: (p: PayByLink) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.PAY_BY_LINKS, p); },
-  saveEditApproval: (e: EditApprovalRequest) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EDIT_APPROVALS, e); },
-  saveTaxSettings: (t: TaxSettings) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.TAX_SETTINGS, t); },
-  saveExpense: (e: Expense) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXPENSES, e); },
-  saveExpenseCategory: (c: ExpenseCategory) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, c); },
-  saveConsolidatedInvoice: (ci: ConsolidatedInvoice) => { markLocalWrite(); return syncItemToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, ci); },
-  deleteHotel: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
-  deleteAgent: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
-  deleteAllotment: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
-  deleteReservation: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.RESERVATIONS, id); },
-  deleteAccount: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.ACCOUNTS, id); },
-  deleteTransaction: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.TRANSACTIONS, id); },
-  deleteUser: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.USERS, id); },
-  deleteFollowUp: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id); },
-  deleteExternalTransfer: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id); },
-  deleteSalesPerson: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.SALES_PERSONS, id); },
-  deleteCancellationReason: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.CANCELLATION_REASONS, id); },
-  deleteTermsAndConditions: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.TERMS_CONDITIONS, id); },
-  deleteOtherService: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.OTHER_SERVICES, id); },
-  deletePaymentGateway: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, id); },
-  deletePayByLink: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.PAY_BY_LINKS, id); },
-  deleteEditApproval: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EDIT_APPROVALS, id); },
-  deleteExpense: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXPENSES, id); },
-  deleteExpenseCategory: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, id); },
-  deleteConsolidatedInvoice: (id: string) => { markLocalWrite(); return syncDeleteToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, id); },
+  saveHotel: (h: Hotel) => { markLocalWrite(COLLECTIONS.HOTELS); return syncItemToFirestore(COLLECTIONS.HOTELS, h); },
+  saveAgent: (a: Agent) => { markLocalWrite(COLLECTIONS.AGENTS); return syncItemToFirestore(COLLECTIONS.AGENTS, a); },
+  saveAllotment: (a: Allotment) => { markLocalWrite(COLLECTIONS.ALLOTMENTS); return syncItemToFirestore(COLLECTIONS.ALLOTMENTS, a); },
+  saveReservation: (r: Reservation) => { markLocalWrite(COLLECTIONS.RESERVATIONS); return syncItemToFirestore(COLLECTIONS.RESERVATIONS, r); },
+  saveAccount: (a: Account) => { markLocalWrite(COLLECTIONS.ACCOUNTS); return syncItemToFirestore(COLLECTIONS.ACCOUNTS, a); },
+  saveTransaction: (t: Transaction) => { markLocalWrite(COLLECTIONS.TRANSACTIONS); return syncItemToFirestore(COLLECTIONS.TRANSACTIONS, t); },
+  saveUser: (u: User) => { markLocalWrite(COLLECTIONS.USERS); return syncItemToFirestore(COLLECTIONS.USERS, u); },
+  saveFollowUp: (f: FollowUp) => { markLocalWrite(COLLECTIONS.FOLLOW_UPS); return syncItemToFirestore(COLLECTIONS.FOLLOW_UPS, f); },
+  saveExternalTransfer: (t: ExternalTransfer) => { markLocalWrite(COLLECTIONS.EXTERNAL_TRANSFERS); return syncItemToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, t); },
+  saveAuditEntry: (e: GlobalAuditEntry) => { markLocalWrite(COLLECTIONS.AUDIT_LOG); return syncItemToFirestore(COLLECTIONS.AUDIT_LOG, e); },
+  saveSalesPerson: (s: SalesPerson) => { markLocalWrite(COLLECTIONS.SALES_PERSONS); return syncItemToFirestore(COLLECTIONS.SALES_PERSONS, s); },
+  saveCancellationReason: (c: CancellationReason) => { markLocalWrite(COLLECTIONS.CANCELLATION_REASONS); return syncItemToFirestore(COLLECTIONS.CANCELLATION_REASONS, c); },
+  saveTermsAndConditions: (t: TermsAndConditions) => { markLocalWrite(COLLECTIONS.TERMS_CONDITIONS); return syncItemToFirestore(COLLECTIONS.TERMS_CONDITIONS, t); },
+  saveOtherService: (s: OtherService) => { markLocalWrite(COLLECTIONS.OTHER_SERVICES); return syncItemToFirestore(COLLECTIONS.OTHER_SERVICES, s); },
+  savePaymentGateway: (p: PaymentGateway) => { markLocalWrite(COLLECTIONS.PAYMENT_GATEWAYS); return syncItemToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, p); },
+  savePayByLink: (p: PayByLink) => { markLocalWrite(COLLECTIONS.PAY_BY_LINKS); return syncItemToFirestore(COLLECTIONS.PAY_BY_LINKS, p); },
+  saveEditApproval: (e: EditApprovalRequest) => { markLocalWrite(COLLECTIONS.EDIT_APPROVALS); return syncItemToFirestore(COLLECTIONS.EDIT_APPROVALS, e); },
+  saveTaxSettings: (t: TaxSettings) => { markLocalWrite(COLLECTIONS.TAX_SETTINGS); return syncItemToFirestore(COLLECTIONS.TAX_SETTINGS, t); },
+  saveExpense: (e: Expense) => { markLocalWrite(COLLECTIONS.EXPENSES); return syncItemToFirestore(COLLECTIONS.EXPENSES, e); },
+  saveExpenseCategory: (c: ExpenseCategory) => { markLocalWrite(COLLECTIONS.EXPENSE_CATEGORIES); return syncItemToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, c); },
+  saveConsolidatedInvoice: (ci: ConsolidatedInvoice) => { markLocalWrite(COLLECTIONS.CONSOLIDATED_INVOICES); return syncItemToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, ci); },
+  deleteHotel: (id: string) => { markLocalWrite(COLLECTIONS.HOTELS); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
+  deleteAgent: (id: string) => { markLocalWrite(COLLECTIONS.AGENTS); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
+  deleteAllotment: (id: string) => { markLocalWrite(COLLECTIONS.ALLOTMENTS); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
+  deleteReservation: (id: string) => { markLocalWrite(COLLECTIONS.RESERVATIONS); return syncDeleteToFirestore(COLLECTIONS.RESERVATIONS, id); },
+  deleteAccount: (id: string) => { markLocalWrite(COLLECTIONS.ACCOUNTS); return syncDeleteToFirestore(COLLECTIONS.ACCOUNTS, id); },
+  deleteTransaction: (id: string) => { markLocalWrite(COLLECTIONS.TRANSACTIONS); return syncDeleteToFirestore(COLLECTIONS.TRANSACTIONS, id); },
+  deleteUser: (id: string) => { markLocalWrite(COLLECTIONS.USERS); return syncDeleteToFirestore(COLLECTIONS.USERS, id); },
+  deleteFollowUp: (id: string) => { markLocalWrite(COLLECTIONS.FOLLOW_UPS); return syncDeleteToFirestore(COLLECTIONS.FOLLOW_UPS, id); },
+  deleteExternalTransfer: (id: string) => { markLocalWrite(COLLECTIONS.EXTERNAL_TRANSFERS); return syncDeleteToFirestore(COLLECTIONS.EXTERNAL_TRANSFERS, id); },
+  deleteSalesPerson: (id: string) => { markLocalWrite(COLLECTIONS.SALES_PERSONS); return syncDeleteToFirestore(COLLECTIONS.SALES_PERSONS, id); },
+  deleteCancellationReason: (id: string) => { markLocalWrite(COLLECTIONS.CANCELLATION_REASONS); return syncDeleteToFirestore(COLLECTIONS.CANCELLATION_REASONS, id); },
+  deleteTermsAndConditions: (id: string) => { markLocalWrite(COLLECTIONS.TERMS_CONDITIONS); return syncDeleteToFirestore(COLLECTIONS.TERMS_CONDITIONS, id); },
+  deleteOtherService: (id: string) => { markLocalWrite(COLLECTIONS.OTHER_SERVICES); return syncDeleteToFirestore(COLLECTIONS.OTHER_SERVICES, id); },
+  deletePaymentGateway: (id: string) => { markLocalWrite(COLLECTIONS.PAYMENT_GATEWAYS); return syncDeleteToFirestore(COLLECTIONS.PAYMENT_GATEWAYS, id); },
+  deletePayByLink: (id: string) => { markLocalWrite(COLLECTIONS.PAY_BY_LINKS); return syncDeleteToFirestore(COLLECTIONS.PAY_BY_LINKS, id); },
+  deleteEditApproval: (id: string) => { markLocalWrite(COLLECTIONS.EDIT_APPROVALS); return syncDeleteToFirestore(COLLECTIONS.EDIT_APPROVALS, id); },
+  deleteExpense: (id: string) => { markLocalWrite(COLLECTIONS.EXPENSES); return syncDeleteToFirestore(COLLECTIONS.EXPENSES, id); },
+  deleteExpenseCategory: (id: string) => { markLocalWrite(COLLECTIONS.EXPENSE_CATEGORIES); return syncDeleteToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, id); },
+  deleteConsolidatedInvoice: (id: string) => { markLocalWrite(COLLECTIONS.CONSOLIDATED_INVOICES); return syncDeleteToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, id); },
   bulkSyncAll: () => {
     if (!isFirebaseConfigured) return;
     syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));

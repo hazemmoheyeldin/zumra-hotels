@@ -961,11 +961,41 @@ export default function ReservationsPage({
       }
     }
 
-    // Weekend rate reminder: warn if booking spans weekend days but ANY room is missing weekend rate
-    if (hasWeekendDays(checkIn, checkOut) && rooms.some(rm => !rm.hasWeekend)) {
+    // Weekend rate reminder: warn if booking spans weekend days but ANY room line is missing weekend rate
+    if (hasWeekendDays(checkIn, checkOut)) {
+      const roomsMissingWeekend = rooms
+        .map((rm, idx) => ({ idx: idx + 1, rm }))
+        .filter(({ rm }) => !rm.hasWeekend);
+      if (roomsMissingWeekend.length > 0) {
+        const linesList = roomsMissingWeekend.map(({ idx, rm }) =>
+          `  • Line ${idx}: ${rm.roomType}${rm.view ? ' (' + rm.view + ')' : ''}`
+        ).join('\n');
+        openConfirm(
+          'Weekend Rate Reminder',
+          `This booking contains weekend days (Thu/Fri) but the following room line(s) have no weekend rate set:\n\n${linesList}\n\nHotels sometimes charge different rates on weekends.\n\nDo you want to proceed without weekend rates, or go back and add them?`,
+          () => doSaveReservation()
+        );
+        return;
+      }
+    }
+
+    // View supplement reminder: warn if a room has a premium view but no view supplement rate
+    const STANDARD_VIEWS = ['non view', 'city view', 'no view', 'standard', 'n/a'];
+    const roomsMissingViewSupp = rooms
+      .map((rm, idx) => ({ idx: idx + 1, rm }))
+      .filter(({ rm }) => {
+        if (!rm.view) return false;
+        const viewLower = rm.view.toLowerCase().trim();
+        const isStandard = STANDARD_VIEWS.some(sv => viewLower === sv || viewLower.includes(sv));
+        return !isStandard && !rm.hasViewSupplement;
+      });
+    if (roomsMissingViewSupp.length > 0) {
+      const linesList = roomsMissingViewSupp.map(({ idx, rm }) =>
+        `  • Line ${idx}: ${rm.roomType} — ${rm.view}`
+      ).join('\n');
       openConfirm(
-        'Weekend Rate Reminder',
-        'This booking contains weekend days (Thu/Fri) but no weekend rate is set.\n\nHotels sometimes sell at flat rates on weekdays same as weekends.\n\nDo you want to proceed without weekend rates, or go back and add them?',
+        'View Supplement Reminder',
+        `The following room line(s) have a premium view but no view supplement rate is set:\n\n${linesList}\n\nIf this view carries an extra charge, go back and enable the view supplement.\n\nOr proceed if the view rate is included in the base rate?`,
         () => doSaveReservation()
       );
       return;

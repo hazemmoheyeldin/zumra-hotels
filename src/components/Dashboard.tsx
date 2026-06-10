@@ -21,11 +21,12 @@ interface DashboardProps {
   followUps: FollowUp[];
   allotments: Allotment[];
   transactions: Transaction[];
+  currentUser: User;
   onNavigate: (tab: string, initialFilters?: any) => void;
   onQuickReservation: () => void;
 }
 
-export default function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, onNavigate, onQuickReservation }: DashboardProps) {
+export default function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, currentUser, onNavigate, onQuickReservation }: DashboardProps) {
   const todayStr = getEgyptTime().toISOString().split('T')[0];
   const [sendingSummary, setSendingSummary] = useState(false);
   const [showDailyOps, setShowDailyOps] = useState(false);
@@ -180,13 +181,15 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
   const topSuppliers = getSupplierStats();
   const topClients = getClientStats();
 
-  // Filter pending follow-ups: only show those referencing existing agents/clients
+  // Filter pending follow-ups: only show those relevant to the current user
   const agentIds = new Set(agents.map(a => a.id));
   const pendingFollowUps = followUps.filter(f => {
     if (f.status !== 'Pending') return false;
     if (f.date > todayStr) return false;
     // Skip orphaned follow-ups (client/agent no longer exists)
     if (f.clientId && !agentIds.has(f.clientId)) return false;
+    // Only show follow-ups created by or relevant to the current user
+    if (currentUser && f.createdBy !== currentUser.id) return false;
     return true;
   });
 

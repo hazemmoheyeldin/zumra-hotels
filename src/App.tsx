@@ -799,49 +799,49 @@ export default function App() {
         // Listeners suppress updates for 3s after local writes to prevent echo/race conditions
         const unsubs = [
         firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
-          if (!isRecentLocalWrite() && !localStorage.getItem('zumra_hotels_migrated')) {
+          if (!isRecentLocalWrite(COLLECTIONS.HOTELS) && !localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
             setHotels(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.AGENTS)) {
             localStorage.setItem('zumra_agents', JSON.stringify(data));
             setAgents(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.ALLOTMENTS)) {
             localStorage.setItem('zumra_allotments', JSON.stringify(data));
             setAllotments(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.RESERVATIONS)) {
             localStorage.setItem('zumra_reservations', JSON.stringify(data));
             setReservations(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.ACCOUNTS)) {
             localStorage.setItem('zumra_accounts', JSON.stringify(data));
             setAccounts(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.TRANSACTIONS)) {
             localStorage.setItem('zumra_transactions', JSON.stringify(data));
             setTransactions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.EXTERNAL_TRANSFERS)) {
             localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
             setExternalTransfers(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.USERS)) {
             // Merge Firestore data with DEFAULT_USERS to prevent user loss
             // DEFAULT_USERS are always preserved; Firestore data updates/overrides by ID
             const mergedMap = new Map<string, User>();
@@ -853,79 +853,79 @@ export default function App() {
           }
         }),
         firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.FOLLOW_UPS)) {
             localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
             setFollowUps(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.SALES_PERSONS)) {
             localStorage.setItem('zumra_sales_persons', JSON.stringify(data));
             setSalesPersons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.CANCELLATION_REASONS)) {
             localStorage.setItem('zumra_cancellation_reasons', JSON.stringify(data));
             setCancellationReasons(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.TERMS_CONDITIONS)) {
             localStorage.setItem('zumra_terms_conditions', JSON.stringify(data));
             setTermsAndConditions(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.OTHER_SERVICES)) {
             localStorage.setItem('zumra_other_services', JSON.stringify(data));
             setOtherServices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.PAYMENT_GATEWAYS)) {
             localStorage.setItem('zumra_payment_gateways', JSON.stringify(data));
             setPaymentGateways(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.PAY_BY_LINKS)) {
             localStorage.setItem('zumra_pay_by_links', JSON.stringify(data));
             setPayByLinks(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.EDIT_APPROVALS)) {
             localStorage.setItem('zumra_edit_approvals', JSON.stringify(data));
             setEditApprovals(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.TAX_SETTINGS)) {
             localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
             setTaxSettings(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.EXPENSES)) {
             localStorage.setItem('zumra_expenses', JSON.stringify(data));
             setExpenses(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.EXPENSE_CATEGORIES)) {
             localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
             setExpenseCategories(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.CONSOLIDATED_INVOICES)) {
             localStorage.setItem('zumra_consolidated_invoices', JSON.stringify(data));
             setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
           }
         }),
         firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
-          if (!isRecentLocalWrite()) {
+          if (!isRecentLocalWrite(COLLECTIONS.MESSAGES)) {
             localStorage.setItem('zumra_messages', JSON.stringify(data));
             setMessages(prev => arraysEqual(prev, data) ? prev : data);
           }
@@ -2023,6 +2023,7 @@ export default function App() {
             followUps={followUps}
             allotments={allotments}
             transactions={transactions}
+            currentUser={currentUser}
             onNavigate={handleNavigate}
             onQuickReservation={() => {
               navigateTo('Reservations', { showNewForm: true });
@@ -2797,7 +2798,7 @@ export default function App() {
                       {syncStatus.isSyncing ? 'SYNCING' : 'PENDING'}
                       <span className="bg-orange-200 text-orange-800 px-1 rounded-full">{syncStatus.pendingCount}</span>
                     </button>
-                    <button onClick={() => clearSyncQueue()} title="Clear stuck sync queue" className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition">
+                    <button onClick={() => clearSyncQueue()} title="Retry & clear stuck sync queue (data stays in localStorage)" className="p-1 rounded hover:bg-red-50 text-red-400 hover:text-red-600 transition">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
