@@ -2224,18 +2224,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [currentUser]);
 
-  // Desktop: Click outside the sidebar to collapse it (only when expanded)
-  useEffect(() => {
-    if (!currentUser || sidebarCollapsed) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
-        setSidebarCollapsed(true);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [currentUser, sidebarCollapsed]);
-
   const navItems = [
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard', tip: 'Overview of bookings, revenue & occupancy' },
     { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar', tip: 'Visual calendar of all reservations' },
@@ -2359,21 +2347,16 @@ export default function App() {
       {/* Hidden file input for profile image upload */}
       <input ref={profileImageRef} type="file" accept="image/*" className="hidden" onChange={handleProfileImageChange} />
 
-      {/* Mobile sidebar overlay */}
+      {/* Sidebar backdrop — dims content behind open sidebar (all screen sizes) */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Desktop sidebar backdrop — dim content behind expanded sidebar */}
-      {!sidebarCollapsed && (
-        <div className="fixed inset-0 bg-black/20 z-40 hidden md:block animate-fade-in" onClick={() => setSidebarCollapsed(true)} />
+        <div className="fixed inset-0 bg-black/30 z-40 animate-fade-in" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar Navigation */}
-      <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Sidebar Top Bar — minimal, no branding */}
         <div className={`flex items-center justify-between ${sidebarCollapsed ? 'px-2' : 'px-4'} py-2 border-b ${currentTheme.sidebarBorder} flex-shrink-0`}>
-          {/* Desktop collapse toggle */}
+          {/* Collapse toggle (desktop only) */}
           <Tooltip label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} position="right">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -2385,8 +2368,8 @@ export default function App() {
             {!sidebarCollapsed && <span>Collapse</span>}
           </button>
           </Tooltip>
-          {/* Mobile close */}
-          <button onClick={() => setSidebarOpen(false)} className={`md:hidden p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+          {/* Close sidebar (all screen sizes) */}
+          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${isDarkSidebar ? 'hover:bg-white/10 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -2488,7 +2471,7 @@ export default function App() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
+              className="p-2 -ml-2 rounded-lg hover:bg-slate-100 transition text-slate-500"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
