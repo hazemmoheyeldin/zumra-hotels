@@ -4,7 +4,7 @@
  */
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
-import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection } from './firebase';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, isFirebaseAuthSignedIn, COLLECTIONS, firestoreClearCollection } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
 
@@ -939,6 +939,13 @@ function removeFromQueue(id: string): void {
   notifySyncListeners();
 }
 
+/** Clear all pending sync items — use when queue is stuck */
+export function clearSyncQueue(): void {
+  saveSyncQueue([]);
+  console.log('[Sync] Queue cleared by user');
+  notifySyncListeners();
+}
+
 // --- Sync Status ---
 let isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true;
 let syncListeners: Array<(status: SyncStatus) => void> = [];
@@ -1048,6 +1055,11 @@ export async function syncItemToFirestore(collectionName: string, item: any): Pr
     console.warn(`[Sync] Skipped ${collectionName}/${item?.id}: firebase=${isFirebaseConfigured}, id=${item?.id}`);
     return;
   }
+  // Skip if not authenticated — writes would be rejected by Firestore rules
+  if (!isFirebaseAuthSignedIn()) {
+    console.warn(`[Sync] Skipped ${collectionName}/${item.id}: not authenticated`);
+    return;
+  }
   if (!isOnline) {
     console.log(`[Sync] Offline — queued ${collectionName}/${item.id}`);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
@@ -1056,21 +1068,34 @@ export async function syncItemToFirestore(collectionName: string, item: any): Pr
   try {
     await firestoreSave(collectionName, item.id, item);
     console.log(`[Sync] Saved ${collectionName}/${item.id} to Firestore`);
-  } catch (err) {
-    console.error(`[Sync] Failed to save ${collectionName}/${item.id}:`, err);
+  } catch (err: any) {
+    // Don't queue permission-denied errors — they won't succeed on retry
+    if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
+      console.error(`[Sync] PERMISSION DENIED for ${collectionName}/${item.id}: ${err.message}. Check Firestore rules.`);
+      return;
+    }
+    console.error(`[Sync] Failed to save ${collectionName}/${item.id}:`, err?.code || err?.message || err);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
   }
 }
 
 export async function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
   if (!isFirebaseConfigured) return;
+  if (!isFirebaseAuthSignedIn()) {
+    console.warn(`[Sync] Skipped delete ${collectionName}/${id}: not authenticated`);
+    return;
+  }
   if (!isOnline) {
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
     await firestoreDelete(collectionName, id);
-  } catch {
+  } catch (err: any) {
+    if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
+      console.error(`[Sync] PERMISSION DENIED for delete ${collectionName}/${id}`);
+      return;
+    }
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
   }
 }
