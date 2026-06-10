@@ -1,6 +1,6 @@
 // Zumra Hotels RMS - Service Worker for Offline-First PWA
 // Version bumped to invalidate old caches on deploy
-const CACHE_VERSION = 'zumra-rms-v2';
+const CACHE_VERSION = 'zumra-rms-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate: clean ALL old caches (including v1)
+// Activate: clean ALL old caches (including v1, v2)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -60,7 +60,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Hashed static assets (JS/CSS/images with content hash): cache-first, immutable
+  // Hashed static assets (JS/CSS/image with content hash): cache-first, immutable
   // These files have unique names like index-DULQDROE.js so they never go stale
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
@@ -74,16 +74,14 @@ self.addEventListener('fetch', (event) => {
           return response;
         }).catch(() => {
           // If a JS chunk fails to load (stale reference from old index.html),
-          // force reload the page to get fresh HTML with new chunk references
+          // force the client page to reload to get fresh HTML with new chunk references
           if (url.pathname.endsWith('.js')) {
-            return caches.match('/index.html').then(r => {
-              if (r) {
-                // Signal the page to reload
-                return new Response('/* STALE_CHUNK_RELOAD */', {
-                  headers: { 'Content-Type': 'application/javascript', 'X-Stale-Chunk': 'true' }
-                });
-              }
-              return new Response('', { status: 404 });
+            // Navigate all windows to their current URL — forces a fresh index.html fetch
+            self.clients.matchAll({ type: 'window' }).then(clients => {
+              clients.forEach(client => client.navigate(client.url));
+            });
+            return new Response('// Stale chunk — page reloading', {
+              headers: { 'Content-Type': 'application/javascript' }
             });
           }
           return new Response('', { status: 404 });

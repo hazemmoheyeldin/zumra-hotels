@@ -846,10 +846,17 @@ export default function App() {
 
       // Call attachFirestoreListeners after auth is confirmed, then run migration in background
       const wrappedWaitForAuth = async () => {
-        // Wait for auth first
-        await waitForAuthAndMigrate();
-        // Attach listeners immediately after auth (source of truth for real-time sync)
-        attachFirestoreListeners();
+        try {
+          // Wait for auth first
+          await waitForAuthAndMigrate();
+        } catch (err) {
+          console.error('[Firebase] Auth/Migration failed, proceeding with listeners anyway:', err);
+        } finally {
+          // ALWAYS attach listeners — even if auth failed.
+          // This ensures mobile devices get real-time data from Firestore
+          // regardless of authentication state.
+          attachFirestoreListeners();
+        }
       };
       wrappedWaitForAuth();
 
