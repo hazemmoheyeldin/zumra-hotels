@@ -212,7 +212,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
   const formatSAR = (val: number) => `${(val / 1000).toFixed(0)}K`;
 
   return (
-    <div className="space-y-6 overflow-x-hidden min-w-0">
+    <div className="space-y-6 overflow-x-hidden min-w-0 page-container">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

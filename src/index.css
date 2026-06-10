@@ -25,6 +25,36 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* === UNIFIED DESIGN SYSTEM VARIABLES === */
+  --zumra-gold: #c1a274;
+  --zumra-gold-light: #d4b88a;
+  --zumra-gold-dark: #a68a5b;
+  --zumra-navy: #0f172a;
+  --zumra-navy-light: #1e293b;
+  --zumra-surface: #ffffff;
+  --zumra-surface-alt: #f8fafc;
+  --zumra-text-primary: #0f172a;
+  --zumra-text-secondary: #475569;
+  --zumra-text-muted: #94a3b8;
+  --zumra-border: #e2e8f0;
+  --zumra-border-light: #f1f5f9;
+  --zumra-success: #10b981;
+  --zumra-danger: #ef4444;
+  --zumra-warning: #f59e0b;
+  --zumra-info: #3b82f6;
+  --zumra-radius-sm: 6px;
+  --zumra-radius-md: 10px;
+  --zumra-radius-lg: 16px;
+  --zumra-radius-xl: 24px;
+  --zumra-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  --zumra-shadow-md: 0 4px 12px -2px rgba(0,0,0,0.06), 0 2px 6px -2px rgba(0,0,0,0.04);
+  --zumra-shadow-lg: 0 12px 32px -4px rgba(0,0,0,0.08), 0 4px 12px -2px rgba(0,0,0,0.04);
+  --zumra-space-xs: 4px;
+  --zumra-space-sm: 8px;
+  --zumra-space-md: 16px;
+  --zumra-space-lg: 24px;
+  --zumra-space-xl: 32px;
 }
 
 @layer utilities {
@@ -356,10 +386,19 @@ tbody tr {
   white-space: nowrap;
 }
 
-/* Global horizontal overflow guard — prevents any page from overflowing right */
+/* === GLOBAL LAYOUT GUARD ===
+   Prevents any horizontal overflow across the entire application.
+   Forces all content within screen boundaries on every device. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 html, body, #root {
   overflow-x: hidden;
   max-width: 100vw;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 /* Recharts SVG elements must not overflow their containers */
@@ -368,13 +407,28 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* Responsive base utilities */
+/* === RESPONSIVE PAGE CONTAINER ===
+   Every page should use this wrapper to guarantee content stays on-screen */
+.page-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* High-contrast text utility — ensures legibility on any background */
+.text-high-contrast {
+  color: var(--zumra-text-primary);
+  text-shadow: none;
+}
+
+/* === MOBILE RESPONSIVE OVERRIDES ===
+   Forces vertical stacking and prevents any horizontal overflow on mobile */
 @media (max-width: 768px) {
   html {
     font-size: 14px;
   }
 
-  /* Prevent horizontal overflow on mobile */
   html, body, #root {
     overflow-x: hidden;
     max-width: 100vw;
@@ -385,6 +439,15 @@ html, body, #root {
   * {
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  /* Force all page-level containers to stack vertically on mobile */
+  .page-container,
+  [class*="space-y"],
+  main > div > div:not(.fixed):not(.absolute):not([role="dialog"]) {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
   }
 
   /* Allow tables to scroll horizontally within their wrappers */
@@ -409,15 +472,9 @@ html, body, #root {
     font-size: 16px; /* Prevents iOS zoom on focus */
   }
 
-  /* Stack grids on mobile (but preserve explicit grid-cols-1) */
-  .grid:not(.grid-cols-1):not(.grid-cols-2) {
+  /* Stack ALL grids on mobile */
+  .grid {
     grid-template-columns: 1fr !important;
-  }
-  /* Keep 2-col grids on tablets */
-  @media (min-width: 640px) {
-    .grid:not(.grid-cols-1):not(.grid-cols-2) {
-      grid-template-columns: repeat(2, 1fr) !important;
-    }
   }
 
   /* Ensure modals are full-width on mobile */
@@ -426,12 +483,9 @@ html, body, #root {
   }
 
   /* Reduce padding on mobile cards */
-  .p-6 {
-    padding: 0.75rem !important;
-  }
-  .p-5 {
-    padding: 0.625rem !important;
-  }
+  .p-6 { padding: 0.75rem !important; }
+  .p-5 { padding: 0.625rem !important; }
+  .p-4 { padding: 0.5rem !important; }
 
   /* Smoother sidebar overlay */
   .fixed.inset-0.bg-black\/50 {
@@ -446,6 +500,11 @@ html, body, #root {
   /* Prevent fixed/sticky elements from causing layout shift */
   .fixed {
     will-change: auto !important;
+  }
+
+  /* Charts must shrink to container on mobile */
+  .recharts-wrapper {
+    width: 100% !important;
   }
 }
 

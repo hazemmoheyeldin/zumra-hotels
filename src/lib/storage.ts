@@ -1088,7 +1088,7 @@ export function isRecentLocalWrite(windowMs: number = 3000): boolean {
  *            Other Services, Payment Gateways, Sales Persons, Allotments.
  */
 export async function strategicDatabaseReset(): Promise<{ cleared: number; preserved: string[] }> {
-  // Collections to CLEAR (transactional data)
+  // Collections to CLEAR (all transactional data + agent/guest profiles)
   const collectionsToClear = [
     COLLECTIONS.RESERVATIONS,
     COLLECTIONS.TRANSACTIONS,
@@ -1101,6 +1101,7 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
     COLLECTIONS.EDIT_APPROVALS,
     COLLECTIONS.PAY_BY_LINKS,
     COLLECTIONS.EXPENSES,
+    COLLECTIONS.AGENTS,  // Clear all agent/guest profiles
   ];
 
   // Corresponding localStorage keys
@@ -1116,6 +1117,7 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
     'zumra_edit_approvals',
     'zumra_pay_by_links',
     'zumra_expenses',
+    'zumra_agents',  // Clear agent/guest profiles from localStorage too
   ];
 
   let totalCleared = 0;
@@ -1133,13 +1135,8 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
     localStorage.removeItem(key);
   }
 
-  // 3. Reset agent balances to 0 (preserve agents themselves)
-  const agents = ZumraDB.getAgents();
-  const resetAgents = agents.map(a => ({ ...a, balance: 0, auditLogs: [] }));
-  ZumraDB.saveAgents(resetAgents);
-  if (isFirebaseConfigured) {
-    await firestoreBulkSave(COLLECTIONS.AGENTS, resetAgents);
-  }
+  // 3. Agent profiles already cleared in step 1 — save empty array to localStorage
+  ZumraDB.saveAgents([]);
 
   // 4. Filter users: keep only 'hazem', remove all others
   const allUsers = ZumraDB.getUsers();
@@ -1161,7 +1158,6 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
 
   const preserved = [
     'Hotels (' + ZumraDB.getHotels().length + ')',
-    'Agents (' + resetAgents.length + ')',
     'Allotments (' + resetAllotments.length + ')',
     'Users: hazem only (removed ' + removedUserCount + ')',
     'Settings', 'Tax Settings', 'Expense Categories',

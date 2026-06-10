@@ -485,11 +485,11 @@ export default function App() {
     if (isFirebaseConfigured) {
       // One-time strategic database reset (clears transactional data, preserves hotels/config)
       const runResetIfNeeded = async () => {
-        if (!localStorage.getItem('zumra_db_reset_v2_done')) {
+        if (!localStorage.getItem('zumra_db_reset_v3_done')) {
           try {
             const result = await strategicDatabaseReset();
-            localStorage.setItem('zumra_db_reset_v2_done', 'true');
-            console.log(`[Migration] DB reset v2 complete: cleared ${result.cleared} records`);
+            localStorage.setItem('zumra_db_reset_v3_done', 'true');
+            console.log(`[Migration] DB reset v3 complete: cleared ${result.cleared} records. Preserved:`, result.preserved);
             // Reload fresh empty states
             setReservations([]);
             setTransactions([]);
@@ -498,7 +498,7 @@ export default function App() {
             setFollowUps([]);
             setExpenses([]);
             setConsolidatedInvoices([]);
-            setAgents(ZumraDB.getAgents());
+            setAgents([]);  // Agents cleared in v3
             setAllotments(ZumraDB.getAllotments());
             setUsers(ZumraDB.getUsers());
           } catch (e) {
@@ -2650,7 +2650,7 @@ export default function App() {
         </header>
 
         {/* Scrollable central content area */}
-        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-4 md:p-6 print:p-0 print:m-0 page-enter" key={tabKey}>
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-4 md:p-6 print:p-0 print:m-0 page-enter page-container" key={tabKey}>
           {/* Pending Refund Alerts Banner */}
           {(() => {
             const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
