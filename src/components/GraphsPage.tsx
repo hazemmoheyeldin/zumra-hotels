@@ -212,7 +212,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
   const formatSAR = (val: number) => `${(val / 1000).toFixed(0)}K`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden min-w-0">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -250,7 +250,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
 
       {/* Row 1: Cash Flow + Revenue Trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">💰 Cash Flow (Monthly)</h3>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={cashFlowData}>
@@ -276,7 +276,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">📈 Revenue & Profit Trend</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={revenueData}>
@@ -295,7 +295,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
 
       {/* Row 2: Booking Volume + Status Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">📅 Monthly Bookings Volume</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={bookingsVolumeData}>
@@ -311,7 +311,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">📊 Booking Status</h3>
           <ResponsiveContainer width="100%" height={260}>
             <PieChart>
@@ -328,7 +328,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
 
       {/* Row 3: Top Clients + Revenue by Hotel */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">👥 Top 10 Clients by Revenue</h3>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={topClientsData} layout="vertical">
@@ -345,7 +345,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">🏢 Revenue by Hotel</h3>
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={hotelRevenueData} layout="vertical">
@@ -365,7 +365,7 @@ export default function GraphsPage({ reservations, agents, hotels, transactions 
 
       {/* Row 4: Booking Sources */}
       {sourceData.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 overflow-hidden min-w-0">
           <h3 className="text-sm font-bold text-slate-800 mb-4">🌐 Booking Sources</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={sourceData}>

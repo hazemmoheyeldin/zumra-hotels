@@ -1141,7 +1141,17 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
     await firestoreBulkSave(COLLECTIONS.AGENTS, resetAgents);
   }
 
-  // 4. Clear allotment booked counts
+  // 4. Filter users: keep only 'hazem', remove all others
+  const allUsers = ZumraDB.getUsers();
+  const keptUsers = allUsers.filter(u => u.username === 'hazem');
+  const removedUserCount = allUsers.length - keptUsers.length;
+  ZumraDB.saveUsers(keptUsers);
+  if (isFirebaseConfigured) {
+    await firestoreClearCollection(COLLECTIONS.USERS);
+    await firestoreBulkSave(COLLECTIONS.USERS, keptUsers);
+  }
+
+  // 5. Clear allotment booked counts
   const allotments = ZumraDB.getAllotments();
   const resetAllotments = allotments.map(a => ({ ...a, bookedCount: 0 }));
   ZumraDB.saveAllotments(resetAllotments);
@@ -1153,7 +1163,8 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
     'Hotels (' + ZumraDB.getHotels().length + ')',
     'Agents (' + resetAgents.length + ')',
     'Allotments (' + resetAllotments.length + ')',
-    'Users', 'Settings', 'Tax Settings', 'Expense Categories',
+    'Users: hazem only (removed ' + removedUserCount + ')',
+    'Settings', 'Tax Settings', 'Expense Categories',
     'Terms & Conditions', 'Other Services', 'Payment Gateways',
     'Sales Persons', 'Cancellation Reasons',
   ];
