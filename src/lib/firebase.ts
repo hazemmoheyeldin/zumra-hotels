@@ -401,3 +401,33 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
     return () => {};
   }
 }
+
+/**
+ * Delete ALL documents in a Firestore collection (used for strategic data reset).
+ * Processes in batches of 500 to respect Firestore write limits.
+ */
+export async function firestoreClearCollection(collectionName: string): Promise<number> {
+  if (!db) return 0;
+  try {
+    const snapshot = await getDocs(collection(db, collectionName));
+    if (snapshot.empty) return 0;
+    
+    const batchSize = 500;
+    const docs = snapshot.docs;
+    let deleted = 0;
+    
+    for (let i = 0; i < docs.length; i += batchSize) {
+      const batch = writeBatch(db);
+      const chunk = docs.slice(i, i + batchSize);
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      deleted += chunk.length;
+    }
+    
+    console.log(`[Firebase] Cleared ${deleted} docs from ${collectionName}`);
+    return deleted;
+  } catch (error) {
+    console.error(`[Firebase] Error clearing ${collectionName}:`, error);
+    return 0;
+  }
+}

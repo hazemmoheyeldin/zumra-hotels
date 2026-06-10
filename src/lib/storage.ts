@@ -4,7 +4,7 @@
  */
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
-import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS } from './firebase';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
 
@@ -1074,6 +1074,92 @@ export function markLocalWrite(): void {
 }
 export function isRecentLocalWrite(windowMs: number = 3000): boolean {
   return Date.now() - lastWriteTimestamp < windowMs;
+}
+
+/**
+ * Strategic Database Reset — clears ALL transactional data while preserving
+ * core reference data (Hotels, Agents, config/settings).
+ * 
+ * Clears: Reservations, Transactions, Accounts, External Transfers,
+ *         Follow-ups, Audit Log, Commissions, Consolidated Invoices,
+ *         Edit Approvals, Pay-By-Links, Expenses.
+ * Preserves: Hotels, Agents (balance reset to 0), Users, Settings,
+ *            Tax Settings, Expense Categories, Terms & Conditions,
+ *            Other Services, Payment Gateways, Sales Persons, Allotments.
+ */
+export async function strategicDatabaseReset(): Promise<{ cleared: number; preserved: string[] }> {
+  // Collections to CLEAR (transactional data)
+  const collectionsToClear = [
+    COLLECTIONS.RESERVATIONS,
+    COLLECTIONS.TRANSACTIONS,
+    COLLECTIONS.ACCOUNTS,
+    COLLECTIONS.EXTERNAL_TRANSFERS,
+    COLLECTIONS.FOLLOW_UPS,
+    COLLECTIONS.AUDIT_LOG,
+    COLLECTIONS.COMMISSIONS,
+    COLLECTIONS.CONSOLIDATED_INVOICES,
+    COLLECTIONS.EDIT_APPROVALS,
+    COLLECTIONS.PAY_BY_LINKS,
+    COLLECTIONS.EXPENSES,
+  ];
+
+  // Corresponding localStorage keys
+  const localStorageKeysToClear = [
+    'zumra_reservations',
+    'zumra_transactions',
+    'zumra_accounts',
+    'zumra_external_transfers',
+    'zumra_followups',
+    'zumra_audit_log',
+    'zumra_commissions',
+    'zumra_consolidated_invoices',
+    'zumra_edit_approvals',
+    'zumra_pay_by_links',
+    'zumra_expenses',
+  ];
+
+  let totalCleared = 0;
+
+  // 1. Clear Firestore collections
+  if (isFirebaseConfigured) {
+    for (const col of collectionsToClear) {
+      const deleted = await firestoreClearCollection(col);
+      totalCleared += deleted;
+    }
+  }
+
+  // 2. Clear localStorage
+  for (const key of localStorageKeysToClear) {
+    localStorage.removeItem(key);
+  }
+
+  // 3. Reset agent balances to 0 (preserve agents themselves)
+  const agents = ZumraDB.getAgents();
+  const resetAgents = agents.map(a => ({ ...a, balance: 0, auditLogs: [] }));
+  ZumraDB.saveAgents(resetAgents);
+  if (isFirebaseConfigured) {
+    await firestoreBulkSave(COLLECTIONS.AGENTS, resetAgents);
+  }
+
+  // 4. Clear allotment booked counts
+  const allotments = ZumraDB.getAllotments();
+  const resetAllotments = allotments.map(a => ({ ...a, bookedCount: 0 }));
+  ZumraDB.saveAllotments(resetAllotments);
+  if (isFirebaseConfigured) {
+    await firestoreBulkSave(COLLECTIONS.ALLOTMENTS, resetAllotments);
+  }
+
+  const preserved = [
+    'Hotels (' + ZumraDB.getHotels().length + ')',
+    'Agents (' + resetAgents.length + ')',
+    'Allotments (' + resetAllotments.length + ')',
+    'Users', 'Settings', 'Tax Settings', 'Expense Categories',
+    'Terms & Conditions', 'Other Services', 'Payment Gateways',
+    'Sales Persons', 'Cancellation Reasons',
+  ];
+
+  console.log(`[DB Reset] Cleared ${totalCleared} transactional records. Preserved:`, preserved);
+  return { cleared: totalCleared, preserved };
 }
 
 export async function loadFromFirestore<T>(collectionName: string, localStorageKey: string): Promise<T[]> {

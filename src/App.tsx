@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, isRecentLocalWrite, getSyncStatus, onSyncStatusChange, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry } from './types';
-import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty } from './lib/storage';
+import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -483,6 +483,30 @@ export default function App() {
 
     // Restore Firebase Auth session and run migration
     if (isFirebaseConfigured) {
+      // One-time strategic database reset (clears transactional data, preserves hotels/config)
+      const runResetIfNeeded = async () => {
+        if (!localStorage.getItem('zumra_db_reset_v1_done')) {
+          try {
+            const result = await strategicDatabaseReset();
+            localStorage.setItem('zumra_db_reset_v1_done', 'true');
+            console.log(`[Migration] DB reset complete: cleared ${result.cleared} records`);
+            // Reload fresh empty states
+            setReservations([]);
+            setTransactions([]);
+            setAccounts([]);
+            setExternalTransfers([]);
+            setFollowUps([]);
+            setExpenses([]);
+            setConsolidatedInvoices([]);
+            setAgents(ZumraDB.getAgents());
+            setAllotments(ZumraDB.getAllotments());
+          } catch (e) {
+            console.error('[Migration] DB reset failed:', e);
+          }
+        }
+      };
+      runResetIfNeeded();
+
       // Initial Firestore data migration (runs once, AFTER auth is confirmed)
       const migrateData = async () => {
         try {
