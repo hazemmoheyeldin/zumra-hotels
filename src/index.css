@@ -407,6 +407,19 @@ html, body, #root {
   overflow: hidden;
 }
 
+/* === TABLE OVERFLOW WRAPPER ===
+   Tables scroll internally without pushing the page width */
+table {
+  table-layout: auto;
+  width: 100%;
+}
+
+.table-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* === RESPONSIVE PAGE CONTAINER ===
    Every page should use this wrapper to guarantee content stays on-screen */
 .page-container {
@@ -452,6 +465,17 @@ html, body, #root {
 
   /* Allow tables to scroll horizontally within their wrappers */
   table {
+    width: 100%;
+  }
+
+  /* Force flex-wrap on all flex containers to prevent overflow */
+  [class*="flex"][class*="gap"] {
+    flex-wrap: wrap;
+  }
+
+  /* Stat cards and widgets must be full-width on mobile */
+  [class*="grid"] > * {
+    min-width: 0;
     width: 100%;
   }
 

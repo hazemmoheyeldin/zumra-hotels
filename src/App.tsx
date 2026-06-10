@@ -2364,8 +2364,10 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-40 md:hidden animate-fade-in" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Desktop sidebar click-outside-to-close (only when expanded) */}
-      {/* Implemented via document-level click listener below */}
+      {/* Desktop sidebar backdrop — dim content behind expanded sidebar */}
+      {!sidebarCollapsed && (
+        <div className="fixed inset-0 bg-black/20 z-40 hidden md:block animate-fade-in" onClick={() => setSidebarCollapsed(true)} />
+      )}
 
       {/* Sidebar Navigation */}
       <aside ref={sidebarRef} style={{ height: '100dvh' }} className={`fixed z-[60] top-0 left-0 ${sidebarCollapsed ? 'w-[72px]' : 'w-56'} flex-shrink-0 ${currentTheme.sidebarBg} flex flex-col no-print border-r ${currentTheme.sidebarBorder} transition-[width,box-shadow] duration-300 ease-in-out shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
@@ -2478,7 +2480,7 @@ export default function App() {
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ minHeight: '100dvh' }} className={`flex-1 flex flex-col min-w-0 w-full transition-[margin-left] duration-300 ease-in-out ${currentTheme.mainBg} ${sidebarCollapsed ? 'md:ml-[72px]' : 'md:ml-56'}`}>
+      <main style={{ minHeight: '100dvh' }} className={`flex-1 flex flex-col min-w-0 w-full ${currentTheme.mainBg}`}>
         
         {/* Top Header Bar */}
         <header className={`${currentTheme.headerBg} border-b ${currentTheme.headerBorder} h-14 flex items-center justify-between px-4 md:px-6 flex-shrink-0 no-print`}>
