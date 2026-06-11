@@ -4,7 +4,7 @@
  */
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
-import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, isFirebaseAuthSignedIn, COLLECTIONS, firestoreClearCollection } from './firebase';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
 
@@ -1066,67 +1066,54 @@ if (typeof window !== 'undefined') {
   }, 15000);
 }
 
-// --- Sync functions (queue-aware) ---
+// --- Direct-to-Cloud Sync Functions ---
 export async function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
-  if (!isFirebaseConfigured || !item) {
-    return;
-  }
-  // Defensive: ensure ID is a string
+  if (!isFirebaseConfigured || !item) return;
   const docId = String(item.id || '');
   if (!docId) {
-    console.warn(`[Sync] Skipped ${collectionName}: missing or invalid id`);
+    console.warn(`[Sync] Skipped ${collectionName}: missing id`);
     return;
   }
-  // If not authenticated or offline, ALWAYS queue — never silently drop
-  if (!isFirebaseAuthSignedIn()) {
-    console.log(`[Sync] Auth not ready — queued ${collectionName}/${docId}`);
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
-    return;
-  }
+  // If offline, queue for later
   if (!isOnline) {
     console.log(`[Sync] Offline — queued ${collectionName}/${docId}`);
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
-    // Sanitize data: remove undefined values and functions that break Firestore SDK
     const sanitized = JSON.parse(JSON.stringify(item));
     await firestoreSave(collectionName, docId, sanitized);
-    console.log(`[Sync] Saved ${collectionName}/${docId} to Firestore`);
+    console.log(`[Sync] ✓ ${collectionName}/${docId}`);
   } catch (err: any) {
+    const errMsg = err?.code || err?.message || String(err);
+    console.error(`[Sync] FAILED ${collectionName}/${docId}:`, errMsg);
     if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
-      console.error(`[Sync] PERMISSION DENIED for ${collectionName}/${docId}: ${err.message}. Check Firestore rules.`);
+      syncErrorCallback?.(collectionName, docId, `Permission denied — check Firestore rules`);
       return;
     }
-    console.error(`[Sync] Failed to save ${collectionName}/${docId}:`, err?.code || err?.message || err);
+    // Queue for retry only on transient errors (network, timeout)
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
+    syncErrorCallback?.(collectionName, docId, `Sync failed — will retry automatically`);
   }
 }
 
 export async function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
   if (!isFirebaseConfigured) return;
   const docId = String(id || '');
-  if (!docId) {
-    console.warn(`[Sync] Skipped delete ${collectionName}: missing id`);
-    return;
-  }
-  if (!isFirebaseAuthSignedIn()) {
-    console.log(`[Sync] Auth not ready — queued delete ${collectionName}/${docId}`);
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
-    return;
-  }
+  if (!docId) return;
   if (!isOnline) {
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
     await firestoreDelete(collectionName, docId);
+    console.log(`[Sync] ✓ Deleted ${collectionName}/${docId}`);
   } catch (err: any) {
-    if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
-      console.error(`[Sync] PERMISSION DENIED for delete ${collectionName}/${docId}`);
-      return;
-    }
+    const errMsg = err?.code || err?.message || String(err);
+    console.error(`[Sync] FAILED delete ${collectionName}/${docId}:`, errMsg);
+    if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') return;
     addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
+    syncErrorCallback?.(collectionName, docId, `Delete failed — will retry`);
   }
 }
 
@@ -1135,21 +1122,17 @@ export function syncCollectionToFirestore(collectionName: string, items: any[]):
   return firestoreBulkSave(collectionName, items);
 }
 
-// Per-collection timestamp tracking to suppress real-time listener echo after local writes
-// This allows OTHER collections to still receive real-time updates during the suppression window
-const collectionWriteTimestamps: { [collection: string]: number } = {};
+// Per-collection timestamp tracking (kept for compatibility, no longer used for suppression)
 let lastWriteTimestamp = 0;
 export function markLocalWrite(collection?: string): void {
   lastWriteTimestamp = Date.now();
-  if (collection) {
-    collectionWriteTimestamps[collection] = Date.now();
-  }
 }
-export function isRecentLocalWrite(collection?: string, windowMs: number = 2000): boolean {
-  if (collection && collectionWriteTimestamps[collection]) {
-    return Date.now() - collectionWriteTimestamps[collection] < windowMs;
-  }
-  return Date.now() - lastWriteTimestamp < windowMs;
+
+// Sync error callback — App.tsx registers a toast handler here
+let syncErrorCallback: ((collection: string, docId: string, error: string) => void) | null = null;
+export function onSyncError(cb: (collection: string, docId: string, error: string) => void): () => void {
+  syncErrorCallback = cb;
+  return () => { syncErrorCallback = null; };
 }
 
 /**
