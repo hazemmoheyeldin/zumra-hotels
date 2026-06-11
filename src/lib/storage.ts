@@ -1004,8 +1004,16 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
 
   for (const item of queue) {
     try {
+      // Validate docId is a string
+      if (!item.docId || typeof item.docId !== 'string') {
+        console.warn(`[Sync] Skipping invalid queue item ${item.collection}/${item.docId}`);
+        removeFromQueue(item.id);
+        continue;
+      }
       if (item.type === 'save' && item.data) {
-        await firestoreSave(item.collection, item.docId, item.data);
+        // Sanitize data to prevent SDK indexOf errors from undefined/non-serializable values
+        const sanitized = JSON.parse(JSON.stringify(item.data));
+        await firestoreSave(item.collection, item.docId, sanitized);
       } else if (item.type === 'delete') {
         await firestoreDelete(item.collection, item.docId);
       }
@@ -1060,52 +1068,65 @@ if (typeof window !== 'undefined') {
 
 // --- Sync functions (queue-aware) ---
 export async function syncItemToFirestore(collectionName: string, item: any): Promise<void> {
-  if (!isFirebaseConfigured || !item?.id) {
-    console.warn(`[Sync] Skipped ${collectionName}/${item?.id}: firebase=${isFirebaseConfigured}, id=${item?.id}`);
+  if (!isFirebaseConfigured || !item) {
+    return;
+  }
+  // Defensive: ensure ID is a string
+  const docId = String(item.id || '');
+  if (!docId) {
+    console.warn(`[Sync] Skipped ${collectionName}: missing or invalid id`);
     return;
   }
   // If not authenticated or offline, ALWAYS queue — never silently drop
   if (!isFirebaseAuthSignedIn()) {
-    console.log(`[Sync] Auth not ready — queued ${collectionName}/${item.id}`);
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
+    console.log(`[Sync] Auth not ready — queued ${collectionName}/${docId}`);
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
     return;
   }
   if (!isOnline) {
-    console.log(`[Sync] Offline — queued ${collectionName}/${item.id}`);
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
+    console.log(`[Sync] Offline — queued ${collectionName}/${docId}`);
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
-    await firestoreSave(collectionName, item.id, item);
-    console.log(`[Sync] Saved ${collectionName}/${item.id} to Firestore`);
+    // Sanitize data: remove undefined values and functions that break Firestore SDK
+    const sanitized = JSON.parse(JSON.stringify(item));
+    await firestoreSave(collectionName, docId, sanitized);
+    console.log(`[Sync] Saved ${collectionName}/${docId} to Firestore`);
   } catch (err: any) {
     if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
-      console.error(`[Sync] PERMISSION DENIED for ${collectionName}/${item.id}: ${err.message}. Check Firestore rules.`);
-      return; // Don't retry permission errors — they won't succeed
+      console.error(`[Sync] PERMISSION DENIED for ${collectionName}/${docId}: ${err.message}. Check Firestore rules.`);
+      return;
     }
-    console.error(`[Sync] Failed to save ${collectionName}/${item.id}:`, err?.code || err?.message || err);
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId: item.id, data: item, timestamp: Date.now(), retries: 0 });
+    console.error(`[Sync] Failed to save ${collectionName}/${docId}:`, err?.code || err?.message || err);
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'save', collection: collectionName, docId, data: item, timestamp: Date.now(), retries: 0 });
   }
 }
 
 export async function syncDeleteToFirestore(collectionName: string, id: string): Promise<void> {
   if (!isFirebaseConfigured) return;
+  const docId = String(id || '');
+  if (!docId) {
+    console.warn(`[Sync] Skipped delete ${collectionName}: missing id`);
+    return;
+  }
   if (!isFirebaseAuthSignedIn()) {
-    console.warn(`[Sync] Skipped delete ${collectionName}/${id}: not authenticated`);
+    console.log(`[Sync] Auth not ready — queued delete ${collectionName}/${docId}`);
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
     return;
   }
   if (!isOnline) {
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
     return;
   }
   try {
-    await firestoreDelete(collectionName, id);
+    await firestoreDelete(collectionName, docId);
   } catch (err: any) {
     if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') {
-      console.error(`[Sync] PERMISSION DENIED for delete ${collectionName}/${id}`);
+      console.error(`[Sync] PERMISSION DENIED for delete ${collectionName}/${docId}`);
       return;
     }
-    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId: id, timestamp: Date.now(), retries: 0 });
+    addToQueue({ id: `q_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, type: 'delete', collection: collectionName, docId, timestamp: Date.now(), retries: 0 });
   }
 }
 

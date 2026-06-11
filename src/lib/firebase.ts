@@ -357,6 +357,11 @@ export async function firestoreSave(collectionName: string, id: string, data: an
     console.warn(`[Firebase] firestoreSave: db is null, skipping ${collectionName}/${id}`);
     return;
   }
+  // Ensure id is a valid string — prevents SDK internal indexOf errors
+  if (!id || typeof id !== 'string') {
+    console.error(`[Firebase] firestoreSave: invalid doc id for ${collectionName}:`, id);
+    return;
+  }
   const timeoutMs = 8000;
   try {
     const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
