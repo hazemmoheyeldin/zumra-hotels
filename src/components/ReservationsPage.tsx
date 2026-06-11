@@ -327,6 +327,7 @@ export default function ReservationsPage({
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
+  const [isSupplierLocked, setIsSupplierLocked] = useState<boolean>(false); // Locked when allotment is Direct inventory
 
   // Rooms breakdown block
   const [rooms, setRooms] = useState<RoomSelection[]>([
@@ -376,11 +377,21 @@ export default function ReservationsPage({
 
   const handleSelectAllotment = (allotmentId: string) => {
     setSelectedAllotmentId(allotmentId);
-    if (!allotmentId) return;
+    if (!allotmentId) {
+      setIsSupplierLocked(false);
+      return;
+    }
     const a = allotments.find(al => al.id === allotmentId);
     if (a) {
       setHotelId(a.hotelId);
-      setSupplierId(a.supplierId);
+      // If allotment is Direct inventory, lock supplier to DIRECT
+      if (a.inventorySource === 'Direct') {
+        setSupplierId('DIRECT');
+        setIsSupplierLocked(true);
+      } else {
+        setSupplierId(a.supplierId);
+        setIsSupplierLocked(false);
+      }
       const hotel = hotels.find(h => h.id === a.hotelId);
       if (hotel) {
         // Find applicable rate period
@@ -535,6 +546,7 @@ export default function ReservationsPage({
     setEditingId(res.id.toString());
     setClientId(res.clientId);
     setSupplierId(res.supplierId);
+    setIsSupplierLocked(false); // Always unlock when editing directly
     setHotelId(res.hotelId);
     setCheckIn(res.checkIn);
     setCheckOut(res.checkOut);
@@ -1021,6 +1033,7 @@ export default function ReservationsPage({
     setSupplierVoucher('');
     setCancellationFee(0);
     setSelectedAllotmentId('');
+    setIsSupplierLocked(false);
     setCancellationReason('');
     setClientCreditDisposition('N/A');
     setSupplierCreditDisposition('N/A');
@@ -1938,12 +1951,16 @@ export default function ReservationsPage({
                   }))}
                   topOptions={[{ id: 'DIRECT', label: '🏨 Direct from Hotel (no supplier)', badge: 'DIRECT' }]}
                   value={supplierId || null}
-                  onChange={(id) => setSupplierId(id || '')}
-                  placeholder="Enter Suppliers name"
+                  onChange={(id) => { if (!isSupplierLocked) setSupplierId(id || ''); }}
+                  placeholder={isSupplierLocked ? 'Locked: Direct inventory' : 'Enter Suppliers name'}
                   required
-                  clearable
+                  clearable={!isSupplierLocked}
+                  disabled={isSupplierLocked}
                 />
-                {supplierId === 'DIRECT' && hotelId && (
+                {isSupplierLocked && (
+                  <p className="text-[9px] text-indigo-700 font-bold mt-1 bg-indigo-50 px-2 py-1 rounded">🔒 Supplier locked: Direct inventory from allotment</p>
+                )}
+                {supplierId === 'DIRECT' && !isSupplierLocked && hotelId && (
                   <p className="text-[9px] text-amber-700 font-bold mt-1 bg-amber-50 px-2 py-1 rounded">🏨 Booking directly from: {hotels.find(h => h.id === hotelId)?.name}</p>
                 )}
               </div>
@@ -2049,8 +2066,14 @@ export default function ReservationsPage({
                 const totalBuy = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'buy'), 0);
                 const totalSell = rooms.reduce((s, rm) => s + roomFullTotal(rm, 'sell'), 0);
                 const commissionAmount = salesPersonId && spCommissionRate > 0 ? Math.round(spCommissionRate * totalRooms * calculateNightsCount()) : 0;
+                // Supplier commission: markup % on buy price (only for third-party suppliers)
+                const supplierCommission = (() => {
+                  if (!supplierId || supplierId === 'DIRECT') return 0;
+                  const sup = agents.find(a => a.id === supplierId);
+                  return sup?.supplierMarkupRate ? Math.round((totalBuy * sup.supplierMarkupRate!) / 100) : 0;
+                })();
                 const totalProfit = totalSell - totalBuy;
-                const netProfit = totalProfit - commissionAmount;
+                const netProfit = totalProfit - commissionAmount - supplierCommission;
                 const marginPercent = totalSell > 0 ? ((netProfit) / totalSell * 100) : 0;
                 const marginThreshold = loadMarginThreshold();
                 const marginColor = marginPercent >= marginThreshold ? 'text-emerald-600' : marginPercent >= 5 ? 'text-amber-600' : 'text-rose-600';
@@ -2082,10 +2105,13 @@ export default function ReservationsPage({
                       <span className="text-emerald-600">Sell: <span className="font-mono">{totalSell.toLocaleString()}</span></span>
                       <span className={totalProfit >= 0 ? 'text-amber-700' : 'text-rose-600'}>Gross: <span className="font-mono font-extrabold">{totalProfit.toLocaleString()}</span></span>
                       {commissionAmount > 0 && (
-                        <>
-                          <span className="text-purple-600">Commission ({spCommissionRate} SAR/room/night): <span className="font-mono font-bold">-{commissionAmount.toLocaleString()}</span></span>
-                          <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}>Net Profit: <span className="font-mono font-black">{netProfit.toLocaleString()}</span></span>
-                        </>
+                        <span className="text-purple-600">SP Commission ({spCommissionRate} SAR/rm/nt): <span className="font-mono font-bold">-{commissionAmount.toLocaleString()}</span></span>
+                      )}
+                      {supplierCommission > 0 && (
+                        <span className="text-orange-600">Supplier Commission: <span className="font-mono font-bold">-{supplierCommission.toLocaleString()}</span></span>
+                      )}
+                      {(commissionAmount > 0 || supplierCommission > 0) && (
+                        <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}>Net Profit: <span className="font-mono font-black">{netProfit.toLocaleString()}</span></span>
                       )}
                       <span className={marginColor}>Margin: <span className="font-mono font-extrabold">{marginPercent.toFixed(1)}%</span></span>
                     </div>

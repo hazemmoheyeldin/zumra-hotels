@@ -2301,7 +2301,7 @@ export default function App() {
   useEffect(() => {
     const unsubStatus = onSyncStatusChange(setSyncStatus);
     const unsubError = onSyncError((collection, docId, error) => {
-      toast.error(`Sync error: ${collection}/${docId} — ${error}`, { duration: 5000 });
+      toast.error(`Sync error: ${collection}/${docId} — ${error}`);
     });
     setSyncStatus(getSyncStatus());
     return () => { unsubStatus(); unsubError(); };

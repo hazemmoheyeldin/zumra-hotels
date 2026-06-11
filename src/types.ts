@@ -103,6 +103,7 @@ export interface Allotment {
   hotelId: string;
   roomType: string;
   supplierId: string;
+  inventorySource?: 'Direct' | 'ThirdParty'; // Track whether rooms are our own or from a third-party supplier
   startDate: string;
   endDate: string;
   totalRooms: number;

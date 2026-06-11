@@ -45,6 +45,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
   // Form States
   const [hotelId, setHotelId] = useState(hotels[0]?.id || '');
   const [roomType, setRoomType] = useState('');
+  const [inventorySource, setInventorySource] = useState<'Direct' | 'ThirdParty'>('ThirdParty');
   const [supplierId, setSupplierId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -62,6 +63,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
   // Filters
   const [filterHotel, setFilterHotel] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterInventorySource, setFilterInventorySource] = useState<'All' | 'Direct' | 'ThirdParty'>('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
 
@@ -91,10 +93,11 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     return migratedAllotments.filter(a => {
       const hotelMatch = !filterHotel || a.hotelId === filterHotel;
       const supplierMatch = !filterSupplier || a.supplierId === filterSupplier;
+      const sourceMatch = filterInventorySource === 'All' || a.inventorySource === filterInventorySource || (!a.inventorySource && filterInventorySource === 'ThirdParty');
       const dateMatch = (!filterDateFrom || a.endDate >= filterDateFrom) && (!filterDateTo || a.startDate <= filterDateTo);
-      return hotelMatch && supplierMatch && dateMatch;
+      return hotelMatch && supplierMatch && sourceMatch && dateMatch;
     });
-  }, [migratedAllotments, filterHotel, filterSupplier, filterDateFrom, filterDateTo]);
+  }, [migratedAllotments, filterHotel, filterSupplier, filterInventorySource, filterDateFrom, filterDateTo]);
 
   // Compute visible date columns
   const visibleDates = useMemo(() => {
@@ -135,7 +138,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hotelId || !roomType || !supplierId || !startDate || !endDate) {
+    if (!hotelId || !roomType || (inventorySource === 'ThirdParty' && !supplierId) || !startDate || !endDate) {
       showToast('Please fill out all allocation specifications.', 'warning');
       return;
     }
@@ -162,7 +165,8 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
       id: editingId || `al_${Date.now()}`,
       hotelId,
       roomType,
-      supplierId,
+      supplierId: inventorySource === 'Direct' ? '' : supplierId,
+      inventorySource,
       startDate,
       endDate,
       totalRooms,
@@ -182,6 +186,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
     setEditingId(null);
     setHotelId(hotels[0]?.id || '');
     setRoomType('');
+    setInventorySource('ThirdParty');
     setSupplierId('');
     setStartDate('');
     setEndDate('');
@@ -201,7 +206,7 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
   };
 
   const clearFilters = () => {
-    setFilterHotel(''); setFilterSupplier(''); setFilterDateFrom(''); setFilterDateTo('');
+    setFilterHotel(''); setFilterSupplier(''); setFilterInventorySource('All'); setFilterDateFrom(''); setFilterDateTo('');
   };
 
   return (
@@ -254,11 +259,19 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                 </select>
               </div>
               <div>
+                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Inventory Source</label>
+                <select value={inventorySource} onChange={e => { setInventorySource(e.target.value as 'Direct' | 'ThirdParty'); if (e.target.value === 'Direct') setSupplierId(''); }} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+                  <option value="ThirdParty">Third-Party Supplier</option>
+                  <option value="Direct">Direct from Hotel</option>
+                </select>
+              </div>
+              <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Room Type</label>
                 <select value={roomType} onChange={e => setRoomType(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
                   {selectedHotel?.roomTypes.map((t, i) => <option key={i} value={t}>{t}</option>)}
                 </select>
               </div>
+              {inventorySource === 'ThirdParty' && (
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Supplier</label>
                 <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
@@ -266,6 +279,13 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
+              )}
+              {inventorySource === 'Direct' && (
+              <div>
+                <label className="text-[10px] uppercase font-bold text-emerald-600 block mb-1">Inventory Source</label>
+                <div className="w-full px-3 py-1.5 border border-emerald-200 rounded-lg text-xs bg-emerald-50 text-emerald-800 font-bold">Direct from Hotel (no supplier)</div>
+              </div>
+              )}
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Rooms Per Day</label>
                 <input type="number" value={totalRooms} onChange={e => setTotalRooms(Number(e.target.value))} className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs" min={1} required />
@@ -398,9 +418,14 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                 <option value="">All Suppliers</option>
                 {suppliers.map(s => <option key={s.id} value={s.id}>{s.companyName || s.name}</option>)}
               </select>
+              <select value={filterInventorySource} onChange={e => setFilterInventorySource(e.target.value as any)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs">
+                <option value="All">All Sources</option>
+                <option value="Direct">Direct from Hotel</option>
+                <option value="ThirdParty">Third-Party Supplier</option>
+              </select>
               <input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
               <input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs" />
-              {(filterHotel || filterSupplier || filterDateFrom || filterDateTo) && (
+              {(filterHotel || filterSupplier || filterInventorySource !== 'All' || filterDateFrom || filterDateTo) && (
                 <button onClick={clearFilters} className="text-[10px] text-rose-600 font-bold hover:text-rose-700">✕ Clear</button>
               )}
               <div className="ml-auto text-[10px] text-slate-400 font-mono">{filteredAllotments.length} blocks</div>
@@ -437,7 +462,13 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                         <tr key={allot.id} className="hover:bg-slate-50/30">
                           <td className="py-2 px-2 border-r border-slate-200">
                             <div className="font-bold text-slate-800">{hotel?.name || 'Unknown'}</div>
-                            <div className="text-[9px] text-slate-400">{allot.roomType} · {suppl?.companyName || suppl?.name || 'Direct'}</div>
+                            <div className="text-[9px] text-slate-400">
+                              {allot.roomType} · {allot.inventorySource === 'Direct' ? (
+                                <span className="text-emerald-600 font-bold">Direct from Hotel</span>
+                              ) : (
+                                suppl?.companyName || suppl?.name || 'Direct'
+                              )}
+                            </div>
                             {allot.ratePeriods && allot.ratePeriods.length > 0 && (
                               <div className="text-[8px] text-amber-600 font-mono mt-0.5">
                                 {allot.ratePeriods.length === 1
@@ -468,7 +499,8 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
                                 setEditingId(allot.id);
                                 setHotelId(allot.hotelId);
                                 setRoomType(allot.roomType);
-                                setSupplierId(allot.supplierId);
+                                setInventorySource(allot.inventorySource || 'ThirdParty');
+                                setSupplierId(allot.supplierId || '');
                                 setStartDate(allot.startDate);
                                 setEndDate(allot.endDate);
                                 setTotalRooms(allot.totalRooms);

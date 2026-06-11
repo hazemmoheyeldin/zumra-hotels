@@ -28,7 +28,7 @@ interface ReportsPageProps {
   onSaveReservation?: (res: Reservation) => void;
 }
 
-type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'commission' | 'seasonAnalytics' | 'supplierPayments' | 'cancellationAnalysis' | 'supplierScorecard' | 'accountingExport' | 'clientLifetimeValue';
+type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'financialAudit' | 'commission' | 'seasonAnalytics' | 'supplierPayments' | 'cancellationAnalysis' | 'supplierScorecard' | 'accountingExport' | 'clientLifetimeValue';
 
 export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate, onSaveReservation }: ReportsPageProps) {
   const { t, lang } = useLang();
@@ -343,6 +343,14 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               }`}
             >
               🔄 Reconciliation
+            </button>
+            <button
+              onClick={() => setActiveReportTab('financialAudit')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'financialAudit' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🏛️ Financial Audit
             </button>
           </div>
           {/* Analytics & Commission */}
@@ -777,17 +785,18 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           const totalLiabilities = accountsPayable + clientCredits;
 
           // Equity
-          let totalRevenue = 0, totalCost = 0;
+          let totalRevenue = 0, totalCost = 0, totalCommissions = 0;
           reservations.filter(r => r.status !== 'Cancelled').forEach(r => {
             const t = getReservationTotals(r);
             totalRevenue += t.totalSell;
             totalCost += t.totalBuy;
+            totalCommissions += t.totalCommission;
           });
           otherServices.filter(s => s.status !== 'Cancelled').forEach(s => {
             totalRevenue += s.sellPrice * s.quantity;
             totalCost += s.buyPrice * s.quantity;
           });
-          const retainedEarnings = totalRevenue - totalCost;
+          const retainedEarnings = totalRevenue - totalCost - totalCommissions;
           const totalExpensesAmount = expenses.reduce((s, e) => s + e.amount, 0);
           const totalEquity = retainedEarnings - totalExpensesAmount;
 
@@ -822,7 +831,11 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/30">
                   <h4 className="font-bold text-indigo-800 text-sm mb-3 uppercase">Equity</h4>
                   <div className="space-y-2 text-xs">
-                    <div className="flex justify-between"><span>Retained Earnings</span><span className="font-mono font-bold">{retainedEarnings.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
+                    <div className="flex justify-between"><span>Gross Retained Earnings</span><span className="font-mono font-bold">{(retainedEarnings + totalCommissions).toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
+                    {totalCommissions > 0 && (
+                      <div className="flex justify-between text-purple-600"><span>Less: Commissions</span><span className="font-mono font-bold">({totalCommissions.toLocaleString('en-US', {minimumFractionDigits:2})})</span></div>
+                    )}
+                    <div className="flex justify-between font-semibold"><span>Net Retained Earnings</span><span className="font-mono font-bold">{retainedEarnings.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
                     {totalExpensesAmount > 0 && (
                       <div className="flex justify-between text-rose-600"><span>Less: Expenses</span><span className="font-mono font-bold">({totalExpensesAmount.toLocaleString('en-US', {minimumFractionDigits:2})})</span></div>
                     )}
@@ -848,8 +861,8 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           const periodServices = otherServices.filter(s => s.status !== 'Cancelled' && s.date >= fromDate && s.date <= toDate);
           const cancelledRes = reservations.filter(r => r.status === 'Cancelled' && r.createdAt >= fromDate && r.createdAt <= toDate);
 
-          let resSell = 0, resBuy = 0;
-          periodReservations.forEach(r => { const t = getReservationTotals(r); resSell += t.totalSell; resBuy += t.totalBuy; });
+          let resSell = 0, resBuy = 0, resCommissions = 0;
+          periodReservations.forEach(r => { const t = getReservationTotals(r); resSell += t.totalSell; resBuy += t.totalBuy; resCommissions += t.totalCommission; });
           let svcSell = 0, svcBuy = 0;
           periodServices.forEach(s => { svcSell += s.sellPrice * s.quantity; svcBuy += s.buyPrice * s.quantity; });
 
@@ -862,7 +875,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           expenses.filter(e => e.date >= fromDate && e.date <= toDate).forEach(e => {
             expensesByCategory[e.category] = (expensesByCategory[e.category] || 0) + e.amount;
           });
-          const netProfit = grossProfit + cancelImpact - totalExpensesForPeriod;
+          const netProfit = grossProfit - resCommissions + cancelImpact - totalExpensesForPeriod;
 
           return (
             <div className="space-y-4">
@@ -881,6 +894,10 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     <tr className="bg-rose-50 font-bold"><td className="px-4 py-3 pl-8">Total COGS</td><td className="px-4 py-3 text-right font-mono text-rose-800">{totalCOGS.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
 
                     <tr className="bg-indigo-50 font-bold text-base"><td className="px-4 py-3">Gross Profit</td><td className={`px-4 py-3 text-right font-mono ${grossProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{grossProfit.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
+
+                    {resCommissions > 0 && (
+                      <tr className="border-b"><td className="px-4 py-2 text-purple-600">Commissions (Sales + Supplier)</td><td className="px-4 py-2 text-right font-mono text-purple-700">({resCommissions.toLocaleString('en-US', {minimumFractionDigits:2})})</td></tr>
+                    )}
 
                     <tr className="border-b"><td className="px-4 py-2 text-slate-600">Cancellation Fees</td><td className="px-4 py-2 text-right font-mono text-amber-700">{cancelImpact.toLocaleString('en-US', {minimumFractionDigits:2})}</td></tr>
 
@@ -1281,6 +1298,230 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 </tbody>
               </table>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== FINANCIAL AUDIT REPORT ==================== */}
+      {activeReportTab === 'financialAudit' && (() => {
+        const getAgentLabel = (id: string) => {
+          const a = agents.find(ag => ag.id === id);
+          return a ? (a.companyName || a.name) : 'Unknown';
+        };
+        const getAccountLabel = (id: string) => {
+          const acc = accounts.find(a => a.id === id);
+          return acc ? acc.name : 'Unmapped';
+        };
+
+        // Group transactions by bank account
+        const accountGroups: Record<string, { account: typeof accounts[0] | null; transactions: typeof transactions; totalIn: number; totalOut: number }> = {};
+
+        // Initialize all bank/cash accounts
+        accounts.forEach(acc => {
+          accountGroups[acc.id] = { account: acc, transactions: [], totalIn: 0, totalOut: 0 };
+        });
+
+        // Add unmapped bucket
+        accountGroups['__unmapped__'] = { account: null, transactions: [], totalIn: 0, totalOut: 0 };
+
+        // Distribute transactions
+        transactions.forEach(tr => {
+          const accId = tr.fromAccountId || '__unmapped__';
+          if (!accountGroups[accId]) {
+            accountGroups[accId] = { account: null, transactions: [], totalIn: 0, totalOut: 0 };
+          }
+          accountGroups[accId].transactions.push(tr);
+          const isInflow = tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied';
+          if (isInflow) accountGroups[accId].totalIn += tr.amount;
+          else accountGroups[accId].totalOut += tr.amount;
+        });
+
+        // Filter to accounts with activity
+        const activeAccounts = Object.entries(accountGroups).filter(([, g]) => g.transactions.length > 0);
+
+        // Unmapped bookings: reservations with no linked transactions
+        const mappedResIds = new Set(transactions.filter(t => t.reservationId).map(t => t.reservationId!));
+        const unmappedBookings = reservations.filter(r => r.status !== 'Cancelled' && !mappedResIds.has(r.id.toString()));
+
+        // Grand totals
+        const grandIn = Object.values(accountGroups).reduce((s, g) => s + g.totalIn, 0);
+        const grandOut = Object.values(accountGroups).reduce((s, g) => s + g.totalOut, 0);
+
+        const handleExportAudit = () => {
+          const rows: any[] = [];
+          activeAccounts.forEach(([accId, group]) => {
+            group.transactions.forEach(tr => {
+              const linkedRes = tr.reservationId ? reservations.find(r => r.id.toString() === tr.reservationId) : null;
+              rows.push({
+                'Bank Account': getAccountLabel(accId),
+                'Date': tr.date,
+                'Doc #': tr.docNo || '',
+                'Voucher': tr.voucherNo || '',
+                'Type': tr.type,
+                'Agent': getAgentLabel(tr.agentId || ''),
+                'Reservation': linkedRes ? `RSV-${linkedRes.id} (${linkedRes.guestName})` : '',
+                'Amount (SAR)': tr.amount,
+                'Direction': (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied') ? 'Inflow' : 'Outflow',
+                'Method': tr.paymentMethod,
+                'Description': tr.description || ''
+              });
+            });
+          });
+          exportToCSV(`financial-audit-${new Date().toISOString().split('T')[0]}.csv`, rows);
+          showToast('Financial audit exported successfully', 'success');
+        };
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-800 uppercase text-xs">Financial Audit Report</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Bank account reconciliation with transaction-level traceability</p>
+              </div>
+              <button onClick={handleExportAudit} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700">Export CSV</button>
+            </div>
+
+            {/* KPI Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-emerald-800">{grandIn.toLocaleString()}</div>
+                <div className="text-[10px] text-emerald-600">Total Inflow (SAR)</div>
+              </div>
+              <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-rose-800">{grandOut.toLocaleString()}</div>
+                <div className="text-[10px] text-rose-600">Total Outflow (SAR)</div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                <div className="text-lg font-bold text-amber-800">{(grandIn - grandOut).toLocaleString()}</div>
+                <div className="text-[10px] text-amber-600">Net Cash Flow (SAR)</div>
+              </div>
+              <div className={unmappedBookings.length > 0 ? 'bg-orange-50 border border-orange-200' : 'bg-emerald-50 border border-emerald-200'}>
+                <div className="rounded-xl p-3 text-center">
+                  <div className={`text-lg font-bold ${unmappedBookings.length > 0 ? 'text-orange-800' : 'text-emerald-800'}`}>{unmappedBookings.length}</div>
+                  <div className="text-[10px]">{unmappedBookings.length > 0 ? 'Unmapped Bookings' : 'All Bookings Mapped'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Per-Account Detail */}
+            {activeAccounts.map(([accId, group]) => (
+              <div key={accId} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">{group.account ? group.account.name : 'Unmapped Transactions'}</h4>
+                    {group.account && (
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        {group.account.type} {group.account.accountNumber ? `(#${group.account.accountNumber})` : ''} {group.account.currency ? `- ${group.account.currency}` : ''}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-[10px] font-mono">
+                    <span className="text-emerald-700">In: +{group.totalIn.toLocaleString()}</span>
+                    <span className="text-rose-600">Out: -{group.totalOut.toLocaleString()}</span>
+                    <span className={`font-bold ${(group.totalIn - group.totalOut) >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      Net: {(group.totalIn - group.totalOut).toLocaleString()}
+                    </span>
+                    {group.account && (
+                      <span className="text-slate-600">System Bal: {group.account.balance.toLocaleString()}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50/50">
+                      <tr className="text-[9px] uppercase text-slate-500 font-bold">
+                        <th className="px-3 py-2 text-left">Date</th>
+                        <th className="px-3 py-2 text-left">Doc#</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-left">Agent</th>
+                        <th className="px-3 py-2 text-left">Linked Booking</th>
+                        <th className="px-3 py-2 text-left">Method</th>
+                        <th className="px-3 py-2 text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {group.transactions.sort((a, b) => a.date.localeCompare(b.date)).map(tr => {
+                        const linkedRes = tr.reservationId ? reservations.find(r => r.id.toString() === tr.reservationId) : null;
+                        const isInflow = tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied';
+                        return (
+                          <tr key={tr.id} className="hover:bg-slate-50">
+                            <td className="px-3 py-1.5 font-mono text-slate-600">{tr.date}</td>
+                            <td className="px-3 py-1.5 font-mono font-bold text-indigo-700">{tr.docNo || '—'}</td>
+                            <td className="px-3 py-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                tr.type === 'ClientPayment' ? 'bg-emerald-50 text-emerald-700' :
+                                tr.type === 'SupplierPayment' ? 'bg-rose-50 text-rose-700' :
+                                tr.type === 'ClientRefund' ? 'bg-orange-50 text-orange-700' :
+                                'bg-slate-50 text-slate-600'
+                              }`}>{tr.type.replace(/([A-Z])/g, ' $1').trim()}</span>
+                            </td>
+                            <td className="px-3 py-1.5 font-medium text-slate-800">{getAgentLabel(tr.agentId || '')}</td>
+                            <td className="px-3 py-1.5">
+                              {linkedRes ? (
+                                <span className="text-indigo-600 font-bold">RSV-{linkedRes.id} <span className="text-slate-400 font-normal">({linkedRes.guestName})</span></span>
+                              ) : (
+                                <span className="text-slate-400 italic">Standalone</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                                tr.paymentMethod === 'Cash' ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
+                              }`}>{tr.paymentMethod}</span>
+                            </td>
+                            <td className={`px-3 py-1.5 text-right font-mono font-bold ${isInflow ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {isInflow ? '+' : '-'}{tr.amount.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            {/* Unmapped Bookings Warning */}
+            {unmappedBookings.length > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <h4 className="font-bold text-orange-800 text-sm mb-2">⚠️ Bookings Without Linked Transactions ({unmappedBookings.length})</h4>
+                <p className="text-[10px] text-orange-600 mb-3">These reservations have no recorded payment transactions. Verify if payments were processed outside the system.</p>
+                <div className="overflow-x-auto max-h-48">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[9px] uppercase text-orange-600 font-bold border-b border-orange-200">
+                        <th className="px-2 py-1 text-left">RSV#</th>
+                        <th className="px-2 py-1 text-left">Guest</th>
+                        <th className="px-2 py-1 text-left">Client</th>
+                        <th className="px-2 py-1 text-left">Check-In</th>
+                        <th className="px-2 py-1 text-right">Total Sell</th>
+                        <th className="px-2 py-1 text-right">Paid</th>
+                        <th className="px-2 py-1 text-right">Outstanding</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-orange-100">
+                      {unmappedBookings.slice(0, 20).map(r => {
+                        const totals = getReservationTotals(r);
+                        const outstanding = totals.totalSell - (r.amountPaidByClient || 0);
+                        return (
+                          <tr key={r.id} className="hover:bg-orange-100/50">
+                            <td className="px-2 py-1 font-mono font-bold text-indigo-700">{r.id}</td>
+                            <td className="px-2 py-1 font-medium">{r.guestName}</td>
+                            <td className="px-2 py-1">{getAgentLabel(r.clientId)}</td>
+                            <td className="px-2 py-1 font-mono">{r.checkIn}</td>
+                            <td className="px-2 py-1 text-right font-mono">{totals.totalSell.toLocaleString()}</td>
+                            <td className="px-2 py-1 text-right font-mono text-emerald-700">{(r.amountPaidByClient || 0).toLocaleString()}</td>
+                            <td className="px-2 py-1 text-right font-mono font-bold text-rose-600">{outstanding.toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {unmappedBookings.length > 20 && (
+                    <p className="text-[10px] text-orange-500 text-center mt-2">...and {unmappedBookings.length - 20} more</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}

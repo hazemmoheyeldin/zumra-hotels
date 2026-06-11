@@ -765,7 +765,7 @@ export function getReservationTotals(res: Reservation) {
   });
 
   const grossProfit = safeSubtract(totalSell, totalBuy);
-  const totalCommission = res.salesPersonCommissionAmount || 0;
+  const totalCommission = (res.salesPersonCommissionAmount || 0) + (res.supplierCommissionAmount || 0);
   const netProfit = safeSubtract(grossProfit, totalCommission);
   const profit = grossProfit; // Backward-compatible alias
   const markupPct = totalBuy > 0 ? round2((grossProfit / totalBuy) * 100) : 0;
