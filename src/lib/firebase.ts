@@ -113,11 +113,10 @@ const ALLOWED_DOMAINS: string[] = [
 
 // Authorized hosting domains (app deployment domains)
 export const AUTHORIZED_HOSTING_DOMAINS: string[] = [
-  'zumrahotels-rms.web.app',
-  'rms-zumrahotel.web.app',
-  'rms.zumrahotels.com',
-  'zumrahotels-rms.firebaseapp.com',
-  'localhost',
+  'zumrahotels-rms.web.app',          // Firebase Hosting (primary)
+  'rms.zumrahotels.com',               // Vercel production domain
+  'zumrahotels-rms.firebaseapp.com',   // Firebase default domain
+  'localhost',                         // Local development
 ];
 
 /**

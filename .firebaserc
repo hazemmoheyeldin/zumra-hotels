@@ -5,8 +5,7 @@
   "targets": {
     "zumrahotels-rms": {
       "hosting": {
-        "primary": ["zumrahotels-rms"],
-        "custom": ["rms-zumrahotel"]
+        "primary": ["zumrahotels-rms"]
       }
     }
   }
