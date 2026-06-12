@@ -10,20 +10,21 @@ import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, 
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  updatePassword, EmailAuthProvider, reauthenticateWithCredential,
   signOut as fbSignOut, onAuthStateChanged as fbOnAuthStateChanged,
   GoogleAuthProvider, signInWithPopup,
   User as FBUser
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDHkLzahkk0ZKckDqmS0AZNnoLqgRFEQ4A",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "zumrahotels-rms.firebaseapp.com",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "https://zumrahotels-rms-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "zumrahotels-rms",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "zumrahotels-rms.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "845381748480",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:845381748480:web:6b7c2ee8dc0c85cd4855e5",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-7GWFX3PRSM",
+  apiKey: "AIzaSyDHkLzahkk0ZKckDqmS0AZNnoLqgRFEQ4A",
+  authDomain: "zumrahotels-rms.firebaseapp.com",
+  databaseURL: "https://zumrahotels-rms-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "zumrahotels-rms",
+  storageBucket: "zumrahotels-rms.firebasestorage.app",
+  messagingSenderId: "845381748480",
+  appId: "1:845381748480:web:6b7c2ee8dc0c85cd4855e5",
+  measurementId: "G-7GWFX3PRSM",
 };
 
 // Check if Firebase is configured
@@ -254,6 +255,31 @@ export async function firebaseSignIn(email: string, password: string): Promise<b
     return true;
   } catch (err: any) {
     console.warn(`[Firebase Auth] Sign in failed for ${email}:`, err?.code || err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Update the currently authenticated user's Firebase Auth password.
+ * Re-authenticates first (required by Firebase for sensitive operations),
+ * then updates the password. Returns true on success.
+ */
+export async function firebaseUpdatePassword(email: string, oldPassword: string, newPassword: string): Promise<boolean> {
+  if (!auth || !auth.currentUser) {
+    console.warn('[Firebase Auth] Cannot update password: no authenticated user');
+    return false;
+  }
+  await authReadyPromise;
+  try {
+    // Re-authenticate (Firebase requires recent login for password changes)
+    const credential = EmailAuthProvider.credential(email, oldPassword);
+    await reauthenticateWithCredential(auth.currentUser, credential);
+    // Update password
+    await updatePassword(auth.currentUser, newPassword);
+    console.log(`[Firebase Auth] Password updated for ${email}`);
+    return true;
+  } catch (err: any) {
+    console.warn(`[Firebase Auth] Password update failed for ${email}:`, err?.code || err?.message || err);
     return false;
   }
 }

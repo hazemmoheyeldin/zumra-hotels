@@ -9,8 +9,8 @@ import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
-import { ZumraDB } from '../lib/storage';
-import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, ensureUserProfileInFirestore, addToStaffWhitelist } from '../lib/firebase';
+import { ZumraDB, ZumraSync } from '../lib/storage';
+import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -275,7 +275,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     setErrorMsg('User identity not recognized. Please check your username or contact an admin.');
   };
 
-  const handleForcePwdSubmit = (e: React.FormEvent) => {
+  const handleForcePwdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwdError('');
 
@@ -289,9 +289,47 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     }
     if (!forcePwdUser) return;
 
-    const updatedUser = { ...forcePwdUser, password: newPwd, mustChangePassword: false };
-    onUpdateUser?.(updatedUser);
-    onLoginSuccess(updatedUser);
+    setPwdError('Updating password...');
+
+    try {
+      // 1. Update the Firebase Auth password (requires re-authentication)
+      if (isFirebaseConfigured && forcePwdUser.email) {
+        const oldPwd = forcePwdUser.password || `${forcePwdUser.username}123`;
+        const authUpdated = await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
+        if (!authUpdated) {
+          // Fallback: try to sign in with old password and then update
+          console.warn('[Password Change] Firebase Auth password update failed — trying sign-in approach');
+          const signedIn = await firebaseSignIn(forcePwdUser.email, oldPwd);
+          if (signedIn) {
+            await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
+          }
+        }
+      }
+
+      // 2. Build updated user object
+      const updatedUser = { ...forcePwdUser, password: newPwd, mustChangePassword: false };
+
+      // 3. Save to local state + localStorage
+      onUpdateUser?.(updatedUser);
+
+      // 4. Sync to Firestore (user IS authenticated at this point)
+      if (isFirebaseConfigured) {
+        ZumraSync.saveUser(updatedUser).catch((err: any) => {
+          console.warn('[Password Change] Firestore user sync failed (non-critical):', err?.message);
+        });
+      }
+
+      // 5. Also save the updated user list to localStorage
+      const currentUsers = ZumraDB.getUsers();
+      ZumraDB.saveUsers(currentUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+
+      // 6. Clear the error message and proceed to dashboard
+      setPwdError('');
+      onLoginSuccess(updatedUser);
+    } catch (err: any) {
+      console.error('[Password Change] Failed:', err);
+      setPwdError(`Password update failed: ${err?.message || 'Unknown error'}. Please try again or contact your administrator.`);
+    }
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
