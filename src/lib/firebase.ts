@@ -406,21 +406,38 @@ export async function firestoreSave(collectionName: string, id: string, data: an
     );
     await Promise.race([savePromise, timeoutPromise]);
   } catch (error: any) {
-    // Single retry for transient errors (network blip, contention)
-    if (error?.code !== 'permission-denied' && error?.code !== 'unauthenticated') {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
-        const timeoutPromise2 = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
-        );
-        await Promise.race([savePromise2, timeoutPromise2]);
-        return; // success on retry
-      } catch (retryErr: any) {
-        throw retryErr; // let sync queue handle it
+    // Retry for transient errors (network blip, contention, auth timing)
+    if (error?.code === 'permission-denied' || error?.code === 'unauthenticated') {
+      // Auth timing issue — wait for auth to propagate, then retry once
+      if (auth?.currentUser) {
+        try {
+          console.log(`[Firebase] Permission denied for ${collectionName}/${id} — retrying after auth settle (1.5s)`);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+          const timeoutPromise2 = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+          );
+          await Promise.race([savePromise2, timeoutPromise2]);
+          return; // success on retry
+        } catch (retryErr: any) {
+          throw retryErr; // Genuine permission denied — let sync queue handle it
+        }
       }
+      // No auth.currentUser — genuinely unauthenticated, don't retry
+      throw error;
     }
-    throw error;
+    // Retry other transient errors (network, timeout, etc.)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+      const timeoutPromise2 = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
+      );
+      await Promise.race([savePromise2, timeoutPromise2]);
+      return; // success on retry
+    } catch (retryErr: any) {
+      throw retryErr; // let sync queue handle it
+    }
   }
 }
 

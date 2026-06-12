@@ -623,6 +623,8 @@ export default function App() {
       // Initial Firestore data migration (runs once, AFTER auth is confirmed)
       const migrateData = async () => {
         try {
+          // Check if current user is admin — non-admins should only READ from Firestore
+          const isAdminUser = user?.role === 'Admin';
           const collections: Array<{name: string; key: string; setter: (d: any[]) => void; loader: () => any[]}> = [
             { name: COLLECTIONS.HOTELS, key: 'zumra_hotels', setter: setHotels, loader: ZumraDB.getHotels },
             { name: COLLECTIONS.AGENTS, key: 'zumra_agents', setter: setAgents, loader: ZumraDB.getAgents },
@@ -695,18 +697,24 @@ export default function App() {
                 localStorage.setItem(col.key, JSON.stringify(firestoreData));
                 col.setter(firestoreData);
               }
-            } else {
-              // Firestore empty -> upload localStorage data to seed it
+            } else if (isAdminUser) {
+              // Firestore empty AND user is admin -> upload localStorage data to seed it
+              // Non-admin users should NEVER seed Firestore (admin already did this)
               const localData = col.loader();
               if (localData.length > 0) {
                 await firestoreBulkSave(col.name, localData);
               }
+            } else {
+              // Firestore empty and user is non-admin -> nothing to do
+              console.log(`[Migration] Skipping seed for ${col.name} (non-admin user)`);
             }
           }
-          // Ensure users are always in Firestore (critical for multi-device login)
-          const currentUsers = ZumraDB.getUsers();
-          if (currentUsers.length > 0) {
-            await firestoreBulkSave(COLLECTIONS.USERS, currentUsers);
+          // Ensure users are always in Firestore (only for admin — critical for multi-device login)
+          if (isAdminUser) {
+            const currentUsers = ZumraDB.getUsers();
+            if (currentUsers.length > 0) {
+              await firestoreBulkSave(COLLECTIONS.USERS, currentUsers);
+            }
           }
           // Initial data sync complete
         } catch (err) {
@@ -895,21 +903,10 @@ export default function App() {
                   }
                 }
 
-                // Background: ensure other users have Firebase Auth accounts
-                const allUsers = ZumraDB.getUsers();
-                if (allUsers.length > 1 && isAuthed) {
-                  for (const u of allUsers) {
-                    if (u.email && u.email !== user?.email) {
-                      const pwd = u.password || `${u.username}123`;
-                      try { await firebaseCreateUser(u.email, pwd); } catch {}
-                    }
-                  }
-                  // Re-authenticate as current user after bulk creation
-                  if (user?.email) {
-                    const fbPwd = user.password || `${user.username}123`;
-                    await firebaseSignIn(user.email, fbPwd).catch(() => {});
-                  }
-                }
+                // REMOVED: bulk firebaseCreateUser for other users
+                // This was corrupting the current user's auth session by signing in as
+                // other users. Firebase Auth accounts for staff are created via doAddUser
+                // when the admin adds/edits a user (while admin is authenticated).
               } catch (err) {
                 console.error('[Firebase] Background migration error:', err);
               }
