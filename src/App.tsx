@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -885,14 +885,19 @@ export default function App() {
             // ══ BACKGROUND MIGRATION (non-blocking, runs AFTER listeners attach) ══
             const runBackgroundMigration = async () => {
               try {
-                // Retry migration up to 2 times
+                // Retry migration up to 2 times, but STOP immediately on permission-denied
                 let migrateRetries = 0;
                 const maxRetries = isAuthed ? 2 : 0;
                 while (migrateRetries <= maxRetries) {
                   try {
                     await migrateData();
                     break;
-                  } catch (err) {
+                  } catch (err: any) {
+                    // Permission-denied = hard stop, no retry
+                    if (err?.code === 'permission-denied' || isCircuitOpen()) {
+                      console.warn('[Firebase] Migration halted: permission denied or circuit open. Using localStorage data.');
+                      break;
+                    }
                     migrateRetries++;
                     if (migrateRetries <= maxRetries) {
                       console.warn(`[Firebase] Migration attempt ${migrateRetries} failed, retrying in 2s...`);
@@ -2454,8 +2459,14 @@ export default function App() {
   // Track sync status (online/offline + pending queue)
   useEffect(() => {
     const unsubStatus = onSyncStatusChange(setSyncStatus);
+    let lastSyncToast = 0;
     const unsubError = onSyncError((collection, docId, error) => {
-      toast.error(`Sync error: ${collection}/${docId} — ${error}`);
+      // Throttle: max 1 sync error toast every 10 seconds to prevent toast flood
+      const now = Date.now();
+      if (now - lastSyncToast > 10000) {
+        lastSyncToast = now;
+        toast.error(`Sync error: ${collection} — ${error} (further errors suppressed)`);
+      }
     });
     setSyncStatus(getSyncStatus());
     return () => { unsubStatus(); unsubError(); };

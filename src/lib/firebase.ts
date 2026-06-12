@@ -29,6 +29,22 @@ const firebaseConfig = {
 // Check if Firebase is configured
 export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 
+// ═══ CIRCUIT BREAKER: stops ALL Firestore operations after repeated permission-denied errors ═══
+let _circuitOpen = false;
+let _permissionDeniedCount = 0;
+const CIRCUIT_THRESHOLD = 3; // Open circuit after 3 permission-denied errors
+
+function tripCircuit(reason: string) {
+  _permissionDeniedCount++;
+  if (_permissionDeniedCount >= CIRCUIT_THRESHOLD && !_circuitOpen) {
+    _circuitOpen = true;
+    console.error(`[Circuit Breaker] TRIPPED after ${_permissionDeniedCount} permission-denied errors. Reason: ${reason}. All Firestore operations halted.`);
+  }
+}
+
+export function isCircuitOpen(): boolean { return _circuitOpen; }
+export function resetCircuit() { _circuitOpen = false; _permissionDeniedCount = 0; }
+
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
@@ -374,12 +390,13 @@ export async function ensureUserProfileInFirestore(profile: {
  * Helper: Load all documents from a Firestore collection
  */
 export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> {
-  if (!db) return [];
+  if (!db || _circuitOpen) return [];
   try {
     const snapshot = await getDocs(collection(db, collectionName));
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
-  } catch (error) {
-    console.error(`[Firebase] Error loading ${collectionName}:`, error);
+  } catch (error: any) {
+    if (error?.code === 'permission-denied') tripCircuit(`firestoreLoadAll(${collectionName})`);
+    console.error(`[Firebase] Error loading ${collectionName}:`, error?.code || error?.message || error);
     return [];
   }
 }
@@ -388,8 +405,8 @@ export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> 
  * Helper: Save a single document to Firestore with exponential backoff retry
  */
 export async function firestoreSave(collectionName: string, id: string, data: any): Promise<void> {
-  if (!db) {
-    console.warn(`[Firebase] firestoreSave: db is null, skipping ${collectionName}/${id}`);
+  if (!db || _circuitOpen) {
+    if (_circuitOpen) console.warn(`[Circuit Breaker] Skipping save ${collectionName}/${id}`);
     return;
   }
   // Ensure id is a valid string — prevents SDK internal indexOf errors
@@ -407,6 +424,10 @@ export async function firestoreSave(collectionName: string, id: string, data: an
   } catch (error: any) {
     // Retry for transient errors (network blip, contention, auth timing)
     if (error?.code === 'permission-denied' || error?.code === 'unauthenticated') {
+      tripCircuit(`save(${collectionName}/${id})`);
+      if (_circuitOpen) {
+        throw error; // Circuit is open — don't even retry
+      }
       // Auth timing issue — wait for auth to propagate, then retry once
       if (auth?.currentUser) {
         try {
@@ -456,7 +477,10 @@ export async function firestoreDelete(collectionName: string, id: string): Promi
  * Helper: Bulk save entire collection to Firestore (used for initial sync)
  */
 export async function firestoreBulkSave(collectionName: string, items: any[]): Promise<void> {
-  if (!db || items.length === 0) return;
+  if (!db || items.length === 0 || _circuitOpen) {
+    if (_circuitOpen) console.warn(`[Circuit Breaker] Skipping bulk save ${collectionName} (${items.length} items)`);
+    return;
+  }
   try {
     const batch = writeBatch(db);
     items.forEach(item => {
@@ -503,17 +527,23 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
       }, (error) => {
         console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
         if (error?.code === 'permission-denied') {
+          tripCircuit(`listener(${collectionName})`);
           // Unsubscribe this listener IMMEDIATELY to prevent leak
           if (currentUnsub) {
             try { currentUnsub(); } catch {}
             currentUnsub = null;
+          }
+          // Stop retrying if circuit breaker tripped
+          if (_circuitOpen) {
+            console.error(`[Circuit Breaker] No retry for ${collectionName} — circuit is OPEN`);
+            return;
           }
           if (retryCount < maxRetries) {
             retryCount++;
             const delay = retryCount * 2000;
             console.log(`[Firestore] Retrying ${collectionName} listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
             setTimeout(() => {
-              currentUnsub = subscribe();
+              if (!_circuitOpen) currentUnsub = subscribe();
             }, delay);
           } else {
             console.error(`[Firestore] GIVING UP on ${collectionName} after ${maxRetries} retries — permission denied`);
@@ -612,17 +642,23 @@ export function firestoreSubscribeWithLimit<T>(
       }, (error) => {
         console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
         if (error?.code === 'permission-denied') {
+          tripCircuit(`limitedListener(${collectionName})`);
           // Unsubscribe this listener IMMEDIATELY to prevent leak
           if (currentUnsub) {
             try { currentUnsub(); } catch {}
             currentUnsub = null;
+          }
+          // Stop retrying if circuit breaker tripped
+          if (_circuitOpen) {
+            console.error(`[Circuit Breaker] No retry for ${collectionName} — circuit is OPEN`);
+            return;
           }
           if (retryCount < maxRetries) {
             retryCount++;
             const delay = retryCount * 2000;
             console.log(`[Firestore] Retrying ${collectionName} limited listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
             setTimeout(() => {
-              currentUnsub = subscribe();
+              if (!_circuitOpen) currentUnsub = subscribe();
             }, delay);
           } else {
             console.error(`[Firestore] GIVING UP on ${collectionName} after ${maxRetries} retries — permission denied`);

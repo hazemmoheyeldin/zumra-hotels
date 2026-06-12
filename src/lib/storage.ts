@@ -4,7 +4,7 @@
  */
 
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
-import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection } from './firebase';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection, isCircuitOpen } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
 
@@ -1058,9 +1058,9 @@ if (typeof window !== 'undefined') {
       flushSyncQueue();
     }
   });
-  // Aggressive retry: every 15 seconds
+  // Aggressive retry: every 15 seconds (stops if circuit breaker is open)
   setInterval(() => {
-    if (isOnline && loadSyncQueue().length > 0) {
+    if (isOnline && !isCircuitOpen() && loadSyncQueue().length > 0) {
       flushSyncQueue();
     }
   }, 15000);
