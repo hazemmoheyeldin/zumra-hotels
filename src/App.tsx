@@ -326,6 +326,7 @@ export default function App() {
   // Restore session from localStorage if user was previously logged in
   const [authLoading, setAuthLoading] = useState(isFirebaseConfigured); // Block UI until Firebase Auth initializes
   const [listenersReady, setListenersReady] = useState(!isFirebaseConfigured); // Block data UI until Firestore listeners connect
+  const [initError, setInitError] = useState<string | null>(null); // Surface init errors so user is never trapped
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const dataLoadedRef = useRef(false); // Prevents Phase 2 re-run on profile updates
   const listenersAttachedRef = useRef(false); // Prevents Firestore listener teardown on user switch
@@ -494,16 +495,16 @@ export default function App() {
       setAuthLoading(false);
     });
 
-    // Safety timeout: unblock after 8s even if onAuthStateChanged never fires
+    // Safety timeout: unblock after 5s even if onAuthStateChanged never fires
     // (persistence may take longer on slow connections or custom domains)
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
         unsub();
-        console.warn('[Firebase Auth] onAuthStateChanged timeout after 8s — unblocking UI');
+        console.warn('[Firebase Auth] onAuthStateChanged timeout after 5s — unblocking UI');
         setAuthLoading(false);
       }
-    }, 8000);
+    }, 5000);
 
     return () => {
       unsub();
@@ -511,15 +512,16 @@ export default function App() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Safety timeout: force listenersReady after 15s to prevent infinite loading
+  // Safety timeout: force listenersReady after 10s to prevent infinite loading
   useEffect(() => {
     if (listenersReady || !currentUser) return;
     const timer = setTimeout(() => {
       if (!listenersReady) {
-        console.warn('[Init] Listeners not ready after 15s — forcing UI unblock');
+        console.warn('[Init] Listeners not ready after 10s — forcing UI unblock');
+        setInitError('Database connection is taking longer than expected. Your data may be temporarily stale.');
         setListenersReady(true);
       }
-    }, 15000);
+    }, 10000);
     return () => clearTimeout(timer);
   }, [listenersReady, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -975,7 +977,20 @@ export default function App() {
           }
         }
       };
-      wrappedWaitForAuth();
+      // Hard timeout: if wrappedWaitForAuth takes more than 8s, force-unblock
+      const authTimeout = setTimeout(() => {
+        if (!listenersAttachedRef.current) {
+          console.warn('[Init] Auth timed out after 8s — forcing listener attachment');
+          setInitError('Authentication is slow. Working with cached data.');
+          if (!listenersAttachedRef.current) {
+            attachFirestoreListeners();
+            listenersAttachedRef.current = true;
+          }
+          setListenersReady(true);
+        }
+      }, 8000);
+
+      wrappedWaitForAuth().then(() => clearTimeout(authTimeout)).catch(() => clearTimeout(authTimeout));
 
       // Also listen for cross-tab localStorage changes (for theme etc.)
       const handleStorage = (e: StorageEvent) => {
@@ -2645,6 +2660,12 @@ export default function App() {
         <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
         <p className="text-sm font-medium text-slate-600">Verifying session...</p>
         <p className="text-[10px] text-slate-400 mt-1">Zumra Hotels RMS</p>
+        <button
+          onClick={() => setAuthLoading(false)}
+          className="mt-6 text-[11px] text-amber-600 hover:text-amber-800 underline cursor-pointer"
+        >
+          Taking too long? Click to continue
+        </button>
       </div>
     );
   }
@@ -2657,6 +2678,13 @@ export default function App() {
         <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
         <p className="text-sm font-medium text-slate-600">Connecting to database...</p>
         <p className="text-[10px] text-slate-400 mt-1">Establishing real-time sync</p>
+        {initError && <p className="text-[11px] text-amber-600 mt-3 max-w-xs text-center">{initError}</p>}
+        <button
+          onClick={() => setListenersReady(true)}
+          className="mt-6 text-[11px] text-amber-600 hover:text-amber-800 underline cursor-pointer"
+        >
+          Continue with cached data
+        </button>
       </div>
     );
   }
@@ -3362,6 +3390,15 @@ export default function App() {
 
       {/* API Warning Banner - non-intrusive alerts when external services are down */}
       <ApiWarningBanner />
+
+      {/* Init Error Banner - shows when database connection was slow/timed out */}
+      {initError && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-xs text-amber-800">
+          <span>⚠️ {initError}</span>
+          <button onClick={() => { setInitError(null); window.location.reload(); }} className="ml-4 font-bold underline hover:no-underline cursor-pointer">Reload</button>
+          <button onClick={() => setInitError(null)} className="ml-2 text-amber-500 hover:text-amber-700 cursor-pointer">✕</button>
+        </div>
+      )}
 
       {/* Quick Revenue Calculator Widget */}
       {!showCalc && (

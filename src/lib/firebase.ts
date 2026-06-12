@@ -75,13 +75,19 @@ if (isFirebaseConfigured) {
     // ★ CRITICAL: Await persistence before any auth operations.
     // This prevents the "Verifying Session" loop and ensures
     // onAuthStateChanged reports the correct persisted state.
-    authReadyPromise = setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        console.log('[Firebase Auth] Persistence set to LOCAL');
-      })
-      .catch(err => {
-        console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
-      });
+    authReadyPromise = Promise.race([
+      setPersistence(auth, browserLocalPersistence)
+        .then(() => {
+          console.log('[Firebase Auth] Persistence set to LOCAL');
+        })
+        .catch(err => {
+          console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
+        }),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error('authReadyPromise timeout after 5s')), 5000))
+    ]).catch(err => {
+      console.warn('[Firebase Auth] authReadyPromise rejected:', err?.message || err);
+      // Proceed anyway — auth operations will work, just without guaranteed persistence
+    });
     console.log('[Firebase] Initialized successfully | Project:', firebaseConfig.projectId);
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
