@@ -484,7 +484,14 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
     let firstEmission = true;
     let retryCount = 0;
     const maxRetries = 3;
+    let currentUnsub: (() => void) | null = null;
+
     const subscribe = (): (() => void) => {
+      // Unsubscribe previous listener BEFORE creating a new one (prevents leak)
+      if (currentUnsub) {
+        try { currentUnsub(); } catch {}
+        currentUnsub = null;
+      }
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
         if (firstEmission) {
@@ -496,21 +503,31 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
       }, (error) => {
         console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
         if (error?.code === 'permission-denied') {
-          console.error(`[Firebase] PERMISSION DENIED: Firestore security rules are blocking read access to '${collectionName}'. Check your Firestore rules.`);
-          // Auto-retry after delay (auth might not have propagated yet)
+          // Unsubscribe this listener IMMEDIATELY to prevent leak
+          if (currentUnsub) {
+            try { currentUnsub(); } catch {}
+            currentUnsub = null;
+          }
           if (retryCount < maxRetries) {
             retryCount++;
             const delay = retryCount * 2000;
             console.log(`[Firestore] Retrying ${collectionName} listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
             setTimeout(() => {
-              try { subscribe(); } catch {}
+              currentUnsub = subscribe();
             }, delay);
+          } else {
+            console.error(`[Firestore] GIVING UP on ${collectionName} after ${maxRetries} retries — permission denied`);
           }
         }
       });
     };
-    const unsubscribe = subscribe();
-    return unsubscribe;
+    currentUnsub = subscribe();
+    return () => {
+      if (currentUnsub) {
+        try { currentUnsub(); } catch {}
+        currentUnsub = null;
+      }
+    };
   } catch (err: any) {
     console.error(`[Firestore] Failed to subscribe to ${collectionName}:`, err?.message);
     return () => {};
@@ -575,7 +592,14 @@ export function firestoreSubscribeWithLimit<T>(
     let firstEmission = true;
     let retryCount = 0;
     const maxRetries = 3;
+    let currentUnsub: (() => void) | null = null;
+
     const subscribe = (): (() => void) => {
+      // Unsubscribe previous listener BEFORE creating a new one (prevents leak)
+      if (currentUnsub) {
+        try { currentUnsub(); } catch {}
+        currentUnsub = null;
+      }
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
         const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
@@ -588,14 +612,20 @@ export function firestoreSubscribeWithLimit<T>(
       }, (error) => {
         console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
         if (error?.code === 'permission-denied') {
-          console.error(`[Firebase] PERMISSION DENIED: Check Firestore rules for '${collectionName}'.`);
+          // Unsubscribe this listener IMMEDIATELY to prevent leak
+          if (currentUnsub) {
+            try { currentUnsub(); } catch {}
+            currentUnsub = null;
+          }
           if (retryCount < maxRetries) {
             retryCount++;
             const delay = retryCount * 2000;
             console.log(`[Firestore] Retrying ${collectionName} limited listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
             setTimeout(() => {
-              try { subscribe(); } catch {}
+              currentUnsub = subscribe();
             }, delay);
+          } else {
+            console.error(`[Firestore] GIVING UP on ${collectionName} after ${maxRetries} retries — permission denied`);
           }
         }
         if (error?.code === 'failed-precondition') {
@@ -603,8 +633,13 @@ export function firestoreSubscribeWithLimit<T>(
         }
       });
     };
-    const unsubscribe = subscribe();
-    return unsubscribe;
+    currentUnsub = subscribe();
+    return () => {
+      if (currentUnsub) {
+        try { currentUnsub(); } catch {}
+        currentUnsub = null;
+      }
+    };
   } catch (err: any) {
     console.error(`[Firestore] Failed to subscribe with limit to ${collectionName}:`, err?.message);
     return () => {};
