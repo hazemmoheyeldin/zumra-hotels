@@ -243,7 +243,7 @@ export default function ReservationsPage({
         if (accounts && accounts.length > 0) {
           setPayAccountId(accounts[0].id);
         }
-        setPayVoucher(getNextVoucherNo('PAY', transactions || []));
+        setPayVoucher(getNextVoucherNo('REC', transactions || []));
       }
     }
   }, [viewingId, reservations, accounts]);
@@ -1270,7 +1270,7 @@ export default function ReservationsPage({
           ? `Automatic Reservation Client Payment for RSV-${resObj.id} (Guest: ${resObj.guestName})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`
           : `Automatic Reservation Supplier Payment for RSV-${resObj.id} (Hotel: ${hotels.find(h => h.id === resObj.hotelId)?.name})${isOverpayment ? ` [OVERPAYMENT: ${overpaymentAmount.toLocaleString()} SAR]` : ''}`,
         paymentMethod: payMethod,
-        voucherNo: payVoucher || getNextVoucherNo('PAY', transactions || []),
+        voucherNo: payVoucher || getNextVoucherNo(payDirection === 'client' ? 'REC' : 'PAY', transactions || []),
         originalCurrency: payCurrency,
         originalAmount: payCurrency === 'EGP' ? payOriginalAmount : undefined,
         exchangeRate: payCurrency === 'EGP' ? payExchangeRate : undefined,
@@ -1299,7 +1299,7 @@ export default function ReservationsPage({
         });
       }
       toast.success(`${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} saved!`);
-      setPayVoucher(getNextVoucherNo('PAY', transactions || []));
+      setPayVoucher(getNextVoucherNo(isClientPayment ? 'REC' : 'PAY', transactions || []));
     };
 
     if (isOverpayment) {

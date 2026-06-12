@@ -82,12 +82,28 @@ export type { FBUser };
 
 // ===== Staff Whitelist (Authorization Guard) =====
 // Only these emails can access the app via Google Sign-In
-const STAFF_WHITELIST: string[] = [
+// Persisted to localStorage so dynamically-added users survive page refresh
+const _defaultWhitelist = [
   'hazemmoheyeldin@gmail.com',
   'hazem@zumrahotels.com',
   'zaki@zumrahotels.com',
   'yasmeen@zumrahotels.com',
 ];
+const STAFF_WHITELIST: string[] = (() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('zumra_staff_whitelist') || '[]');
+    if (Array.isArray(stored) && stored.length > 0) {
+      // Merge defaults with stored
+      const merged = new Set([..._defaultWhitelist.map(e => e.toLowerCase()), ...stored.map((e: string) => e.toLowerCase())]);
+      return Array.from(merged);
+    }
+  } catch {}
+  return [..._defaultWhitelist];
+})();
+
+const _persistWhitelist = () => {
+  try { localStorage.setItem('zumra_staff_whitelist', JSON.stringify(STAFF_WHITELIST)); } catch {}
+};
 
 // Allowed domains (any email matching these domains is allowed)
 const ALLOWED_DOMAINS: string[] = [
@@ -112,6 +128,7 @@ export function addToStaffWhitelist(email: string): void {
   const lower = email.toLowerCase();
   if (!STAFF_WHITELIST.some(e => e.toLowerCase() === lower)) {
     STAFF_WHITELIST.push(lower);
+    _persistWhitelist();
     console.log(`[Auth] Added ${email} to staff whitelist`);
   }
 }

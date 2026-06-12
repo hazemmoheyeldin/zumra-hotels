@@ -921,7 +921,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
 
         {/* ==================== MONEY UNDER COLLECTION ==================== */}
         {activeReportTab === 'collection' && (() => {
-          const collectionData = useMemo(() => {
+          const collectionData = (() => {
             return reservations.filter(r => r.status !== 'Cancelled').map(r => {
               const { totalSell } = getReservationTotals(r);
               const outstanding = totalSell - (r.amountPaidByClient || 0);
@@ -938,7 +938,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               else if (daysSinceCheckIn > 7) bucket = '7d';
               return { res: r, outstanding, client, hotel, bucket, daysSinceCheckIn };
             }).filter(d => d.outstanding > 0);
-          }, [reservations, agents, hotels]);
+          })();
 
           const filteredColl = collectionData.filter(d => {
             if (collMinAmount > 0 && d.outstanding < collMinAmount) return false;
@@ -2271,7 +2271,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           const confirmed = clientRes.filter(r => r.status === 'Confirmed').length;
           const cancelled = clientRes.filter(r => r.status === 'Cancelled').length;
           const totalRevenue = clientRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
-          const totalProfit = clientRes.reduce((s, r) => { const t = getReservationTotals(r); return s + (t.totalSell - t.totalBuy); }, 0);
+          const totalProfit = clientRes.reduce((s, r) => { const t = getReservationTotals(r); return s + t.netProfit; }, 0);
           const avgBookingValue = confirmed > 0 ? totalRevenue / confirmed : 0;
           const lastBooking = clientRes.length > 0 ? clientRes.reduce((latest, r) => r.createdAt > latest.createdAt ? r : latest, clientRes[0]).createdAt : '';
           const outstanding = getAgentActualBalance(client, reservations, transactions);

@@ -60,7 +60,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
   const handleAddAccount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !code) {
-      showToast('Please fill out Name and Account Number.', 'warning');
+      showToast('Please fill out Name and Code.', 'warning');
       return;
     }
 
@@ -70,8 +70,8 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
       currency,
       code,
       balance,
-      accountHolderName,
-      accountNumber,
+      accountHolderName: accountType === 'Bank' ? accountHolderName : undefined,
+      accountNumber: accountType === 'Bank' ? accountNumber : undefined,
       type: accountType
     };
 
@@ -209,39 +209,58 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                   required
                 />
               </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.baseCurrency')}</label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-mono font-bold"
-                >
-                  <option value="SAR">SAR</option>
-                  <option value="EGP">EGP</option>
-                  <option value="USD">USD</option>
-                  <option value="EUR">EUR</option>
-                </select>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.holderName')}</label>
-                <input
-                  type="text"
-                  value={accountHolderName}
-                  onChange={(e) => setAccountHolderName(e.target.value)}
-                  placeholder="e.g. Zumra Hotels LLC"
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-semibold focus:outline-none"
-                />
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('cpdf.iban')}</label>
-                <input
-                  type="text"
-                  value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="e.g. SA000000000000"
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-semibold focus:outline-none"
-                />
-              </div>
+              {accountType === 'Bank' && (
+                <>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.baseCurrency')}</label>
+                    <select
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-mono font-bold"
+                    >
+                      <option value="SAR">SAR</option>
+                      <option value="EGP">EGP</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.holderName')}</label>
+                    <input
+                      type="text"
+                      value={accountHolderName}
+                      onChange={(e) => setAccountHolderName(e.target.value)}
+                      placeholder="e.g. Zumra Hotels LLC"
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('cpdf.iban')}</label>
+                    <input
+                      type="text"
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value)}
+                      placeholder="e.g. SA000000000000"
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-semibold focus:outline-none"
+                    />
+                  </div>
+                </>
+              )}
+              {accountType === 'Cash' && (
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.baseCurrency')}</label>
+                  <select
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded text-xs font-mono font-bold"
+                  >
+                    <option value="SAR">SAR</option>
+                    <option value="EGP">EGP</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-0.5">{t('acc.startingBalance')}</label>
                 <input

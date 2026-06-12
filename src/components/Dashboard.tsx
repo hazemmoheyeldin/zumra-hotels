@@ -189,7 +189,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     // Skip orphaned follow-ups (client/agent no longer exists)
     if (f.clientId && !agentIds.has(f.clientId)) return false;
     // Only show follow-ups created by or relevant to the current user
-    if (currentUser && f.createdBy !== currentUser.id) return false;
+    if (currentUser && f.createdBy !== currentUser.name && f.createdBy !== currentUser.id) return false;
     return true;
   });
 

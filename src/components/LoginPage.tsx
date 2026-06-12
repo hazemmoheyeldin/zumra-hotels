@@ -163,11 +163,28 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       }
     };
 
-    // First try local users
+    // First try local users (from prop / state)
     let matchedUser = users.find(u => 
       u.username.toLowerCase() === userLower || 
       (u.email && u.email.toLowerCase() === userLower)
     );
+
+    // Fallback: check localStorage directly (prop may not be populated yet)
+    if (!matchedUser) {
+      try {
+        const storedUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+        if (Array.isArray(storedUsers) && storedUsers.length > 0) {
+          matchedUser = storedUsers.find((u: any) =>
+            u.username?.toLowerCase() === userLower ||
+            (u.email && u.email.toLowerCase() === userLower)
+          );
+          if (matchedUser) {
+            validateLogin(matchedUser!, storedUsers);
+            return;
+          }
+        }
+      } catch {}
+    }
 
     if (matchedUser) {
       validateLogin(matchedUser!, users);
@@ -184,7 +201,17 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         u.username.toLowerCase() === userLower ||
         (u.email && u.email.toLowerCase() === userLower)
       );
-      const emailToTry = possibleEmail || defaultMatch?.email || null;
+      // Also try to find email from localStorage users for pre-auth
+      let storedEmail: string | null = null;
+      try {
+        const storedUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+        const storedMatch = storedUsers.find((u: any) =>
+          u.username?.toLowerCase() === userLower ||
+          (u.email && u.email.toLowerCase() === userLower)
+        );
+        if (storedMatch?.email) storedEmail = storedMatch.email;
+      } catch {}
+      const emailToTry = possibleEmail || defaultMatch?.email || storedEmail || null;
 
       let preAuthed = false;
       if (emailToTry) {

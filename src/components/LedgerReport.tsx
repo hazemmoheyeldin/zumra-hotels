@@ -165,7 +165,7 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
       'Description': e.description,
       'Debit (SAR)': e.debit,
       'Credit (SAR)': e.credit,
-      'Running Balance (SAR)': e.runningBalance,
+      'Margin to Date (SAR)': e.runningBalance,
       'Net Profit Impact (SAR)': e.netProfitImpact,
     }));
     exportToExcel(`Ledger_Report_${dateFrom}_to_${dateTo}`, rows, 'Ledger');
@@ -294,7 +294,7 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
                   <th className="py-2.5 px-3">Description</th>
                   <th className="py-2.5 px-3 text-right">Debit</th>
                   <th className="py-2.5 px-3 text-right">Credit</th>
-                  <th className="py-2.5 px-3 text-right">Running Balance</th>
+                  <th className="py-2.5 px-3 text-right">Margin to Date</th>
                   <th className="py-2.5 px-3 text-right">Net Profit Impact</th>
                 </tr>
               </thead>
