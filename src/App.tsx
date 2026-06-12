@@ -2627,7 +2627,17 @@ export default function App() {
       const clientId = matchedAgent?.id || '';
       return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={clientId} onUpdateAgreementStatus={matchedAgent ? handleUpdateAgreementStatus : undefined} />;
     }
-    return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={doAddUser} />;
+    // Lightweight user update: only updates local state + localStorage.
+    // Does NOT write to Firestore (that would trigger permission-denied on login).
+    const handleUpdateUserLocal = (user: User) => {
+      setUsers(prev => {
+        const exists = prev.some(u => u.id === user.id);
+        const updated = exists ? prev.map(u => u.id === user.id ? user : u) : [...prev, user];
+        ZumraDB.saveUsers(updated);
+        return updated;
+      });
+    };
+    return <LoginPage users={users} onLoginSuccess={handleSetCurrentUser} onUpdateUser={handleUpdateUserLocal} />;
   }
 
   // Get permitted nav items based on user's specific role

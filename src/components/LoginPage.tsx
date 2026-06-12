@@ -9,7 +9,7 @@ import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
-import { ZumraDB, ZumraSync } from '../lib/storage';
+import { ZumraDB } from '../lib/storage';
 import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, ensureUserProfileInFirestore, addToStaffWhitelist } from '../lib/firebase';
 
 interface LoginPageProps {
@@ -309,7 +309,9 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       const updatedUser = { ...matchedUser, password: tempPwd, mustChangePassword: true };
       onUpdateUser?.(updatedUser);
       ZumraDB.saveUsers(users.map(u => u.id === matchedUser.id ? updatedUser : u));
-      ZumraSync.saveUser(updatedUser);
+      // NOTE: Do NOT call ZumraSync.saveUser here — user is not authenticated
+      // at this point (password reset happens on login page). The admin's
+      // doAddUser will sync the updated password to Firestore on next save.
       const result = await sendPasswordResetEmail(matchedUser.email, matchedUser.name, tempPwd);
       if (result.success) {
         setResetMsg(`A temporary password has been sent to ${matchedUser.email}`);

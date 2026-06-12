@@ -2,7 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Users collection: public read for login username→email lookup
-    // User docs contain only username, name, role, email (no secrets)
+    // Write: any authenticated user (admin manages all users via doAddUser)
+    // The login flow NO LONGER writes to this collection (fixed write-loop bug)
     match /users/{userId} {
       allow read: if true;
       allow write: if request.auth != null;

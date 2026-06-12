@@ -50,6 +50,21 @@ export default class GlobalErrorBoundary extends React.Component<Props, State> {
     window.location.href = window.location.href + '?t=' + Date.now();
   };
 
+  handleClearCacheAndReload = () => {
+    // Unregister all service workers
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(r => r.unregister());
+      });
+    }
+    // Clear caches
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(n => caches.delete(n)));
+    }
+    // Force hard reload
+    window.location.href = window.location.href + '?nocache=' + Date.now();
+  };
+
   render() {
     if (!this.state.hasError) return this.props.children;
 
@@ -89,30 +104,44 @@ export default class GlobalErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Generic error fallback
+    // Generic error fallback (including Firebase permission/sync errors)
     return (
       <div style={{
         position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif', zIndex: 9999999, padding: 24,
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', fontFamily: 'system-ui, -apple-system, sans-serif',
+        zIndex: 9999999, padding: 24,
       }}>
         <div style={{
           background: '#fff', borderRadius: 20, padding: '48px 40px', maxWidth: 420, width: '100%',
-          textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0',
+          textAlign: 'center', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
         }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>Something went wrong</h2>
           <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.6, margin: '0 0 24px' }}>
-            An unexpected error occurred. Please try refreshing the page.
+            An unexpected error occurred. Your data is safe — it's stored locally.
           </p>
           <button
             onClick={this.handleRefresh}
             style={{
               background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 12,
               padding: '14px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%',
+              marginBottom: 12,
             }}
           >
             Refresh Page
           </button>
+          <button
+            onClick={this.handleClearCacheAndReload}
+            style={{
+              background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 12,
+              padding: '12px 32px', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%',
+            }}
+          >
+            Clear Cache & Reload
+          </button>
+          <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 16, marginBottom: 0 }}>
+            If the problem persists, contact your administrator.
+          </p>
         </div>
       </div>
     );
