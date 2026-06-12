@@ -508,6 +508,18 @@ export default function App() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety timeout: force listenersReady after 15s to prevent infinite loading
+  useEffect(() => {
+    if (listenersReady || !currentUser) return;
+    const timer = setTimeout(() => {
+      if (!listenersReady) {
+        console.warn('[Init] Listeners not ready after 15s — forcing UI unblock');
+        setListenersReady(true);
+      }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [listenersReady, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ═══════════════════════════════════════════════════════════
   // PHASE 2: Heavy data loading (runs ONLY after user authenticates)
   // Loads all collections, seeds data, attaches Firestore listeners.
@@ -703,108 +715,6 @@ export default function App() {
         }
       };
 
-      // Wait for Firebase Auth to be ready, then migrate
-      const waitForAuthAndMigrate = async () => {
-        try {
-          // Wait for onAuthStateChanged to fire (Firebase Auth initialization)
-          // onFirebaseAuthStateChanged now awaits persistence internally
-          await new Promise<void>((resolve) => {
-            const unsub = onFirebaseAuthStateChanged((fbUser) => {
-              unsub();
-              resolve();
-            });
-            // Safety timeout: 6 seconds max (persistence may take time on custom domains)
-            setTimeout(() => {
-              unsub();
-              console.warn('[Firebase Auth] Auth state timeout after 6s — proceeding without Firebase Auth');
-              resolve();
-            }, 6000);
-          });
-
-          // Check if already authenticated (from browserLocalPersistence)
-          let isAuthed = !!auth?.currentUser;
-
-          // If not authenticated, try to sign in with stored user credentials
-          if (!isAuthed && user?.email) {
-            const fbPwd = user.password || `${user.username}123`;
-            isAuthed = await firebaseSignIn(user.email, fbPwd);
-            if (!isAuthed) {
-              // Firebase Auth user doesn't exist yet — create it
-              await firebaseCreateUser(user.email, fbPwd);
-              isAuthed = await firebaseSignIn(user.email, fbPwd);
-            }
-            if (isAuthed) {
-              // Session restored
-            } else {
-              console.warn(`[Firebase Auth] Could not authenticate ${user.email} — continuing with localStorage data`);
-            }
-          }
-
-          // Fallback: if no user (shouldn't happen due to gate), try default admin
-          if (!isAuthed && !user) {
-            const defaultAdmins = ZumraDB.getUsers().filter(u => u.role === 'Admin');
-            for (const admin of defaultAdmins) {
-              if (admin.email) {
-                const fbPwd = admin.password || `${admin.username}123`;
-                isAuthed = await firebaseSignIn(admin.email, fbPwd);
-                if (!isAuthed) {
-                  await firebaseCreateUser(admin.email, fbPwd);
-                  isAuthed = await firebaseSignIn(admin.email, fbPwd);
-                }
-                if (isAuthed) {
-                  break;
-                }
-              }
-            }
-          }
-
-          // Retry migration up to 2 times if auth is confirmed but first read fails
-          let migrateRetries = 0;
-          const maxRetries = isAuthed ? 2 : 0;
-          while (migrateRetries <= maxRetries) {
-            try {
-              await migrateData();
-              break;
-            } catch (err) {
-              migrateRetries++;
-              if (migrateRetries <= maxRetries) {
-                console.warn(`[Firebase] Migration attempt ${migrateRetries} failed, retrying in 2s...`);
-                await new Promise(r => setTimeout(r, 2000));
-              } else {
-                console.warn('[Firebase] Migration failed after retries, using localStorage data');
-              }
-            }
-          }
-
-          // Background: ensure other users have Firebase Auth accounts (non-blocking)
-          // This runs AFTER the UI is unblocked so it doesn't cause "Verifying Session" hang
-          const allUsers = ZumraDB.getUsers();
-          if (allUsers.length > 1 && isAuthed) {
-            // Use a small delay to let the UI render first
-            setTimeout(async () => {
-              for (const u of allUsers) {
-                if (u.email && u.email !== user?.email) {
-                  const pwd = u.password || `${u.username}123`;
-                  try {
-                    await firebaseCreateUser(u.email, pwd);
-                  } catch { /* ignore - user might already exist */ }
-                }
-              }
-              // Re-authenticate as current user after bulk creation
-              if (user?.email) {
-                const fbPwd = user.password || `${user.username}123`;
-                await firebaseSignIn(user.email, fbPwd).catch(() => {});
-              }
-            }, 3000);
-          }
-        } catch (err) {
-          console.error(`[Firebase Auth] Migration error:`, err);
-        } finally {
-          // ALWAYS unblock the UI, even if something failed
-          setAuthLoading(false);
-        }
-      };
-
       // Function to attach real-time Firestore listeners (called AFTER auth is confirmed)
       const attachFirestoreListeners = () => {
         console.log('[Firestore] Attaching real-time listeners for all collections...');
@@ -926,8 +836,87 @@ export default function App() {
               }
             }
           } else {
-            await waitForAuthAndMigrate();
+            // ══ FAST-PATH AUTH (no second onAuthStateChanged wait) ══
+            // Phase 1 already consumed the initial auth event.
+            // Check auth.currentUser directly instead of waiting for a new event.
+            let isAuthed = !!auth?.currentUser;
+
+            // If not authenticated, sign in with stored credentials
+            if (!isAuthed && user?.email) {
+              const fbPwd = user.password || `${user.username}123`;
+              isAuthed = await firebaseSignIn(user.email, fbPwd);
+              if (!isAuthed) {
+                await firebaseCreateUser(user.email, fbPwd);
+                isAuthed = await firebaseSignIn(user.email, fbPwd);
+              }
+              if (isAuthed) {
+                console.log('[Firebase Auth] Session restored via fast-path');
+              } else {
+                console.warn(`[Firebase Auth] Could not authenticate ${user.email} — continuing with localStorage data`);
+              }
+            }
+
+            // Fallback: try default admin accounts
+            if (!isAuthed && !user) {
+              const defaultAdmins = ZumraDB.getUsers().filter(u => u.role === 'Admin');
+              for (const admin of defaultAdmins) {
+                if (admin.email) {
+                  const fbPwd = admin.password || `${admin.username}123`;
+                  isAuthed = await firebaseSignIn(admin.email, fbPwd);
+                  if (!isAuthed) {
+                    await firebaseCreateUser(admin.email, fbPwd);
+                    isAuthed = await firebaseSignIn(admin.email, fbPwd);
+                  }
+                  if (isAuthed) break;
+                }
+              }
+            }
+
             migrationDoneRef.current = true;
+
+            // ══ BACKGROUND MIGRATION (non-blocking, runs AFTER listeners attach) ══
+            const runBackgroundMigration = async () => {
+              try {
+                // Retry migration up to 2 times
+                let migrateRetries = 0;
+                const maxRetries = isAuthed ? 2 : 0;
+                while (migrateRetries <= maxRetries) {
+                  try {
+                    await migrateData();
+                    break;
+                  } catch (err) {
+                    migrateRetries++;
+                    if (migrateRetries <= maxRetries) {
+                      console.warn(`[Firebase] Migration attempt ${migrateRetries} failed, retrying in 2s...`);
+                      await new Promise(r => setTimeout(r, 2000));
+                    } else {
+                      console.warn('[Firebase] Migration failed after retries, using localStorage data');
+                    }
+                  }
+                }
+
+                // Background: ensure other users have Firebase Auth accounts
+                const allUsers = ZumraDB.getUsers();
+                if (allUsers.length > 1 && isAuthed) {
+                  for (const u of allUsers) {
+                    if (u.email && u.email !== user?.email) {
+                      const pwd = u.password || `${u.username}123`;
+                      try { await firebaseCreateUser(u.email, pwd); } catch {}
+                    }
+                  }
+                  // Re-authenticate as current user after bulk creation
+                  if (user?.email) {
+                    const fbPwd = user.password || `${user.username}123`;
+                    await firebaseSignIn(user.email, fbPwd).catch(() => {});
+                  }
+                }
+              } catch (err) {
+                console.error('[Firebase] Background migration error:', err);
+              }
+            };
+
+            // Queue migration to run AFTER listeners are attached (non-blocking)
+            setTimeout(() => { runBackgroundMigration(); }, 100);
           }
         } catch (err) {
           console.error('[Firebase] Auth/Migration failed, proceeding with listeners anyway:', err);

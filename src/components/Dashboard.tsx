@@ -365,8 +365,8 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         </div>
       )}
 
-      {/* Alert Block for Pending Follow Ups */}
-      {pendingFollowUps.length > 0 && (
+      {/* Alert Block for Pending Follow Ups - only show if user can access Sales CRM */}
+      {pendingFollowUps.length > 0 && (currentUser.role === 'Admin' || currentUser.role === 'Sales') && (
         <div className="bg-indigo-50 border border-indigo-150 text-indigo-950 rounded-xl p-3 px-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in slide-in-from-top-2 no-print">
           <div className="flex items-center gap-2.5">
             <span className="text-base animate-pulse">📋</span>
