@@ -82,6 +82,7 @@ interface ReservationsPageProps {
   onSaveWaitlist?: (entry: WaitlistEntry) => void;
   hasMoreReservations?: boolean;
   onLoadMoreReservations?: () => void;
+  auditLog?: GlobalAuditEntry[];
 }
 
 const BOOKING_SOURCES = ['Direct', 'Booking.com', 'Expedia', 'Agoda', 'Agent', 'Walk-in', 'Phone', 'Email', 'Social Media', 'Partner', 'Other'];
@@ -114,6 +115,7 @@ export default function ReservationsPage({
   onSaveWaitlist,
   hasMoreReservations = false,
   onLoadMoreReservations,
+  auditLog = [],
 }: ReservationsPageProps) {
   
   // View states
@@ -144,6 +146,7 @@ export default function ReservationsPage({
   const [payAccountId, setPayAccountId] = useState<string>('');
   const [payMethod, setPayMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
   const [payVoucher, setPayVoucher] = useState<string>('');
+  const [payDirection, setPayDirection] = useState<'client' | 'supplier'>('client');
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'payment' | 'agreements' | 'documents' | 'history'>('overview');
   const { t, lang } = useLang();
   const toast = useToast();
@@ -1286,6 +1289,15 @@ export default function ReservationsPage({
 
       if (onSaveTransaction) { onSaveTransaction(newTr); }
       onSaveReservation(updatedRes);
+      if (onLogAudit) {
+        onLogAudit({
+          user: currentUser,
+          action: isClientPayment ? 'Client Payment' : 'Supplier Payment',
+          entityType: 'Reservation',
+          entityId: resObj.id.toString(),
+          detail: `${isClientPayment ? 'Client receipt' : 'Supplier payment'} of ${computedAmount.toLocaleString()} SAR via ${payMethod} (Voucher: ${newTr.voucherNo})`,
+        });
+      }
       toast.success(`${isClientPayment ? 'Client Receipt' : 'Supplier Payment'} of ${computedAmount.toLocaleString()} SAR registered & transaction #${newTr.voucherNo} saved!`);
       setPayVoucher(getNextVoucherNo('PAY', transactions || []));
     };
@@ -2732,8 +2744,8 @@ export default function ReservationsPage({
               renderRow={(res) => {
             const client = agents.find(a => a.id === res.clientId);
             const hotel = hotels.find(h => h.id === res.hotelId);
-            const { totalSell, totalBuy, profit } = getReservationTotals(res);
-            const marginPct = totalSell > 0 ? Math.round((profit / totalSell) * 100) : 0;
+            const { totalSell, totalBuy, netProfit } = getReservationTotals(res);
+            const marginPct = totalSell > 0 ? Math.round((netProfit / totalSell) * 100) : 0;
             const marginColor = marginPct >= 15 ? 'text-emerald-700 bg-emerald-50' : marginPct >= 8 ? 'text-amber-700 bg-amber-50' : 'text-rose-700 bg-rose-50';
             const clientPaid = res.amountPaidByClient || 0;
             const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
@@ -2745,7 +2757,7 @@ export default function ReservationsPage({
                     <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold ${res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800' : res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{res.status === 'Confirmed' ? t('res.confirmed') : res.status === 'Cancelled' ? t('res.cancelled') : t('res.tentative')}</span>
                     {res.nonRefundable && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 border border-rose-200">NON-REF</span>}
                   </div>
-                  <span className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</span>
+                  <span className={`font-mono font-bold text-[11px] ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{netProfit.toLocaleString()} SAR</span>
                   <span className={`ml-1 px-1.5 py-0.5 rounded text-[8px] font-bold ${marginColor}`}>{marginPct}%</span>
                 </div>
                 <div className="font-semibold uppercase text-slate-900 text-sm mb-1">{res.guestName}</div>
@@ -2907,7 +2919,7 @@ export default function ReservationsPage({
                 <th className="py-2.5 px-3 text-center">{t('common.status')}</th>
                 <th className="py-2.5 px-3 text-right">{t('res.paymentsByClient')}</th>
                 <th className="py-2.5 px-3 text-right hidden xl:table-cell">{t('res.paymentsToSupplier')}</th>
-                <th className="py-2.5 px-3 text-right text-indigo-950 hidden xl:table-cell">{t('res.profit')}</th>
+                <th className="py-2.5 px-3 text-right text-indigo-950 hidden xl:table-cell">Net Profit</th>
                 <th className="py-2.5 px-3 text-center">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -2915,7 +2927,7 @@ export default function ReservationsPage({
               {sortedReservations.map((res) => {
                 const client = agents.find(a => a.id === res.clientId);
                 const hotel = hotels.find(h => h.id === res.hotelId);
-                const { totalSell, totalBuy, profit } = getReservationTotals(res);
+                const { totalSell, totalBuy, netProfit } = getReservationTotals(res);
                 const clientPaid = res.amountPaidByClient || 0;
                 const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
 
@@ -2995,7 +3007,7 @@ export default function ReservationsPage({
                       })()}
                     </td>
                     <td className="py-3 px-3 text-right whitespace-nowrap hidden xl:table-cell">
-                      <div className={`font-mono font-bold text-[11px] ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()} SAR</div>
+                      <div className={`font-mono font-bold text-[11px] ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{netProfit.toLocaleString()} SAR</div>
                     </td>
                     <td className="py-3 px-3 text-center">
                       <div className="flex justify-center gap-1">
@@ -3141,9 +3153,8 @@ export default function ReservationsPage({
         const resObj = reservations.find(r => r.id.toString() === viewingId);
         if (!resObj) return null;
         const hotelObj = hotels.find(h => h.id === resObj.hotelId);
-        const { totalSell, totalBuy } = getReservationTotals(resObj);
+        const { totalSell, totalBuy, netProfit } = getReservationTotals(resObj);
         const nightsLocal = resObj.nights;
-        const profit = totalSell - totalBuy;
         const clientPaid = resObj.amountPaidByClient || 0;
         const supplierPaid = resObj.amountPaidToSupplier || 0;
         const clientRemaining = Math.max(totalSell - clientPaid, 0);
@@ -3292,7 +3303,7 @@ export default function ReservationsPage({
                         <div className="mt-2 bg-indigo-50 rounded-lg p-2.5 border border-indigo-200">
                           <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">{t('res.rooms')}</div>
                           {resObj.rooms.map((rm, i) => (
-                            <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty} — {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
+                            <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty}x {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
                           ))}
                         </div>
                       </div>
@@ -3312,9 +3323,9 @@ export default function ReservationsPage({
                           <span className="font-mono font-extrabold text-amber-800 text-sm">{totalBuy.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
-                        <div className={`rounded-lg p-2.5 border ${profit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                        <div className={`rounded-lg p-2.5 border ${netProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
                           <span className="text-[9px] uppercase font-bold text-slate-400 block">{t('res.netProfit')}</span>
-                          <span className={`font-mono font-extrabold text-sm ${profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{profit.toLocaleString()}</span>
+                          <span className={`font-mono font-extrabold text-sm ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{netProfit.toLocaleString()}</span>
                           <span className="text-[8px] text-slate-400 block">SAR</span>
                         </div>
                         <div className="bg-white rounded-lg p-2.5 border border-slate-200">
@@ -3431,60 +3442,79 @@ export default function ReservationsPage({
                 {/* ===== PAYMENT TAB ===== */}
                 {activeDetailTab === 'payment' && (
                   <div className="space-y-5">
-                    {/* Quick Pay Presets */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Direction Tabs */}
+                    <div className="flex rounded-xl overflow-hidden border-2 border-slate-200">
                       <button
                         type="button"
                         onClick={() => {
+                          setPayDirection('client');
                           setPayAmount(clientRemaining);
                           setPayAccountId('');
                           setPayVoucher(getNextVoucherNo('REC', transactions || []));
                         }}
-                        className={`p-4 rounded-xl border-2 transition-all text-left ${
-                          clientRemaining > 0 ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
+                        className={`flex-1 py-3 px-4 text-center font-bold text-xs uppercase tracking-wider transition-all ${
+                          payDirection === 'client'
+                            ? 'bg-emerald-600 text-white shadow-inner'
+                            : 'bg-white text-slate-500 hover:bg-emerald-50'
                         }`}
                       >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="text-[9px] font-bold uppercase text-emerald-600">{t('res.receiveFromClient')}</div>
-                            <div className="font-mono font-extrabold text-emerald-800 text-lg">{clientRemaining.toLocaleString()} SAR</div>
-                            <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.from')} {agents.find(a => a.id === resObj.clientId)?.companyName || 'client'}</div>
-                          </div>
-                          <div className="text-3xl">📥</div>
-                        </div>
-                        <div className="mt-2 w-full bg-emerald-100 h-1.5 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${clientPct}%` }}></div>
+                        <span className="text-lg mr-1.5">📥</span> Money IN (Client)
+                        <div className={`text-[10px] mt-0.5 font-mono ${payDirection === 'client' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                          Outstanding: {clientRemaining.toLocaleString()} SAR
                         </div>
                       </button>
                       <button
                         type="button"
                         onClick={() => {
+                          setPayDirection('supplier');
                           setPayAmount(supplierRemaining);
                           setPayAccountId('');
                           setPayVoucher(getNextVoucherNo('PAY', transactions || []));
                         }}
-                        className={`p-4 rounded-xl border-2 transition-all text-left ${
-                          supplierRemaining > 0 ? 'border-blue-200 bg-blue-50 hover:border-blue-400 hover:shadow-md' : 'border-slate-200 bg-slate-50 opacity-60'
+                        className={`flex-1 py-3 px-4 text-center font-bold text-xs uppercase tracking-wider transition-all ${
+                          payDirection === 'supplier'
+                            ? 'bg-blue-600 text-white shadow-inner'
+                            : 'bg-white text-slate-500 hover:bg-blue-50'
                         }`}
                       >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <div className="text-[9px] font-bold uppercase text-blue-600">{t('res.paySupplier')}</div>
-                            <div className="font-mono font-extrabold text-blue-800 text-lg">{supplierRemaining.toLocaleString()} SAR</div>
-                            <div className="text-[9px] text-slate-500">{t('res.outstandingBalance')} {t('res.to')} {agents.find(a => a.id === resObj.supplierId)?.name || 'supplier'}</div>
-                          </div>
-                          <div className="text-3xl">📤</div>
-                        </div>
-                        <div className="mt-2 w-full bg-blue-100 h-1.5 rounded-full overflow-hidden">
-                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${supplierPct}%` }}></div>
+                        <span className="text-lg mr-1.5">📤</span> Money OUT (Supplier)
+                        <div className={`text-[10px] mt-0.5 font-mono ${payDirection === 'supplier' ? 'text-blue-100' : 'text-slate-400'}`}>
+                          Outstanding: {supplierRemaining.toLocaleString()} SAR
                         </div>
                       </button>
                     </div>
 
+                    {/* Direction Banner */}
+                    <div className={`rounded-lg px-4 py-2.5 flex items-center justify-between ${
+                      payDirection === 'client' ? 'bg-emerald-50 border border-emerald-200' : 'bg-blue-50 border border-blue-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{payDirection === 'client' ? '📥' : '📤'}</span>
+                        <div>
+                          <div className={`text-[10px] font-bold uppercase ${payDirection === 'client' ? 'text-emerald-700' : 'text-blue-700'}`}>
+                            {payDirection === 'client' ? 'Receiving FROM Client' : 'Paying TO Supplier'}
+                          </div>
+                          <div className={`text-xs font-semibold ${payDirection === 'client' ? 'text-emerald-900' : 'text-blue-900'}`}>
+                            {payDirection === 'client'
+                              ? (agents.find(a => a.id === resObj.clientId)?.companyName || agents.find(a => a.id === resObj.clientId)?.name || 'Client')
+                              : (agents.find(a => a.id === resObj.supplierId)?.name || 'Supplier')}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`font-mono font-extrabold text-lg ${payDirection === 'client' ? 'text-emerald-700' : 'text-blue-700'}`}>
+                        {(payDirection === 'client' ? clientRemaining : supplierRemaining).toLocaleString()} SAR
+                      </div>
+                    </div>
+
                     {/* Payment Form */}
-                    <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
-                      <h5 className="font-bold text-xs uppercase text-slate-700 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                        <span className="text-amber-500">●</span> {t('res.paymentDetails')}
+                    <div className={`bg-white rounded-xl p-5 border-2 shadow-sm ${
+                      payDirection === 'client' ? 'border-emerald-300' : 'border-blue-300'
+                    }`}>
+                      <h5 className={`font-bold text-xs uppercase pb-2 mb-4 border-b flex items-center gap-2 ${
+                        payDirection === 'client' ? 'text-emerald-700 border-emerald-200' : 'text-blue-700 border-blue-200'
+                      }`}>
+                        <span>{payDirection === 'client' ? '📥' : '📤'}</span>
+                        {payDirection === 'client' ? 'Client Receipt Details' : 'Supplier Payment Details'}
                       </h5>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Amount Section */}
@@ -3546,21 +3576,18 @@ export default function ReservationsPage({
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-slate-200">
+                      {/* Action Button - Single, clear, colored */}
+                      <div className="mt-5 pt-4 border-t border-slate-200">
                         <button
                           type="button"
-                          onClick={() => handlePostBookingPayment(true)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
+                          onClick={() => handlePostBookingPayment(payDirection === 'client')}
+                          className={`w-full font-bold py-3.5 rounded-xl transition text-sm uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 ${
+                            payDirection === 'client'
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                              : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
                         >
-                          {t('res.postClientPayment')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePostBookingPayment(false)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2"
-                        >
-                          {t('res.postSupplierPayment')}
+                          {payDirection === 'client' ? '📥 POST CLIENT RECEIPT' : '📤 POST SUPPLIER PAYMENT'}
                         </button>
                       </div>
                     </div>
@@ -3778,6 +3805,20 @@ export default function ReservationsPage({
                               <span className="text-slate-400">→</span>
                               <span className="text-emerald-700 font-semibold">{entry.newValue}</span>
                             </div>
+                            <div className="text-[9px] text-slate-400 mt-1">by {entry.user}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {/* Audit log entries for this reservation */}
+                      {auditLog.filter(e => e.entityType === 'Reservation' && e.entityId === resObj.id.toString()).sort((a, b) => a.timestamp.localeCompare(b.timestamp)).map(entry => (
+                        <div key={entry.id} className="relative">
+                          <div className={`absolute -left-[25px] top-1 w-3 h-3 rounded-full border-2 border-white shadow ${entry.action.includes('Payment') || entry.action.includes('Client') ? 'bg-emerald-400' : entry.action.includes('Supplier') ? 'bg-blue-400' : entry.action.includes('Cancel') ? 'bg-rose-400' : 'bg-indigo-400'}`}></div>
+                          <div className={`rounded-lg p-3 border ${entry.action.includes('Payment') || entry.action.includes('Client') ? 'bg-emerald-50 border-emerald-100' : entry.action.includes('Supplier') ? 'bg-blue-50 border-blue-100' : entry.action.includes('Cancel') ? 'bg-rose-50 border-rose-100' : 'bg-indigo-50 border-indigo-100'}`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`font-bold text-[11px] ${entry.action.includes('Payment') || entry.action.includes('Client') ? 'text-emerald-800' : entry.action.includes('Supplier') ? 'text-blue-800' : entry.action.includes('Cancel') ? 'text-rose-800' : 'text-indigo-800'}`}>{entry.action}</span>
+                              <span className="text-[9px] text-slate-400 font-mono">{new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-600">{entry.detail}</div>
                             <div className="text-[9px] text-slate-400 mt-1">by {entry.user}</div>
                           </div>
                         </div>

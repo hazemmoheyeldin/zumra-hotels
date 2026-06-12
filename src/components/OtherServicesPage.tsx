@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { OtherService, Agent, TaxSettings, ServiceType, User, Reservation, ConsolidatedInvoice } from '../types';
-import { ZumraDB, ZumraSync, exportToCSV } from '../lib/storage';
+import { OtherService, Agent, TaxSettings, ServiceType, User, Reservation, ConsolidatedInvoice, Transaction, Account } from '../types';
+import { ZumraDB, ZumraSync, exportToCSV, getNextVoucherNo, getNextDocNo } from '../lib/storage';
 import { showToast } from './Toast';
 import ConsolidatedInvoiceBuilder from './ConsolidatedInvoiceBuilder';
 import ConsolidatedInvoicePDF from './ConsolidatedInvoicePDF';
@@ -20,6 +20,9 @@ interface OtherServicesPageProps {
   reservations?: Reservation[];
   consolidatedInvoices?: ConsolidatedInvoice[];
   onSaveConsolidatedInvoice?: (ci: ConsolidatedInvoice) => void;
+  onSaveTransaction?: (tr: Transaction) => void;
+  accounts?: Account[];
+  transactions?: Transaction[];
 }
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -39,6 +42,7 @@ const SERVICE_ICONS: Record<ServiceType, string> = {
 export default function OtherServicesPage({
   otherServices, setOtherServices, agents, taxSettings, currentUser, onLogAudit,
   reservations = [], consolidatedInvoices = [], onSaveConsolidatedInvoice,
+  onSaveTransaction, accounts = [], transactions = [],
 }: OtherServicesPageProps) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('All');
@@ -50,6 +54,13 @@ export default function OtherServicesPage({
   const [viewInvoice, setViewInvoice] = useState<OtherService | null>(null);
   const [showConsolidatedBuilder, setShowConsolidatedBuilder] = useState(false);
   const [viewConsolidatedInvoice, setViewConsolidatedInvoice] = useState<ConsolidatedInvoice | null>(null);
+
+  // Payment recording state
+  const [payingService, setPayingService] = useState<OtherService | null>(null);
+  const [svcPayAmount, setSvcPayAmount] = useState<number>(0);
+  const [svcPayAccountId, setSvcPayAccountId] = useState<string>('');
+  const [svcPayMethod, setSvcPayMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
+  const [svcPayDirection, setSvcPayDirection] = useState<'client' | 'supplier'>('client');
 
   // Form state
   const [form, setForm] = useState<Partial<OtherService>>({
@@ -178,6 +189,33 @@ export default function OtherServicesPage({
     setForm({ serviceType: 'OutboundHotel', quantity: 1, status: 'Pending', taxRate: 15, details: {} });
     setEditingId(null);
     setShowForm(false);
+  };
+
+  const handleServicePayment = () => {
+    if (!payingService || !onSaveTransaction) return;
+    if (!svcPayAmount || svcPayAmount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    if (!svcPayAccountId) { showToast('Select an account', 'error'); return; }
+
+    const trType = svcPayDirection === 'client' ? 'ClientPayment' : 'SupplierPayment';
+    const tr: Transaction = {
+      id: `tr_svc_${trType.toLowerCase()}_${payingService.id}_${Date.now()}`,
+      docNo: getNextDocNo('DOC', transactions),
+      date: new Date().toISOString().split('T')[0],
+      type: trType,
+      amount: svcPayAmount,
+      fromAccountId: svcPayAccountId,
+      agentId: payingService.clientId,
+      description: `${svcPayDirection === 'client' ? 'Client Receipt' : 'Supplier Payment'} for ${SERVICE_LABELS[payingService.serviceType]} - ${payingService.description} (Inv: ${payingService.invoiceNo})`,
+      paymentMethod: svcPayMethod,
+      voucherNo: getNextVoucherNo('PAY', transactions),
+      createdBy: currentUser.name,
+    };
+    onSaveTransaction(tr);
+    onLogAudit('Payment', 'OtherService', payingService.id, `${svcPayDirection === 'client' ? 'Client receipt' : 'Supplier payment'} of ${svcPayAmount.toLocaleString()} SAR via ${svcPayMethod}`);
+    showToast(`${svcPayDirection === 'client' ? 'Client Receipt' : 'Supplier Payment'} of ${svcPayAmount.toLocaleString()} SAR recorded`);
+    setPayingService(null);
+    setSvcPayAmount(0);
+    setSvcPayAccountId('');
   };
 
   const handleExport = () => {
@@ -418,6 +456,7 @@ export default function OtherServicesPage({
                       </td>
                       <td className="px-4 py-3 text-right space-x-1">
                         <button onClick={() => setViewInvoice(svc)} className="text-emerald-600 hover:text-emerald-800 text-xs font-medium">Invoice</button>
+                        <button onClick={() => { setPayingService(svc); setSvcPayAmount(svc.sellPrice * svc.quantity); setSvcPayDirection('client'); }} className="text-amber-600 hover:text-amber-800 text-xs font-medium">Pay</button>
                         <button onClick={() => handleEdit(svc)} className="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Edit</button>
                         <button onClick={() => handleDelete(svc)} className="text-red-500 hover:text-red-700 text-xs font-medium">Del</button>
                       </td>
@@ -468,6 +507,64 @@ export default function OtherServicesPage({
               <button onClick={() => window.print()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Print</button>
               <button onClick={() => setViewInvoice(null)} className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50">Close</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {payingService && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPayingService(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Record Payment</h2>
+              <button onClick={() => setPayingService(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            </div>
+            {/* Direction Toggle */}
+            <div className="flex rounded-lg overflow-hidden border">
+              <button
+                onClick={() => setSvcPayDirection('client')}
+                className={`flex-1 py-2 text-sm font-bold transition ${svcPayDirection === 'client' ? 'bg-emerald-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >Money IN (Client)</button>
+              <button
+                onClick={() => setSvcPayDirection('supplier')}
+                className={`flex-1 py-2 text-sm font-bold transition ${svcPayDirection === 'supplier' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >Money OUT (Supplier)</button>
+            </div>
+            {/* Direction Banner */}
+            <div className={`rounded-lg p-3 text-sm font-medium ${svcPayDirection === 'client' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'}`}>
+              {svcPayDirection === 'client'
+                ? `Receiving from Client: ${clients.find(a => a.id === payingService.clientId)?.name || 'Unknown'}`
+                : `Paying Supplier for: ${payingService.description}`}
+              <span className="block text-xs mt-1 opacity-75">Service total: {(payingService.sellPrice * payingService.quantity).toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR</span>
+            </div>
+            {/* Amount */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Amount (SAR)</label>
+              <input type="number" min={0} step={0.01} value={svcPayAmount} onChange={e => setSvcPayAmount(Number(e.target.value))} className="w-full px-3 py-2 border rounded-lg text-sm font-bold" />
+            </div>
+            {/* Account */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Account</label>
+              <select value={svcPayAccountId} onChange={e => setSvcPayAccountId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                <option value="">Select account...</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.type}) - {a.balance.toLocaleString()} SAR</option>)}
+              </select>
+            </div>
+            {/* Method */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1 font-medium">Payment Method</label>
+              <div className="flex gap-2">
+                <button onClick={() => setSvcPayMethod('Cash')} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${svcPayMethod === 'Cash' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Cash</button>
+                <button onClick={() => setSvcPayMethod('Bank Transfer')} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${svcPayMethod === 'Bank Transfer' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Bank Transfer</button>
+              </div>
+            </div>
+            {/* Submit */}
+            <button
+              onClick={handleServicePayment}
+              className={`w-full font-bold py-3 rounded-xl transition text-sm uppercase tracking-wider shadow-lg ${svcPayDirection === 'client' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+            >
+              {svcPayDirection === 'client' ? '📥 POST CLIENT RECEIPT' : '📤 POST SUPPLIER PAYMENT'}
+            </button>
           </div>
         </div>
       )}

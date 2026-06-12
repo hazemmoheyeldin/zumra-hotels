@@ -1666,6 +1666,11 @@ export default function App() {
     toast.success(`Transaction ${tr.voucherNo || tr.id} saved (${tr.amount.toLocaleString()} SAR)`);
   };
   const handleSaveTransaction = (tr: Transaction) => {
+    // Skip confirmation for auto-generated reservation payments (already confirmed by user in the payment flow)
+    if (tr.description?.startsWith('Automatic Reservation')) {
+      doSaveTransaction(tr);
+      return;
+    }
     showConfirm(
       'Save Transaction',
       `Type: ${tr.type}\nAmount: ${tr.amount.toLocaleString()} SAR\nMethod: ${tr.paymentMethod}\nDate: ${tr.date}\n${tr.description ? `Desc: ${tr.description}` : ''}\n\nSave this transaction?`,
@@ -1756,6 +1761,29 @@ export default function App() {
     setExpenses(updatedList);
     ZumraDB.saveExpenses(updatedList);
     ZumraSync.saveExpense(exp);
+
+    // Single Source of Truth: mirror expense as a Transaction in the ledger
+    // (Account balance already deducted above — do NOT call applyTransactionEffect again)
+    const expTrId = `tr_expense_${exp.id}`;
+    const existingExpTr = transactions.find(t => t.id === expTrId);
+    if (!existingExpTr) {
+      const expTr: Transaction = {
+        id: expTrId,
+        docNo: `EXP-${exp.expenseNumber || exp.id}`,
+        date: exp.date,
+        type: 'SupplierPayment',
+        amount: exp.amount,
+        fromAccountId: exp.fromAccountId,
+        description: `Expense: ${exp.name}${exp.description ? ' - ' + exp.description : ''}`,
+        paymentMethod: 'Bank Transfer',
+        voucherNo: exp.receiptNo || `EXP-${exp.expenseNumber || exp.id}`,
+        createdBy: exp.createdBy
+      };
+      const updatedTrs = [expTr, ...transactions];
+      setTransactions(updatedTrs);
+      ZumraDB.saveTransactions(updatedTrs);
+      ZumraSync.saveTransaction(expTr);
+    }
     toast.success(`Expense "${exp.name}" saved (${exp.amount.toLocaleString()} SAR)`);
   };
 
@@ -1797,6 +1825,38 @@ export default function App() {
     ZumraDB.saveConsolidatedInvoices(updatedList);
     ZumraSync.saveConsolidatedInvoice(ci);
     handleLogAuditSimple('Create', 'ConsolidatedInvoice', ci.id, `Created consolidated invoice ${ci.invoiceNo}`);
+  };
+
+  // Reset all financial data (Destructive)
+  const resetFinancialData = async () => {
+    // 1. Clear transactions
+    setTransactions([]);
+    ZumraDB.saveTransactions([]);
+    // 2. Reset account balances to 0
+    const resetAccounts = accounts.map(a => ({ ...a, balance: 0 }));
+    setAccounts(resetAccounts);
+    ZumraDB.saveAccounts(resetAccounts);
+    // 3. Reset agent balances to 0
+    const resetAgents = agents.map(a => ({ ...a, balance: 0 }));
+    setAgents(resetAgents);
+    ZumraDB.saveAgents(resetAgents);
+    // 4. Clear reservation payment tracking
+    const resetReservations = reservations.map(r => ({
+      ...r,
+      amountPaidByClient: 0,
+      amountPaidToSupplier: 0,
+    }));
+    setReservations(resetReservations);
+    ZumraDB.saveReservations(resetReservations);
+    // 5. Sync deletions to Firestore (delete each transaction)
+    try {
+      for (const tr of transactions) {
+        await ZumraSync.deleteTransaction(tr.id);
+      }
+    } catch (e) {
+      console.error('Firestore transaction cleanup failed:', e);
+    }
+    handleLogAuditSimple('Delete', 'Transaction', 'ALL', 'RESET: All financial data cleared - transactions deleted, balances zeroed');
   };
 
   // Fund transfers between cash blocks
@@ -1913,7 +1973,7 @@ export default function App() {
     showConfirm('Save User', `Save user "${user.name}" (${user.role})?`, () => doAddUser(user));
   };
 
-  const doDeleteUser = (userId: string) => {
+  const doDeleteUser = async (userId: string) => {
     const targetUser = users.find(i => i.id === userId);
     // Guard: prevent deleting self
     if (currentUser && userId === currentUser.id) {
@@ -1931,10 +1991,11 @@ export default function App() {
       toast.error('Cannot delete the last admin. Promote another user to Admin first.');
       return;
     }
+    // Delete from Firestore FIRST to prevent real-time listener from restoring the user
+    await ZumraSync.deleteUser(userId);
     const updated = users.filter(u => u.id !== userId);
     setUsers(updated);
     ZumraDB.saveUsers(updated);
-    ZumraSync.deleteUser(userId);
     toast.success(`User "${targetUser?.name || userId}" deleted`);
   };
   const handleDeleteUser = (userId: string) => {
@@ -2157,6 +2218,7 @@ export default function App() {
             onSaveWaitlist={handleSaveWaitlist}
             hasMoreReservations={hasMoreReservations}
             onLoadMoreReservations={loadMoreReservations}
+            auditLog={auditLog}
           />
           </ErrorBoundary>
         );
@@ -2333,6 +2395,7 @@ export default function App() {
             setTermsAndConditions={setTermsAndConditions}
             hotels={hotels}
             onLogAudit={handleLogAuditSimple}
+            onResetFinancialData={resetFinancialData}
           />
           </ErrorBoundary>
         );
@@ -2349,6 +2412,9 @@ export default function App() {
             reservations={reservations}
             consolidatedInvoices={consolidatedInvoices}
             onSaveConsolidatedInvoice={handleSaveConsolidatedInvoice}
+            onSaveTransaction={handleSaveTransaction}
+            accounts={accounts}
+            transactions={transactions}
           />
           </ErrorBoundary>
         );

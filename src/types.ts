@@ -282,6 +282,10 @@ export interface ExternalTransferPart {
   amount: number;
   fxRate?: number;
   attachmentDataUrl?: string; // Optional image/pdf trace
+  bankRef?: string;
+  legDate?: string;
+  receivingBank?: string;
+  notes?: string;
 }
 
 export interface ExternalTransfer {

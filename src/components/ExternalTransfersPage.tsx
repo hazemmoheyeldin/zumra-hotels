@@ -115,8 +115,11 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   const fxStats = useMemo(() => {
     const rates: number[] = [];
     externalTransfers.forEach(et => et.parts.forEach(p => { if (p.fxRate && p.fxRate > 0) rates.push(p.fxRate); }));
-    if (rates.length === 0) return { min: 0, max: 0, avg: 0, count: 0 };
-    return { min: Math.min(...rates), max: Math.max(...rates), avg: rates.reduce((a, b) => a + b, 0) / rates.length, count: rates.length };
+    if (rates.length === 0) return { min: 0, max: 0, avg: 0, count: 0, weightedAvg: 0 };
+    let totalAmt = 0, totalEgp = 0;
+    externalTransfers.forEach(et => et.parts.forEach(p => { totalAmt += (p.amount || 0); totalEgp += (p.amount || 0) * (p.fxRate || 0); }));
+    const weightedAvg = totalAmt > 0 ? totalEgp / totalAmt : 0;
+    return { min: Math.min(...rates), max: Math.max(...rates), avg: rates.reduce((a, b) => a + b, 0) / rates.length, count: rates.length, weightedAvg };
   }, [externalTransfers]);
 
   const clearFilters = () => { setSearchTerm(''); setFilterStatus(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterSupplier(''); };
@@ -137,7 +140,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   return (
     <div className="space-y-5">
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('extTrans.totalTransfers')}</div>
           <div className="text-2xl font-black text-slate-900">{externalTransfers.length}</div>
@@ -158,8 +161,15 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
         </div>
         <div className="bg-blue-50 rounded-xl border border-blue-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-blue-600 mb-1">{t('extTrans.avgFX')}</div>
-          <div className="text-xl font-black text-blue-800">{fxStats.avg > 0 ? fxStats.avg.toFixed(2) : '—'}</div>
-          <div className="text-[9px] text-blue-500 font-mono mt-0.5">{fxStats.count > 0 ? `${fxStats.min.toFixed(2)} – ${fxStats.max.toFixed(2)}` : 'No data'}</div>
+          <div className="text-xl font-black text-blue-800">{fxStats.weightedAvg > 0 ? fxStats.weightedAvg.toFixed(4) : '—'}</div>
+          <div className="text-[9px] text-blue-500 font-mono mt-0.5">{fxStats.count > 0 ? `W-Avg | Range: ${fxStats.min.toFixed(2)}–${fxStats.max.toFixed(2)}` : 'No data'}</div>
+        </div>
+        <div className={`rounded-xl border p-4 shadow-sm card-hover-lift ${(() => { const officialEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + et.amountSAR, 0) * (fxStats.weightedAvg || 0); const actualEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + (et.totalAmountPaidEGP || 0), 0); return actualEgp >= officialEgp ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'; })()}`}>
+          <div className={`text-[10px] uppercase font-bold mb-1 ${(() => { const officialEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + et.amountSAR, 0) * (fxStats.weightedAvg || 0); const actualEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + (et.totalAmountPaidEGP || 0), 0); return actualEgp >= officialEgp ? 'text-emerald-600' : 'text-rose-600'; })()}`}>Transfer P/L</div>
+          <div className={`text-xl font-black ${(() => { const officialEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + et.amountSAR, 0) * (fxStats.weightedAvg || 0); const actualEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + (et.totalAmountPaidEGP || 0), 0); const diff = actualEgp - officialEgp; return diff >= 0 ? 'text-emerald-800' : 'text-rose-800'; })()}`}>
+            {(() => { const officialEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + et.amountSAR, 0) * (fxStats.weightedAvg || 0); const actualEgp = externalTransfers.filter(et => et.status === 'Done').reduce((s, et) => s + (et.totalAmountPaidEGP || 0), 0); const diff = actualEgp - officialEgp; return `${diff >= 0 ? '+' : ''}${diff.toLocaleString(undefined, { maximumFractionDigits: 0 })} EGP`; })()}
+          </div>
+          <div className="text-[9px] text-slate-500 font-mono mt-0.5">Actual vs Expected EGP</div>
         </div>
       </div>
 
@@ -231,21 +241,42 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
             ) : (
               <div className="space-y-3">
                 {parts.map((p, idx) => (
-                  <div key={idx} className="flex flex-wrap items-end gap-3 p-3 bg-white border border-slate-200 rounded-lg relative">
-                    <div className="w-24">
-                      <label className="text-[10px] text-slate-500 font-bold">Trans {idx + 1}</label>
-                      <input type="number" value={p.amount || ''} onChange={e => handleUpdatePart(idx, 'amount', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" />
+                  <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-slate-700 text-xs">Transfer Part {idx + 1}</span>
+                      <button type="button" onClick={() => handleRemovePart(idx)} className="text-red-500 text-lg hover:text-red-700 leading-none px-2 shrink-0">✕</button>
                     </div>
-                    <div className="w-24">
-                      <label className="text-[10px] text-slate-500 font-bold">FX {idx + 1}</label>
-                      <input type="number" step="0.01" value={p.fxRate || ''} onChange={e => handleUpdatePart(idx, 'fxRate', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" />
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">Amount (SAR)</label>
+                        <input type="number" value={p.amount || ''} onChange={e => handleUpdatePart(idx, 'amount', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">FX Rate</label>
+                        <input type="number" step="0.01" value={p.fxRate || ''} onChange={e => handleUpdatePart(idx, 'fxRate', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">Date</label>
+                        <input type="date" value={p.legDate || ''} onChange={e => handleUpdatePart(idx, 'legDate', e.target.value)} className="w-full px-2 py-1 border rounded text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">Bank Ref #</label>
+                        <input type="text" value={p.bankRef || ''} onChange={e => handleUpdatePart(idx, 'bankRef', e.target.value)} className="w-full px-2 py-1 border rounded text-xs" placeholder="Ref number" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">Receiving Bank</label>
+                        <input type="text" value={p.receivingBank || ''} onChange={e => handleUpdatePart(idx, 'receivingBank', e.target.value)} className="w-full px-2 py-1 border rounded text-xs" placeholder="Bank name" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold">Notes</label>
+                        <input type="text" value={p.notes || ''} onChange={e => handleUpdatePart(idx, 'notes', e.target.value)} className="w-full px-2 py-1 border rounded text-xs" placeholder="Notes" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-slate-500 font-bold">Attachment</label>
+                        <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files?.[0] && handleFileUpload(idx, e.target.files[0])} className="w-full px-2 py-1 border rounded text-xs" />
+                        {p.attachmentDataUrl && <span className="text-[10px] text-emerald-600 font-bold mt-1 block">✅ Attached</span>}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="text-[10px] text-slate-500 font-bold">Attachment Trace</label>
-                      <input type="file" accept="image/*,application/pdf" onChange={e => e.target.files?.[0] && handleFileUpload(idx, e.target.files[0])} className="w-full px-2 py-1 border rounded text-xs" />
-                      {p.attachmentDataUrl && <span className="text-[10px] text-emerald-600 font-bold mt-1 block">✅ Attached</span>}
-                    </div>
-                    <button type="button" onClick={() => handleRemovePart(idx)} className="text-red-500 text-lg hover:text-red-700 self-center leading-none px-2 shrink-0">✕</button>
                   </div>
                 ))}
               </div>
@@ -291,6 +322,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                 <th className="py-2 px-2 font-bold text-slate-600 text-center">Total (EGP)</th>
                 <th className="py-2 px-2 font-bold text-slate-600 text-center">Amount Paid<br/>EGP</th>
                 <th className="py-2 px-2 font-bold text-slate-600 text-center">Remaining<br/>EGP</th>
+                <th className="py-2 px-2 font-bold text-slate-600 text-center bg-emerald-50/30">P/L<br/>(EGP)</th>
                 <th className="py-2 px-2 font-bold text-slate-600 text-center">Status</th>
                 <th className="py-2 px-2 font-bold text-slate-600 text-center">Actions</th>
               </tr>
@@ -341,6 +373,20 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                     <td className="py-2 px-2 text-center font-bold">EGP {totalEGP.toLocaleString()}</td>
                     <td className="py-2 px-2 text-center text-emerald-700 font-bold">EGP {(et.totalAmountPaidEGP || 0).toLocaleString()}</td>
                     <td className={`py-2 px-2 text-center font-bold ${remainingEGP > 0 ? 'text-red-500' : 'text-slate-500'}`}>{remainingEGP > 0 ? `-EGP ${remainingEGP.toLocaleString()}` : `EGP 0`}</td>
+                    <td className={`py-2 px-2 text-center font-bold text-[10px] ${(() => {
+                      const wAvg = et.parts.length > 0 ? et.parts.reduce((s, p) => s + (p.amount || 0) * (p.fxRate || 0), 0) / Math.max(1, et.parts.reduce((s, p) => s + (p.amount || 0), 0)) : 0;
+                      const expected = et.amountSAR * wAvg;
+                      const actual = et.totalAmountPaidEGP || 0;
+                      return actual >= expected ? 'text-emerald-700' : 'text-rose-600';
+                    })()}`}>
+                      {(() => {
+                        const wAvg = et.parts.length > 0 ? et.parts.reduce((s, p) => s + (p.amount || 0) * (p.fxRate || 0), 0) / Math.max(1, et.parts.reduce((s, p) => s + (p.amount || 0), 0)) : 0;
+                        const expected = et.amountSAR * wAvg;
+                        const actual = et.totalAmountPaidEGP || 0;
+                        const diff = actual - expected;
+                        return et.status === 'Done' ? `${diff >= 0 ? '+' : ''}${diff.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—';
+                      })()}
+                    </td>
                     <td className="py-2 px-2 text-center font-bold">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold ${et.status === 'Done' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                         {et.status === 'Done' ? '✓ ' : '⏳ '}{et.status}

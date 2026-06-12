@@ -17,6 +17,7 @@ interface GeneralDataPageProps {
   setTermsAndConditions: (list: TermsAndConditions[]) => void;
   hotels: Hotel[];
   onLogAudit: (action: string, entityType: any, entityId: string, detail: string) => void;
+  onResetFinancialData?: () => Promise<void>;
 }
 
 type Tab = 'salesPersons' | 'cancellationReasons' | 'termsConditions' | 'blackoutPeriods' | 'emailTemplates' | 'backup';
@@ -27,6 +28,7 @@ export default function GeneralDataPage({
   termsAndConditions, setTermsAndConditions,
   hotels,
   onLogAudit,
+  onResetFinancialData,
 }: GeneralDataPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>('salesPersons');
   const [search, setSearch] = useState('');
@@ -944,6 +946,27 @@ export default function GeneralDataPage({
               })}
             </div>
           </div>
+
+          {/* Danger Zone */}
+          {onResetFinancialData && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 space-y-4">
+              <h3 className="font-semibold text-red-800 flex items-center gap-2">⚠️ Danger Zone - Financial Data Reset</h3>
+              <p className="text-sm text-red-600">This will <strong>permanently delete all transactions</strong>, reset all account and agent balances to 0, and clear reservation payment tracking. This action <strong>cannot be undone</strong>.</p>
+              <button
+                onClick={async () => {
+                  if (!confirm('⚠️ WARNING: This will DELETE ALL transactions and RESET ALL balances to 0.\n\nThis is IRREVERSIBLE. Are you absolutely sure?')) return;
+                  if (!confirm('Final confirmation: Type YES in the next prompt to proceed.')) return;
+                  const answer = prompt('Type "YES" to confirm financial data reset:');
+                  if (answer !== 'YES') { showToast('Reset cancelled', 'error'); return; }
+                  await onResetFinancialData();
+                  showToast('All financial data has been reset', 'success');
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition"
+              >
+                🗑️ Reset All Financial Data
+              </button>
+            </div>
+          )}
         </div>
       )}
 

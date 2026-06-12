@@ -18,6 +18,8 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
   const [search, setSearch] = useState('');
   const [entityFilter, setEntityFilter] = useState<string>('All');
   const [actionFilter, setActionFilter] = useState<string>('All');
+  const [userFilter, setUserFilter] = useState<string>('All');
+  const [entityIdFilter, setEntityIdFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(0);
@@ -32,10 +34,17 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
     return ['All', ...Array.from(types).sort()];
   }, [auditLog]);
 
+  const userList = useMemo(() => {
+    const users = new Set(auditLog.map(e => e.user));
+    return ['All', ...Array.from(users).sort()];
+  }, [auditLog]);
+
   const filtered = useMemo(() => {
     return auditLog.filter(entry => {
       if (entityFilter !== 'All' && entry.entityType !== entityFilter) return false;
       if (actionFilter !== 'All' && entry.action !== actionFilter) return false;
+      if (userFilter !== 'All' && entry.user !== userFilter) return false;
+      if (entityIdFilter && !entry.entityId.toLowerCase().includes(entityIdFilter.toLowerCase())) return false;
       if (dateFrom && entry.timestamp < dateFrom) return false;
       if (dateTo && entry.timestamp.slice(0, 10) > dateTo) return false;
       if (search) {
@@ -49,7 +58,7 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
       }
       return true;
     });
-  }, [auditLog, search, entityFilter, actionFilter, dateFrom, dateTo]);
+  }, [auditLog, search, entityFilter, actionFilter, userFilter, entityIdFilter, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -104,13 +113,13 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
       </div>
 
       {/* Filters */}
-      <div className="bg-white border rounded-xl p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="bg-white border rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
         <input
           type="text"
           placeholder="Search..."
           value={search}
           onChange={e => { setSearch(e.target.value); setPage(0); }}
-          className="col-span-2 md:col-span-1 px-3 py-2 border rounded-lg text-sm"
+          className="px-3 py-2 border rounded-lg text-sm"
         />
         <select
           value={entityFilter}
@@ -126,6 +135,20 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
         >
           {actionTypes.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
+        <select
+          value={userFilter}
+          onChange={e => { setUserFilter(e.target.value); setPage(0); }}
+          className="px-3 py-2 border rounded-lg text-sm bg-white"
+        >
+          {userList.map(u => <option key={u} value={u}>{u === 'All' ? 'All Users' : u}</option>)}
+        </select>
+        <input
+          type="text"
+          placeholder="Entity ID filter..."
+          value={entityIdFilter}
+          onChange={e => { setEntityIdFilter(e.target.value); setPage(0); }}
+          className="px-3 py-2 border rounded-lg text-sm"
+        />
         <input
           type="date"
           value={dateFrom}
@@ -140,6 +163,9 @@ export default function AuditLogPage({ auditLog, currentUser }: AuditLogPageProp
           className="px-3 py-2 border rounded-lg text-sm"
           placeholder="To"
         />
+        {(entityFilter !== 'All' || actionFilter !== 'All' || userFilter !== 'All' || entityIdFilter || dateFrom || dateTo || search) && (
+          <button onClick={() => { setSearch(''); setEntityFilter('All'); setActionFilter('All'); setUserFilter('All'); setEntityIdFilter(''); setDateFrom(''); setDateTo(''); setPage(0); }} className="px-3 py-2 text-sm text-rose-600 font-medium hover:bg-rose-50 rounded-lg transition">Clear Filters</button>
+        )}
       </div>
 
       {/* Table */}

@@ -264,17 +264,13 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
             {/* Totals */}
             <div className="flex justify-end mb-6">
               <div className="w-72">
-                <div className="flex justify-between text-sm py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">{t('ipdf.subtotal')}</span>
-                  <span className="font-medium">{fmt(totals.totalSell)}</span>
-                </div>
-                <div className="flex justify-between text-sm py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">{t('ipdf.vatIncl')}</span>
-                  <span className="font-medium">{fmt(totals.vat)}</span>
-                </div>
                 <div className="flex justify-between text-base py-2 border-b-2 border-slate-800 font-bold">
-                  <span>{t('ipdf.totalLabel')}</span>
+                  <span>{t('ipdf.totalLabel')} <span className="text-[10px] font-normal text-slate-500">(VAT incl.)</span></span>
                   <span>{fmt(totals.totalWithVat)} SAR</span>
+                </div>
+                <div className="flex justify-between text-[10px] py-1 text-slate-500 italic">
+                  <span>VAT (15%) included in total</span>
+                  <span>{fmt(totals.vat)} SAR</span>
                 </div>
                 <div className="flex justify-between text-sm py-1.5 border-b border-emerald-200 bg-emerald-50 px-2 -mx-2">
                   <span className="text-emerald-700">{t('ipdf.amountPaid')}</span>
