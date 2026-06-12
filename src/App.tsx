@@ -322,6 +322,7 @@ export default function App() {
   const globalSearchRef = useRef<HTMLDivElement>(null);
   // Restore session from localStorage if user was previously logged in
   const [authLoading, setAuthLoading] = useState(isFirebaseConfigured); // Block UI until Firebase Auth initializes
+  const [listenersReady, setListenersReady] = useState(!isFirebaseConfigured); // Block data UI until Firestore listeners connect
   const firestoreListenerUnsubs = useRef<(() => void)[]>([]);
   const dataLoadedRef = useRef(false); // Prevents Phase 2 re-run on profile updates
   const listenersAttachedRef = useRef(false); // Prevents Firestore listener teardown on user switch
@@ -938,6 +939,8 @@ export default function App() {
           } else {
             console.log('[Firestore] Listeners already attached — skipping re-attachment');
           }
+          // Signal that listeners are connected (data can now flow in real-time)
+          setListenersReady(true);
           // Flush any items queued while auth was initializing
           const queueLen = getSyncStatus().pendingCount;
           if (queueLen > 0) {
@@ -2602,6 +2605,18 @@ export default function App() {
         <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
         <p className="text-sm font-medium text-slate-600">Verifying session...</p>
         <p className="text-[10px] text-slate-400 mt-1">Zumra Hotels RMS</p>
+      </div>
+    );
+  }
+
+  // Data loading gate - ensures Firestore listeners are connected before rendering dashboard
+  // Prevents race conditions where UI renders before real-time sync is established
+  if (currentUser && !listenersReady) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-medium text-slate-600">Connecting to database...</p>
+        <p className="text-[10px] text-slate-400 mt-1">Establishing real-time sync</p>
       </div>
     );
   }

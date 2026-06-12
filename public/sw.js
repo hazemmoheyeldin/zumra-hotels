@@ -1,6 +1,6 @@
 // Zumra Hotels RMS - Service Worker for Offline-First PWA
 // Version bumped to invalidate old caches on deploy
-const CACHE_VERSION = 'zumra-rms-v12';
+const CACHE_VERSION = 'zumra-rms-v13';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

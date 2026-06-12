@@ -85,6 +85,7 @@ export type { FBUser };
 // Persisted to localStorage so dynamically-added users survive page refresh
 const _defaultWhitelist = [
   'hazemmoheyeldin@gmail.com',
+  'hazem8383@gmail.com',
   'hazem@zumrahotels.com',
   'zaki@zumrahotels.com',
   'yasmeen@zumrahotels.com',
@@ -108,6 +109,15 @@ const _persistWhitelist = () => {
 // Allowed domains (any email matching these domains is allowed)
 const ALLOWED_DOMAINS: string[] = [
   '@zumrahotels.com',
+];
+
+// Authorized hosting domains (app deployment domains)
+export const AUTHORIZED_HOSTING_DOMAINS: string[] = [
+  'zumrahotels-rms.web.app',
+  'rms-zumrahotel.web.app',
+  'rms.zumrahotels.com',
+  'zumrahotels-rms.firebaseapp.com',
+  'localhost',
 ];
 
 /**
@@ -449,19 +459,34 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
   try {
     const q = query(collection(db, collectionName));
     let firstEmission = true;
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
-      if (firstEmission) {
-        console.log(`[Firestore] Listener: ${collectionName} — ${data.length} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
-        firstEmission = false;
-      }
-      callback(data);
-    }, (error) => {
-      console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
-      if (error?.code === 'permission-denied') {
-        console.error(`[Firebase] PERMISSION DENIED: Firestore security rules are blocking read access to '${collectionName}'. Check your Firestore rules.`);
-      }
-    });
+    let retryCount = 0;
+    const maxRetries = 3;
+    const subscribe = (): (() => void) => {
+      return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+        if (firstEmission) {
+          console.log(`[Firestore] Listener: ${collectionName} — ${data.length} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
+          firstEmission = false;
+          retryCount = 0; // Reset retries on success
+        }
+        callback(data);
+      }, (error) => {
+        console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
+        if (error?.code === 'permission-denied') {
+          console.error(`[Firebase] PERMISSION DENIED: Firestore security rules are blocking read access to '${collectionName}'. Check your Firestore rules.`);
+          // Auto-retry after delay (auth might not have propagated yet)
+          if (retryCount < maxRetries) {
+            retryCount++;
+            const delay = retryCount * 2000;
+            console.log(`[Firestore] Retrying ${collectionName} listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
+            setTimeout(() => {
+              try { subscribe(); } catch {}
+            }, delay);
+          }
+        }
+      });
+    };
+    const unsubscribe = subscribe();
     return unsubscribe;
   } catch (err: any) {
     console.error(`[Firestore] Failed to subscribe to ${collectionName}:`, err?.message);
@@ -525,23 +550,37 @@ export function firestoreSubscribeWithLimit<T>(
       limit(limitCount)
     );
     let firstEmission = true;
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
-      const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
-      if (firstEmission) {
-        console.log(`[Firestore] Limited listener: ${collectionName} — ${data.length}/${limitCount} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
-        firstEmission = false;
-      }
-      callback(data, lastDoc);
-    }, (error) => {
-      console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
-      if (error?.code === 'permission-denied') {
-        console.error(`[Firebase] PERMISSION DENIED: Check Firestore rules for '${collectionName}'.`);
-      }
-      if (error?.code === 'failed-precondition') {
-        console.error(`[Firebase] MISSING INDEX: Create a composite index on '${collectionName}' for field '${orderByField}'.`, error?.message);
-      }
-    });
+    let retryCount = 0;
+    const maxRetries = 3;
+    const subscribe = (): (() => void) => {
+      return onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+        const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+        if (firstEmission) {
+          console.log(`[Firestore] Limited listener: ${collectionName} — ${data.length}/${limitCount} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
+          firstEmission = false;
+          retryCount = 0;
+        }
+        callback(data, lastDoc);
+      }, (error) => {
+        console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
+        if (error?.code === 'permission-denied') {
+          console.error(`[Firebase] PERMISSION DENIED: Check Firestore rules for '${collectionName}'.`);
+          if (retryCount < maxRetries) {
+            retryCount++;
+            const delay = retryCount * 2000;
+            console.log(`[Firestore] Retrying ${collectionName} limited listener in ${delay / 1000}s (attempt ${retryCount}/${maxRetries})...`);
+            setTimeout(() => {
+              try { subscribe(); } catch {}
+            }, delay);
+          }
+        }
+        if (error?.code === 'failed-precondition') {
+          console.error(`[Firebase] MISSING INDEX: Create a composite index on '${collectionName}' for field '${orderByField}'.`, error?.message);
+        }
+      });
+    };
+    const unsubscribe = subscribe();
     return unsubscribe;
   } catch (err: any) {
     console.error(`[Firestore] Failed to subscribe with limit to ${collectionName}:`, err?.message);

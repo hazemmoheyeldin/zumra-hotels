@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
-import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, ensureUserProfileInFirestore } from '../lib/firebase';
+import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, ensureUserProfileInFirestore, addToStaffWhitelist } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -149,6 +149,8 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
             await firebaseCreateUser(matchedUser.email, fbPwd);
             await firebaseSignIn(matchedUser.email, fbPwd);
           }
+          // Ensure this user's email is in the staff whitelist for future sessions
+          addToStaffWhitelist(matchedUser.email);
         }
 
         setLoading(false);
