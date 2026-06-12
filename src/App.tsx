@@ -62,14 +62,17 @@ const PageLoader = () => (
   </div>
 );
 
-// Efficient shallow comparison to avoid JSON.stringify on large arrays
+// Efficient shallow comparison: checks IDs + length instead of object references.
+// Firestore onSnapshot creates new objects on every emission, so reference comparison
+// would ALWAYS return false, causing unnecessary state updates and re-renders.
 function arraysEqual(a: any[], b: any[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
-  // Quick check: compare first and last items by reference or key
   if (a.length === 0) return true;
-  if (a[0] !== b[0]) return false;
-  if (a.length > 1 && a[a.length - 1] !== b[b.length - 1]) return false;
+  // Quick ID-based comparison (Firestore docs always have 'id' field)
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]?.id !== b[i]?.id) return false;
+  }
   return true;
 }
 
@@ -723,110 +726,142 @@ export default function App() {
         }
       };
 
+      // Throttled localStorage writer: batches writes to prevent synchronous I/O
+      // from blocking the main thread when 22 listeners fire simultaneously
+      const _pendingWrites = new Map<string, string>();
+      let _writeTimer: ReturnType<typeof setTimeout> | null = null;
+      const scheduleLocalStorageWrite = (key: string, data: any[]) => {
+        _pendingWrites.set(key, JSON.stringify(data));
+        if (!_writeTimer) {
+          _writeTimer = setTimeout(() => {
+            _writeTimer = null;
+            _pendingWrites.forEach((val, k) => {
+              try { localStorage.setItem(k, val); } catch {}
+            });
+            _pendingWrites.clear();
+          }, 100); // Batch all writes within 100ms into a single microtask
+        }
+      };
+
       // Function to attach real-time Firestore listeners (called AFTER auth is confirmed)
+      // Listeners are staggered (50ms apart) to prevent a thundering herd of simultaneous
+      // Firestore reads + state updates + localStorage writes on initial load.
       const attachFirestoreListeners = () => {
         console.log('[Firestore] Attaching real-time listeners for all collections...');
+        const unsubs: (() => void)[] = [];
+        let attachIndex = 0;
+        const STAGGER_MS = 50; // 50ms between each listener attachment
+
+        const attach = (fn: () => () => void) => {
+          const delay = attachIndex * STAGGER_MS;
+          attachIndex++;
+          setTimeout(() => { unsubs.push(fn()); }, delay);
+        };
+
         // Direct reactive listeners — arraysEqual prevents echo re-renders
-        const unsubs = [
-        firestoreSubscribeWithLimit<Hotel>(COLLECTIONS.HOTELS, 'hotelNumber', 'asc', PAGE_SIZE, (data, lastDoc) => {
+        // Each listener is wrapped in attach() for staggered attachment + throttled localStorage writes
+        attach(() => firestoreSubscribeWithLimit<Hotel>(COLLECTIONS.HOTELS, 'hotelNumber', 'asc', PAGE_SIZE, (data, lastDoc) => {
           if (!localStorage.getItem('zumra_hotels_migrated')) {
-            localStorage.setItem('zumra_hotels', JSON.stringify(data));
+            scheduleLocalStorageWrite('zumra_hotels', data);
             setHotels(prev => arraysEqual(prev, data) ? prev : data);
             setHotelsCursor(lastDoc);
             setHasMoreHotels(data.length >= PAGE_SIZE);
           }
-        }),
-        firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
-          localStorage.setItem('zumra_agents', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
+          scheduleLocalStorageWrite('zumra_agents', data);
           setAgents(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          localStorage.setItem('zumra_allotments', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
+          scheduleLocalStorageWrite('zumra_allotments', data);
           setAllotments(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribeWithLimit<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
-          localStorage.setItem('zumra_reservations', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribeWithLimit<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
+          scheduleLocalStorageWrite('zumra_reservations', data);
           setReservations(prev => arraysEqual(prev, data) ? prev : data);
           setReservationsCursor(lastDoc);
           setHasMoreReservations(data.length >= PAGE_SIZE);
-        }),
-        firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
-          localStorage.setItem('zumra_accounts', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
+          scheduleLocalStorageWrite('zumra_accounts', data);
           setAccounts(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
-          localStorage.setItem('zumra_transactions', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
+          scheduleLocalStorageWrite('zumra_transactions', data);
           setTransactions(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
-          localStorage.setItem('zumra_external_transfers', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
+          scheduleLocalStorageWrite('zumra_external_transfers', data);
           setExternalTransfers(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
-          // Merge Firestore data with DEFAULT_USERS to prevent user loss
+        }));
+        attach(() => firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
           const mergedMap = new Map<string, User>();
           DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
           data.forEach(u => mergedMap.set(u.id, u));
           const merged = Array.from(mergedMap.values());
-          localStorage.setItem('zumra_users', JSON.stringify(merged));
+          scheduleLocalStorageWrite('zumra_users', merged);
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
-        }),
-        firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
-          localStorage.setItem('zumra_follow_ups', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
+          scheduleLocalStorageWrite('zumra_follow_ups', data);
           setFollowUps(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
-          localStorage.setItem('zumra_sales_persons', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
+          scheduleLocalStorageWrite('zumra_sales_persons', data);
           setSalesPersons(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
-          localStorage.setItem('zumra_cancellation_reasons', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
+          scheduleLocalStorageWrite('zumra_cancellation_reasons', data);
           setCancellationReasons(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
-          localStorage.setItem('zumra_terms_conditions', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
+          scheduleLocalStorageWrite('zumra_terms_conditions', data);
           setTermsAndConditions(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
-          localStorage.setItem('zumra_other_services', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
+          scheduleLocalStorageWrite('zumra_other_services', data);
           setOtherServices(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
-          localStorage.setItem('zumra_payment_gateways', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
+          scheduleLocalStorageWrite('zumra_payment_gateways', data);
           setPaymentGateways(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
-          localStorage.setItem('zumra_pay_by_links', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
+          scheduleLocalStorageWrite('zumra_pay_by_links', data);
           setPayByLinks(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
-          localStorage.setItem('zumra_edit_approvals', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
+          scheduleLocalStorageWrite('zumra_edit_approvals', data);
           setEditApprovals(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
-          localStorage.setItem('zumra_tax_settings', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
+          scheduleLocalStorageWrite('zumra_tax_settings', data);
           setTaxSettings(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
-          localStorage.setItem('zumra_expenses', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
+          scheduleLocalStorageWrite('zumra_expenses', data);
           setExpenses(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
-          localStorage.setItem('zumra_expense_categories', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
+          scheduleLocalStorageWrite('zumra_expense_categories', data);
           setExpenseCategories(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
-          localStorage.setItem('zumra_consolidated_invoices', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
+          scheduleLocalStorageWrite('zumra_consolidated_invoices', data);
           setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-        firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
-          localStorage.setItem('zumra_messages', JSON.stringify(data));
+        }));
+        attach(() => firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
+          scheduleLocalStorageWrite('zumra_messages', data);
           setMessages(prev => arraysEqual(prev, data) ? prev : data);
-        }),
-      ];
-        // Store unsubs in ref for cleanup
-        firestoreListenerUnsubs.current = unsubs;
-        console.log('[Firestore] All', unsubs.length, 'real-time listeners attached successfully');
+        }));
+
+        // Store unsubs in ref for cleanup (populated asynchronously as listeners attach)
+        // Total stagger time: 22 listeners × 50ms = 1.1s for all listeners to be fully attached
+        console.log('[Firestore] All', attachIndex, 'listeners queued for staggered attachment');
+        setTimeout(() => {
+          firestoreListenerUnsubs.current = unsubs;
+          console.log('[Firestore] All', unsubs.length, 'real-time listeners attached successfully');
+        }, attachIndex * STAGGER_MS + 100);
       };
 
       // Call attachFirestoreListeners after auth is confirmed, then run migration in background
@@ -1240,26 +1275,34 @@ export default function App() {
   };
 
   // --- Split-architecture: On-demand full loads for Dashboard/Reports ---
+  // Ref guards prevent parallel calls (race condition: both calls see fullReservations===null)
+  const loadingFullResRef = useRef(false);
+  const loadingFullHotelsRef = useRef(false);
+
   const loadFullReservations = async () => {
-    if (fullReservations) return fullReservations; // Already loaded
+    if (fullReservations || loadingFullResRef.current) return fullReservations;
+    loadingFullResRef.current = true;
     setFullDataLoading(true);
     try {
       const data = await firestoreLoadFull<Reservation>(COLLECTIONS.RESERVATIONS);
       setFullReservations(data);
       return data;
     } finally {
+      loadingFullResRef.current = false;
       setFullDataLoading(false);
     }
   };
 
   const loadFullHotels = async () => {
-    if (fullHotels) return fullHotels;
+    if (fullHotels || loadingFullHotelsRef.current) return fullHotels;
+    loadingFullHotelsRef.current = true;
     setFullDataLoading(true);
     try {
       const data = await firestoreLoadFull<Hotel>(COLLECTIONS.HOTELS);
       setFullHotels(data);
       return data;
     } finally {
+      loadingFullHotelsRef.current = false;
       setFullDataLoading(false);
     }
   };
