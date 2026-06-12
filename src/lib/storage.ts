@@ -769,8 +769,8 @@ export function getReservationTotals(res: Reservation) {
   const netProfit = safeSubtract(grossProfit, totalCommission);
   const profit = grossProfit; // Backward-compatible alias
   const markupPct = totalBuy > 0 ? round2((grossProfit / totalBuy) * 100) : 0;
-  const vat = round2(totalSell * 0.15); // 15% VAT
-  const totalWithVat = safeAdd(totalSell, vat);
+  const vat = round2(totalSell * (15 / 115)); // 15% VAT extracted from VAT-inclusive totalSell
+  const totalWithVat = totalSell; // totalSell already includes VAT
 
   return {
     totalSell,

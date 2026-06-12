@@ -13,6 +13,7 @@ import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
 import InvoicePDF from './InvoicePDF';
 import ConfirmDialog from './ConfirmDialog';
+import VirtualTable from './VirtualTable';
 import { useToast, ToastContainer } from './Toast';
 import { hasDraft, loadDraft, clearDraft } from '../hooks/useDraft';
 import CancellationWizard, { CancellationResult } from './CancellationWizard';
@@ -324,6 +325,10 @@ export default function ReservationsPage({
   const [showRateCompare, setShowRateCompare] = useState(false);
   const [rateCompareIdx, setRateCompareIdx] = useState<number | null>(null);
   const [compareIds, setCompareIds] = useState<number[]>([]);
+
+  // Pagination state
+  const [resPage, setResPage] = useState(0);
+  const [resPageSize, setResPageSize] = useState(50);
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -1344,6 +1349,14 @@ export default function ReservationsPage({
     if (filterSort === 'Check-In (Down)') return new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime();
     return 0;
   });
+
+  // Paginated slice
+  const resTotalPages = Math.max(1, Math.ceil(sortedReservations.length / resPageSize));
+  const resSafePage = Math.min(resPage, resTotalPages - 1);
+  const pagedReservations = sortedReservations.slice(resSafePage * resPageSize, (resSafePage + 1) * resPageSize);
+
+  // Reset page to 0 when filters change
+  React.useEffect(() => { setResPage(0); }, [searchTerm, filterAgentId, filterSupplierId, filterStatus, filterDate, filterSort, filterCustom]);
 
   const handleExportCSV = () => {
     const spMap = new Map(salesPersons.map(sp => [sp.id, sp.name]));
@@ -2703,9 +2716,22 @@ export default function ReservationsPage({
       ) : (
         /* Dynamic table listing of filter output */
         <>
-        {/* Mobile Card Layout */}
-        <div className="md:hidden space-y-3">
-          {sortedReservations.map((res) => {
+        {/* Mobile Card Layout (virtualized + paginated) */}
+        <div className="md:hidden">
+          {sortedReservations.length === 0 ? (
+            <div className="py-16 text-center animate-fade-in">
+              <div className="text-5xl mb-4">📋</div>
+              <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
+              <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
+            </div>
+          ) : (
+            <VirtualTable
+              items={sortedReservations}
+              estimateSize={180}
+              containerHeight={500}
+              itemLabel="reservations"
+              keyExtractor={(res) => res.id}
+              renderRow={(res) => {
             const client = agents.find(a => a.id === res.clientId);
             const hotel = hotels.find(h => h.id === res.hotelId);
             const { totalSell, totalBuy, profit } = getReservationTotals(res);
@@ -2750,13 +2776,8 @@ export default function ReservationsPage({
                 </div>
               </div>
             );
-          })}
-          {filteredReservations.length === 0 && (
-            <div className="py-16 text-center animate-fade-in">
-              <div className="text-5xl mb-4">📋</div>
-              <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
-              <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
-            </div>
+          }}
+            />
           )}
         </div>
 
@@ -2867,9 +2888,18 @@ export default function ReservationsPage({
             <thead>
               <tr className="border-b border-light text-slate-400 font-semibold bg-slate-50/50 uppercase tracking-wider text-[10px]">
                 <th className="py-2.5 px-3 font-mono">
-                  <input type="checkbox" checked={sortedReservations.length > 0 && selectedIds.size === sortedReservations.length}
-                    onChange={e => setSelectedIds(e.target.checked ? new Set(sortedReservations.map(r => r.id)) : new Set())}
-                    className="rounded" title="Select all" />
+                  <input type="checkbox" checked={pagedReservations.length > 0 && pagedReservations.every(r => selectedIds.has(r.id))}
+                    onChange={e => {
+                      const pageIds = pagedReservations.map(r => r.id);
+                      if (e.target.checked) {
+                        setSelectedIds(new Set([...selectedIds, ...pageIds]));
+                      } else {
+                        const s = new Set(selectedIds);
+                        pageIds.forEach(id => s.delete(id));
+                        setSelectedIds(s);
+                      }
+                    }}
+                    className="rounded" title="Select page" />
                 </th>
                 <th className="py-2.5 px-3 font-mono">{t('res.id')}</th>
                 <th className="py-2.5 px-3">{t('res.guestName')}</th>
@@ -2884,7 +2914,7 @@ export default function ReservationsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
-              {sortedReservations.map((res) => {
+              {pagedReservations.map((res) => {
                 const client = agents.find(a => a.id === res.clientId);
                 const hotel = hotels.find(h => h.id === res.hotelId);
                 const { totalSell, totalBuy, profit } = getReservationTotals(res);
@@ -3092,6 +3122,29 @@ export default function ReservationsPage({
               )}
             </tbody>
           </table>
+
+          {/* Pagination footer */}
+          {sortedReservations.length > resPageSize && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2 py-3 border-t border-slate-150 text-xs mt-2">
+              <span className="text-slate-500">
+                Showing <span className="font-bold text-slate-800">{resSafePage * resPageSize + 1}</span>–
+                <span className="font-bold text-slate-800">{Math.min((resSafePage + 1) * resPageSize, sortedReservations.length)}</span> of{' '}
+                <span className="font-bold text-slate-800">{sortedReservations.length}</span> reservations
+              </span>
+              <div className="flex items-center gap-2">
+                <select value={resPageSize} onChange={(e) => { setResPageSize(Number(e.target.value)); setResPage(0); }} className="border border-slate-200 rounded px-2 py-1 text-xs bg-white">
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+                <button onClick={() => setResPage(0)} disabled={resSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="First">«</button>
+                <button onClick={() => setResPage(resSafePage - 1)} disabled={resSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Prev">‹</button>
+                <span className="px-2 text-slate-700 font-medium">Page <span className="font-bold">{resSafePage + 1}</span> of {resTotalPages}</span>
+                <button onClick={() => setResPage(resSafePage + 1)} disabled={resSafePage >= resTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Next">›</button>
+                <button onClick={() => setResPage(resTotalPages - 1)} disabled={resSafePage >= resTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Last">»</button>
+              </div>
+            </div>
+          )}
         </div>
         </>
       )}
@@ -3252,7 +3305,7 @@ export default function ReservationsPage({
                         <div className="mt-2 bg-indigo-50 rounded-lg p-2.5 border border-indigo-200">
                           <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">{t('res.rooms')}</div>
                           {resObj.rooms.map((rm, i) => (
-                            <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty}أ— {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
+                            <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty} — {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
                           ))}
                         </div>
                       </div>

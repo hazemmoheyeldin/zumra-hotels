@@ -10,6 +10,7 @@ import Tooltip from './Tooltip';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 import { exportToExcel } from '../lib/storage';
+import VirtualTable from './VirtualTable';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
@@ -34,6 +35,10 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterAgentId, setFilterAgentId] = useState('');
   const [filterMethod, setFilterMethod] = useState<'' | 'Cash' | 'Bank Transfer'>('');
+
+  // Pagination state
+  const [trPage, setTrPage] = useState(0);
+  const [trPageSize, setTrPageSize] = useState(50);
   const [viewingAttachment, setViewingAttachment] = useState<{url: string, label: string} | null>(null);
   const [showAgentSummary, setShowAgentSummary] = useState(false);
   
@@ -224,6 +229,15 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       return bal;
     });
   }, [filteredTransactions]);
+
+  // Paginated transactions
+  const trTotalPages = Math.max(1, Math.ceil(filteredTransactions.length / trPageSize));
+  const trSafePage = Math.min(trPage, trTotalPages - 1);
+  const pagedTransactions = filteredTransactions.slice(trSafePage * trPageSize, (trSafePage + 1) * trPageSize);
+  const pagedOffset = trSafePage * trPageSize;
+
+  // Reset page on filter change
+  React.useEffect(() => { setTrPage(0); }, [searchTerm, filterType, filterDateFrom, filterDateTo, filterAgentId, filterMethod]);
 
   // Per-agent summary
   const agentSummary = useMemo(() => {
@@ -705,9 +719,22 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         </form>
       ) : (
         <>
-        {/* Mobile Card Layout */}
-        <div className="md:hidden space-y-3">
-          {filteredTransactions.map((tr, idx) => (
+        {/* Mobile Card Layout (virtualized + paginated) */}
+        <div className="md:hidden">
+          {filteredTransactions.length === 0 ? (
+            <div className="py-16 text-center animate-fade-in">
+              <div className="text-5xl mb-4">💳</div>
+              <p className="text-sm font-bold text-slate-500">{t('trans.noTransactions')}</p>
+              <p className="text-xs text-slate-400 mt-1">{t('trans.createFirst')}</p>
+            </div>
+          ) : (
+            <VirtualTable
+              items={filteredTransactions}
+              estimateSize={140}
+              containerHeight={500}
+              itemLabel="transactions"
+              keyExtractor={(tr) => tr.id}
+              renderRow={(tr, idx) => (
             <div key={tr.id} className="border border-slate-100 rounded-xl p-3 bg-white shadow-sm">
               <div className="flex justify-between items-start mb-2">
                 <div>
@@ -752,9 +779,10 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 </div>
               </div>
             </div>
-          ))}
+          )}
+            />
+          )}
         </div>
-
         {/* Desktop Table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -777,7 +805,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 select-none">
-              {filteredTransactions.map((tr, idx) => (
+              {pagedTransactions.map((tr, localIdx) => (
                 <tr key={tr.id} className="hover:bg-slate-50/45 text-xs">
                   <td className="py-3 px-3 font-mono">{tr.date}</td>
                   <td className="py-3 px-3 font-mono font-bold text-indigo-700">
@@ -822,8 +850,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                   }`}>
                     {tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : tr.type === 'RefundProcessed' ? '↩ ' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[idx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {runningBalances[idx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[pagedOffset + localIdx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {runningBalances[pagedOffset + localIdx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
                   {(() => {
                     if (tr.type === 'ClientPayment' && tr.reservationId) {
@@ -890,6 +918,29 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               )}
             </tbody>
           </table>
+
+          {/* Pagination footer */}
+          {filteredTransactions.length > trPageSize && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2 py-3 border-t border-slate-150 text-xs mt-2">
+              <span className="text-slate-500">
+                Showing <span className="font-bold text-slate-800">{trSafePage * trPageSize + 1}</span>–
+                <span className="font-bold text-slate-800">{Math.min((trSafePage + 1) * trPageSize, filteredTransactions.length)}</span> of{' '}
+                <span className="font-bold text-slate-800">{filteredTransactions.length}</span> transactions
+              </span>
+              <div className="flex items-center gap-2">
+                <select value={trPageSize} onChange={(e) => { setTrPageSize(Number(e.target.value)); setTrPage(0); }} className="border border-slate-200 rounded px-2 py-1 text-xs bg-white">
+                  <option value={25}>25 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
+                </select>
+                <button onClick={() => setTrPage(0)} disabled={trSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="First">«</button>
+                <button onClick={() => setTrPage(trSafePage - 1)} disabled={trSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Prev">‹</button>
+                <span className="px-2 text-slate-700 font-medium">Page <span className="font-bold">{trSafePage + 1}</span> of {trTotalPages}</span>
+                <button onClick={() => setTrPage(trSafePage + 1)} disabled={trSafePage >= trTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Next">›</button>
+                <button onClick={() => setTrPage(trTotalPages - 1)} disabled={trSafePage >= trTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Last">»</button>
+              </div>
+            </div>
+          )}
         </div>
         </>
       )}

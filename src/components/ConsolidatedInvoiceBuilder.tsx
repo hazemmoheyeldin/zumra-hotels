@@ -84,7 +84,7 @@ export default function ConsolidatedInvoiceBuilder({
           description: `🏩 RSV-${res.id} | ${res.guestName} | ${res.checkIn} to ${res.checkOut}`,
           quantity: 1,
           unitPrice: totals.totalSell,
-          taxRate: totals.vat > 0 ? 15 : 0,
+          taxRate: 0, // VAT already included in totalSell
           total: totals.totalSell,
         });
       }
@@ -94,9 +94,16 @@ export default function ConsolidatedInvoiceBuilder({
   }, [clientServices, clientReservations, selectedServiceIds, selectedReservationIds]);
 
   // Calculate totals
-  const subtotal = items.reduce((sum, it) => sum + it.total, 0);
-  const vatAmount = items.reduce((sum, it) => sum + (it.total * it.taxRate / 100), 0);
-  const totalWithVat = subtotal + vatAmount;
+  // For reservation items (taxRate=0), VAT is already included in total — extract it
+  // For other service items (taxRate>0), VAT is added on top
+  const resVatIncluded = items.filter(it => it.type === 'Reservation').reduce((s, it) => s + it.total * (15 / 115), 0);
+  const svcItems = items.filter(it => it.type === 'OtherService');
+  const svcSubtotal = svcItems.reduce((s, it) => s + it.total, 0);
+  const svcVat = svcItems.reduce((s, it) => s + (it.total * it.taxRate / 100), 0);
+  const resTotal = items.filter(it => it.type === 'Reservation').reduce((s, it) => s + it.total, 0);
+  const subtotal = (resTotal - resVatIncluded) + svcSubtotal; // Net amounts
+  const vatAmount = resVatIncluded + svcVat; // All VAT
+  const totalWithVat = subtotal + vatAmount; // = resTotal + svcSubtotal + svcVat
 
   // Currency conversion
   const displayTotal = currency === 'EGP' ? totalWithVat * exchangeRate : totalWithVat;

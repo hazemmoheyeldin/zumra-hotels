@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Hotel } from '../types';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
+import VirtualTable from './VirtualTable';
 
 interface HotelsPageProps {
   hotels: Hotel[];
@@ -350,6 +351,20 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCity, setFilterCity] = useState('');
   const [filterStars, setFilterStars] = useState('');
+
+  // Pagination state
+  const [hotelPage, setHotelPage] = useState(0);
+  const [hotelPageSize, setHotelPageSize] = useState(50);
+
+  // Filtered hotels (extracted for pagination)
+  const filteredHotels = useMemo(() => hotels.filter(h =>
+    (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
+    (!filterCity || h.city === filterCity) &&
+    (!filterStars || h.stars === parseInt(filterStars))
+  ), [hotels, searchTerm, filterCity, filterStars]);
+
+  // Reset page on filter change
+  React.useEffect(() => { setHotelPage(0); }, [searchTerm, filterCity, filterStars]);
 
   // Geoapify gather - primary lookup
   const handleGeoapifyGather = async () => {
@@ -906,18 +921,17 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               <option value="2">★★</option>
               <option value="1">★</option>
             </select>
-            <span className="text-[10px] text-slate-400 font-semibold">{hotels.filter(h =>
-              (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
-              (!filterCity || h.city === filterCity) &&
-              (!filterStars || h.stars === parseInt(filterStars))
-            ).length} / {hotels.length} hotels</span>
+            <span className="text-[10px] text-slate-400 font-semibold">{filteredHotels.length} / {hotels.length} hotels</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {hotels.filter(h =>
-              (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
-              (!filterCity || h.city === filterCity) &&
-              (!filterStars || h.stars === parseInt(filterStars))
-            ).map((hotel) => (
+          <VirtualTable
+            items={filteredHotels}
+            estimateSize={250}
+            containerHeight={600}
+            itemLabel="hotels"
+            keyExtractor={(h) => h.id}
+            gridMode
+            gridColumns={3}
+            renderRow={(hotel) => (
               <div key={hotel.id} className="border border-slate-200 rounded-2xl shadow-sm hover:shadow-lg transition-all text-xs bg-white overflow-hidden group">
                 {/* Header strip */}
                 <div className={`px-4 py-3 flex items-center justify-between ${
@@ -1015,8 +1029,8 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+          )}
+            />
         </div>
       )}
     </div>
