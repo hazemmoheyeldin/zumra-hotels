@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry, BookingTemplate } from '../types';
 import ZumraLogo from './ZumraLogo';
 import Tooltip from './Tooltip';
@@ -1309,11 +1309,15 @@ export default function ReservationsPage({
     executePayment();
   };
 
-  // Filter application blocks
-  const filteredReservations = reservations.filter(res => {
-    const client = agents.find(a => a.id === res.clientId);
-    const supplier = agents.find(a => a.id === res.supplierId);
-    const hotel = hotels.find(h => h.id === res.hotelId);
+  // Pre-computed lookup Maps for O(1) access (prevents O(n*m) in filter/table)
+  const agentMap = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
+  const hotelMap = useMemo(() => new Map(hotels.map(h => [h.id, h])), [hotels]);
+
+  // Filter application blocks (memoized — O(n) with Map lookups instead of O(n*m))
+  const filteredReservations = useMemo(() => reservations.filter(res => {
+    const client = agentMap.get(res.clientId);
+    const supplier = agentMap.get(res.supplierId);
+    const hotel = hotelMap.get(res.hotelId);
     
     // Smart search: if search is a pure number or RSV-XXXX, show ONLY that exact reservation
     const cleanSearch = searchTerm.trim();
@@ -1355,15 +1359,15 @@ export default function ReservationsPage({
     const matchesDate = !filterDate || res.checkIn === filterDate || res.checkOut === filterDate || res.clientOptionDate === filterDate;
 
     return matchesSearch && matchesAgent && matchesSupplier && matchesStatus && matchesDate && matchesCustom;
-  });
+  }), [reservations, agents, hotels, agentMap, hotelMap, searchTerm, filterAgentId, filterSupplierId, filterStatus, filterDate, filterCustom]);
 
-  const sortedReservations = [...filteredReservations].sort((a, b) => {
+  const sortedReservations = useMemo(() => [...filteredReservations].sort((a, b) => {
     if (filterSort === 'Newest') return b.id - a.id;
     if (filterSort === 'Oldest') return a.id - b.id;
     if (filterSort === 'Check-In (Up)') return new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime();
     if (filterSort === 'Check-In (Down)') return new Date(b.checkIn).getTime() - new Date(a.checkIn).getTime();
     return 0;
-  });
+  }), [filteredReservations, filterSort]);
 
   // sortedReservations is the full paginated window (filtered + sorted)
   // No client-side pagination — uses Firestore cursor-based "Load More" instead
@@ -2925,8 +2929,8 @@ export default function ReservationsPage({
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
               {sortedReservations.map((res) => {
-                const client = agents.find(a => a.id === res.clientId);
-                const hotel = hotels.find(h => h.id === res.hotelId);
+                const client = agentMap.get(res.clientId);
+                const hotel = hotelMap.get(res.hotelId);
                 const { totalSell, totalBuy, netProfit } = getReservationTotals(res);
                 const clientPaid = res.amountPaidByClient || 0;
                 const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
@@ -3071,10 +3075,10 @@ export default function ReservationsPage({
                         </button>
                         <button
                           onClick={() => {
-                            const c = agents.find(a => a.id === res.clientId);
+                            const c = agentMap.get(res.clientId);
                             const phone = (c?.phone || '').replace(/[^0-9]/g, '');
                             if (!phone) { toast.warning('Client has no phone number'); return; }
-                            const h = hotels.find(ht => ht.id === res.hotelId);
+                            const h = hotelMap.get(res.hotelId);
                             const { totalSell } = getReservationTotals(res);
                             const roomSummary = res.rooms.map(rm => `${rm.qty}x ${rm.roomType}`).join(', ');
                             const msg = encodeURIComponent(

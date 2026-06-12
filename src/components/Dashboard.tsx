@@ -95,6 +95,10 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const { t } = useLang();
 
+  // Pre-computed lookup Maps for O(1) access (prevents O(n*m) in loops)
+  const agentMap = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
+  const hotelMap = useMemo(() => new Map(hotels.map(h => [h.id, h])), [hotels]);
+
   // Filtered reservations based on dashboard filters
   const filteredReservations = useMemo(() => {
     let list = reservations;
@@ -104,28 +108,69 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     return list;
   }, [reservations, dateFrom, dateTo, statusFilter]);
 
-  // Calculations
-  const reservationsToday = filteredReservations.filter(res => res.createdAt.startsWith(todayStr));
-  
-  // Calculate stats from filtered data
-  const totalBookings = filteredReservations.length;
-  const tentativeBookings = filteredReservations.filter(res => res.status === 'Tentative').length;
-  const confirmedBookings = filteredReservations.filter(res => res.status === 'Confirmed').length;
-  const cancelledBookings = filteredReservations.filter(res => res.status === 'Cancelled').length;
-  
-  // Total financial metrics
-  const totalRevenue = filteredReservations.reduce((acc, res) => { if (res.status === 'Cancelled') return acc; const { totalSell } = getReservationTotals(res); return acc + totalSell; }, 0);
-  const totalCost = filteredReservations.reduce((acc, res) => { if (res.status === 'Cancelled') return acc; const { totalBuy } = getReservationTotals(res); return acc + totalBuy; }, 0);
-  const totalProfit = totalRevenue - totalCost;
-  
-  // Checking in today count
-  const checkInsToday = filteredReservations.filter(res => res.checkIn === todayStr && res.status !== 'Cancelled');
-  
-  // Expiring options count
-  const expiringOptions = filteredReservations.filter(res => res.clientOptionDate === todayStr && res.status === 'Tentative');
+  // ALL dashboard statistics computed in a SINGLE pass to prevent repeated iterations
+  const dashboardStats = useMemo(() => {
+    let reservationsTodayCount = 0;
+    let totalBookings = filteredReservations.length;
+    let tentativeBookings = 0, confirmedBookings = 0, cancelledBookings = 0;
+    let totalRevenue = 0, totalCost = 0;
+    const checkInsTodayList: Reservation[] = [];
+    const expiringOptionsList: Reservation[] = [];
+    const inHouseListLocal: Reservation[] = [];
 
-  // In house
-  const inHouseList = filteredReservations.filter(res => res.checkIn <= todayStr && res.checkOut > todayStr && res.status === 'Confirmed');
+    for (const res of filteredReservations) {
+      if (res.createdAt.startsWith(todayStr)) reservationsTodayCount++;
+      if (res.status === 'Tentative') tentativeBookings++;
+      else if (res.status === 'Confirmed') confirmedBookings++;
+      else if (res.status === 'Cancelled') { cancelledBookings++; continue; }
+
+      const { totalSell, totalBuy } = getReservationTotals(res);
+      totalRevenue += totalSell;
+      totalCost += totalBuy;
+
+      if (res.checkIn === todayStr) checkInsTodayList.push(res);
+      if (res.clientOptionDate === todayStr && res.status === 'Tentative') expiringOptionsList.push(res);
+      if (res.checkIn <= todayStr && res.checkOut > todayStr && res.status === 'Confirmed') inHouseListLocal.push(res);
+    }
+
+    // Supplier/Client stats with O(1) Map lookups instead of O(n) agents.find()
+    const supplierStats: Record<string, { id: string; name: string; sales: number; roomNights: number; bookings: number }> = {};
+    const clientStats: Record<string, { id: string; name: string; sales: number; roomNights: number; bookings: number }> = {};
+    for (const res of filteredReservations) {
+      if (res.status === 'Cancelled') continue;
+      const { totalSell, totalBuy } = getReservationTotals(res);
+      const nights = res.rooms.reduce((s, rm) => s + (rm.qty * res.nights), 0);
+      // Supplier
+      const sup = agentMap.get(res.supplierId);
+      const supKey = res.supplierId || 'DIRECT';
+      if (!supplierStats[supKey]) supplierStats[supKey] = { id: supKey, name: sup?.name || 'Direct', sales: 0, roomNights: 0, bookings: 0 };
+      supplierStats[supKey].sales += totalBuy;
+      supplierStats[supKey].roomNights += nights;
+      supplierStats[supKey].bookings++;
+      // Client
+      const cli = agentMap.get(res.clientId);
+      const cliKey = res.clientId || 'DIRECT';
+      if (!clientStats[cliKey]) clientStats[cliKey] = { id: cliKey, name: cli?.companyName || cli?.name || 'Direct Client', sales: 0, roomNights: 0, bookings: 0 };
+      clientStats[cliKey].sales += totalSell;
+      clientStats[cliKey].roomNights += nights;
+      clientStats[cliKey].bookings++;
+    }
+    const topSuppliersLocal = Object.values(supplierStats).sort((a, b) => b.sales - a.sales).slice(0, 10);
+    const topClientsLocal = Object.values(clientStats).sort((a, b) => b.sales - a.sales).slice(0, 10);
+
+    return {
+      reservationsTodayCount, totalBookings, tentativeBookings, confirmedBookings, cancelledBookings,
+      totalRevenue, totalCost, totalProfit: totalRevenue - totalCost,
+      checkInsToday: checkInsTodayList, expiringOptions: expiringOptionsList, inHouseList: inHouseListLocal,
+      topSuppliers: topSuppliersLocal, topClients: topClientsLocal,
+    };
+  }, [filteredReservations, todayStr, agentMap]);
+
+  // Destructure for easy access
+  const { reservationsTodayCount, totalBookings, tentativeBookings, confirmedBookings, cancelledBookings,
+    totalRevenue, totalCost, totalProfit, checkInsToday, expiringOptions, inHouseList,
+    topSuppliers, topClients } = dashboardStats;
+  const reservationsToday = checkInsToday; // alias used in template
 
   // Upcoming check-ins (next 7 days)
   const upcomingCheckIns = useMemo(() => {
@@ -140,74 +185,39 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
   }, [filteredReservations, todayStr]);
 
-  // Occupancy rate (simple: in-house rooms / total hotels rooms estimate)
+  // Occupancy rate
   const occupancyRate = useMemo(() => {
     const totalInHouseRooms = inHouseList.reduce((sum, res) => sum + res.rooms.reduce((s, rm) => s + rm.qty, 0), 0);
     const totalHotelRooms = (hotels.length || 1) * 100;
     return Math.min(100, Math.round((totalInHouseRooms / totalHotelRooms) * 100));
   }, [inHouseList, hotels]);
 
-  // Calculate high quality sales data for charts and portfolio lists
-  const getSupplierStats = () => {
-    const stats: { [id: string]: { id: string; name: string; sales: number; roomNights: number; bookings: number } } = {};
-    filteredReservations.forEach(res => {
-      if (res.status === 'Cancelled') return;
-      const { totalBuy } = getReservationTotals(res);
-      const host = agents.find(a => a.id === res.supplierId) || { name: 'Direct' };
-      const nightsMultiplier = res.rooms.reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
-      if (!stats[res.supplierId]) stats[res.supplierId] = { id: res.supplierId, name: host.name, sales: 0, roomNights: 0, bookings: 0 };
-      stats[res.supplierId].sales += totalBuy;
-      stats[res.supplierId].roomNights += nightsMultiplier;
-      stats[res.supplierId].bookings += 1;
-    });
-    return Object.values(stats).sort((a, b) => b.sales - a.sales).slice(0, 10);
-  };
-
-  const getClientStats = () => {
-    const stats: { [id: string]: { id: string; name: string; sales: number; roomNights: number; bookings: number } } = {};
-    filteredReservations.forEach(res => {
-      if (res.status === 'Cancelled') return;
-      const { totalSell } = getReservationTotals(res);
-      const client = agents.find(a => a.id === res.clientId) || { name: 'Direct Client', companyName: '' };
-      const nightsMultiplier = res.rooms.reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
-      if (!stats[res.clientId]) stats[res.clientId] = { id: res.clientId, name: client.companyName || client.name, sales: 0, roomNights: 0, bookings: 0 };
-      stats[res.clientId].sales += totalSell;
-      stats[res.clientId].roomNights += nightsMultiplier;
-      stats[res.clientId].bookings += 1;
-    });
-    return Object.values(stats).sort((a, b) => b.sales - a.sales).slice(0, 10);
-  };
-
-  const topSuppliers = getSupplierStats();
-  const topClients = getClientStats();
-
   // Filter pending follow-ups: only show those relevant to the current user
-  const agentIds = new Set(agents.map(a => a.id));
-  const pendingFollowUps = followUps.filter(f => {
-    if (f.status !== 'Pending') return false;
-    if (f.date > todayStr) return false;
-    // Skip orphaned follow-ups (client/agent no longer exists)
-    if (f.clientId && !agentIds.has(f.clientId)) return false;
-    // Only show follow-ups created by or relevant to the current user
-    if (currentUser && f.createdBy !== currentUser.name && f.createdBy !== currentUser.id) return false;
-    return true;
-  });
+  const pendingFollowUps = useMemo(() => {
+    const agentIds = new Set(agents.map(a => a.id));
+    return followUps.filter(f => {
+      if (f.status !== 'Pending') return false;
+      if (f.date > todayStr) return false;
+      if (f.clientId && !agentIds.has(f.clientId)) return false;
+      if (currentUser && f.createdBy !== currentUser.name && f.createdBy !== currentUser.id) return false;
+      return true;
+    });
+  }, [followUps, agents, todayStr, currentUser]);
 
-  const missingRoomingList = reservations.filter(res => {
+  const missingRoomingList = useMemo(() => reservations.filter(res => {
     if (res.status === 'Cancelled') return false;
     const totalRooms = res.rooms.reduce((sum, rm) => sum + rm.qty, 0);
     const isGroup = totalRooms > 3 || res.guestName.toLowerCase().includes('group');
     if (!isGroup) return false;
     if (res.roomingList && res.roomingList.length > 0) return false;
-
     const checkInDate = new Date(res.checkIn);
     const today = new Date(todayStr);
     const diffTime = checkInDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays <= 5 && diffDays >= 0;
-  });
+  }), [reservations, todayStr]);
 
-  const tbaBookings = reservations.filter(res => {
+  const tbaBookings = useMemo(() => reservations.filter(res => {
     if (res.status === 'Cancelled') return false;
     const name = res.guestName.trim().toUpperCase();
     if (name === '' || name === 'TBA' || name === 'TO BE ADVISED') {
@@ -218,7 +228,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       return diffDays <= 5 && diffDays >= 0;
     }
     return false;
-  });
+  }), [reservations, todayStr]);
 
   // Payment Aging Buckets: outstanding client amounts by days since check-in
   const paymentAging = useMemo(() => {
@@ -248,13 +258,13 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       .map(a => {
         const end = new Date(a.endDate);
         const daysUntil = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        const hotel = hotels.find(h => h.id === a.hotelId);
-        const supplier = agents.find(ag => ag.id === a.supplierId);
+        const hotel = hotelMap.get(a.hotelId);
+        const supplier = agentMap.get(a.supplierId);
         return { ...a, daysUntil, hotelName: hotel?.name || 'Unknown', supplierName: supplier?.companyName || supplier?.name || 'Unknown' };
       })
       .filter(a => a.daysUntil <= 30)
       .sort((a, b) => a.daysUntil - b.daysUntil);
-  }, [allotments, hotels, agents, todayStr]);
+  }, [allotments, hotelMap, agentMap, todayStr]);
 
   // Demand heatmap: booking room-nights per date for next 90 days
   const demandHeatmap = useMemo(() => {
@@ -270,13 +280,13 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         if (r.status === 'Cancelled') return;
         if (r.checkIn <= ds && r.checkOut > ds) {
           count += r.rooms.reduce((s, rm) => s + rm.qty, 0);
-          hotelSet.add(hotels.find(h => h.id === r.hotelId)?.name || '');
+          hotelSet.add(hotelMap.get(r.hotelId)?.name || '');
         }
       });
       days.push({ date: ds, count, hotels: Array.from(hotelSet) });
     }
     return days;
-  }, [reservations, hotels, todayStr]);
+  }, [reservations, hotelMap, todayStr]);
 
   const maxDemand = useMemo(() => Math.max(1, ...demandHeatmap.map(d => d.count)), [demandHeatmap]);
 
