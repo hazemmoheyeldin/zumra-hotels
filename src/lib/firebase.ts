@@ -203,10 +203,17 @@ export async function firebaseCreateUser(email: string, password: string): Promi
     console.log(`[Firebase Auth] Created user: ${cred.user.uid} (${email})`);
     return { uid: cred.user.uid };
   } catch (err: any) {
-    // If user already exists, that's fine
+    // If user already exists, try signing in with the provided password
     if (err?.code === 'auth/email-already-in-use') {
-      console.log(`[Firebase Auth] User ${email} already exists`);
-      return { uid: 'existing' };
+      console.log(`[Firebase Auth] User ${email} already exists — attempting sign-in`);
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        console.log(`[Firebase Auth] Signed in existing user: ${cred.user.uid}`);
+        return { uid: cred.user.uid };
+      } catch (signinErr: any) {
+        console.log(`[Firebase Auth] Existing user sign-in failed for ${email}: ${signinErr?.code}`);
+        return null; // Caller should handle this case
+      }
     }
     console.warn(`[Firebase Auth] Create user failed for ${email}:`, err?.code || err?.message || err);
     return null;

@@ -143,11 +143,19 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         // Sign in to Firebase Auth (required for Firestore security rules)
         if (isFirebaseConfigured && matchedUser.email) {
           const fbPwd = matchedUser.password || `${matchedUser.username}123`;
-          const fbOk = await firebaseSignIn(matchedUser.email, fbPwd);
-          if (!fbOk) {
+          let fbAuthed = await firebaseSignIn(matchedUser.email, fbPwd);
+          if (!fbAuthed) {
             // Try creating the Firebase Auth user first, then sign in
-            await firebaseCreateUser(matchedUser.email, fbPwd);
-            await firebaseSignIn(matchedUser.email, fbPwd);
+            const created = await firebaseCreateUser(matchedUser.email, fbPwd);
+            if (created) {
+              fbAuthed = true; // createUser auto-signs in
+            } else {
+              // Account exists with different password — try the password the user typed
+              fbAuthed = await firebaseSignIn(matchedUser.email, password);
+            }
+          }
+          if (!fbAuthed) {
+            console.warn('[Login] Firebase Auth failed — Firestore listeners may not work');
           }
           // Ensure this user's email is in the staff whitelist for future sessions
           addToStaffWhitelist(matchedUser.email);
@@ -193,57 +201,50 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       return;
     }
 
-    // User not found locally — try fetching from Firestore
+    // User not found locally — try fetching from Firestore users collection
+    // NOTE: Firestore users collection has public-read rules for login lookup
     if (isFirebaseConfigured) {
-      // Pre-authenticate with Firebase Auth BEFORE querying Firestore
-      // Firestore rules require request.auth != null, so we must sign in first.
-      const possibleEmail = userLower.includes('@') ? userLower : null;
       const { DEFAULT_USERS } = await import('../lib/storage');
-      const defaultMatch = DEFAULT_USERS.find(u =>
-        u.username.toLowerCase() === userLower ||
-        (u.email && u.email.toLowerCase() === userLower)
-      );
-      // Also try to find email from localStorage users for pre-auth
-      let storedEmail: string | null = null;
-      try {
-        const storedUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
-        const storedMatch = storedUsers.find((u: any) =>
-          u.username?.toLowerCase() === userLower ||
-          (u.email && u.email.toLowerCase() === userLower)
-        );
-        if (storedMatch?.email) storedEmail = storedMatch.email;
-      } catch {}
-      const emailToTry = possibleEmail || defaultMatch?.email || storedEmail || null;
-
-      let preAuthed = false;
-      if (emailToTry) {
-        const fbPwd = defaultMatch?.password || password;
-        preAuthed = await firebaseSignIn(emailToTry, fbPwd);
-        if (!preAuthed) {
-          await firebaseCreateUser(emailToTry, fbPwd);
-          preAuthed = await firebaseSignIn(emailToTry, fbPwd);
-        }
-      }
 
       try {
+        // Query Firestore users collection (public read — no auth needed)
         const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
         if (firestoreUsers.length > 0) {
+          // Merge with DEFAULT_USERS to ensure built-in accounts always exist
           const mergedMap = new Map<string, any>();
           DEFAULT_USERS.forEach((u: any) => mergedMap.set(u.id, u));
           firestoreUsers.forEach((u: any) => mergedMap.set(u.id, u));
           const merged = Array.from(mergedMap.values());
+          // Cache in localStorage for future logins
           localStorage.setItem('zumra_users', JSON.stringify(merged));
+
           matchedUser = merged.find((u: any) =>
-            u.username.toLowerCase() === userLower ||
+            u.username?.toLowerCase() === userLower ||
             (u.email && u.email.toLowerCase() === userLower)
           );
           if (matchedUser) {
             onUpdateUser?.(matchedUser);
+
+            // === Firebase Auth: sign in with the user's known email ===
+            if (matchedUser.email) {
+              const fbPwd = matchedUser.password || `${matchedUser.username}123`;
+              let authed = await firebaseSignIn(matchedUser.email, fbPwd);
+              if (!authed) {
+                // Account might not exist yet — create it
+                const created = await firebaseCreateUser(matchedUser.email, fbPwd);
+                if (created) {
+                  authed = true; // createUser auto-signs in
+                } else {
+                  // Account exists with different password — try entered password
+                  authed = await firebaseSignIn(matchedUser.email, password);
+                }
+              }
+              addToStaffWhitelist(matchedUser.email);
+            }
+
             validateLogin(matchedUser!, merged);
             return;
           }
-        } else {
-          // Firestore empty
         }
       } catch (err) {
         console.error('[Login] Firestore user lookup FAILED:', err);
@@ -255,13 +256,23 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         (u.email && u.email.toLowerCase() === userLower)
       );
       if (defaultUser) {
+        // Pre-authenticate with default user's email
+        if (defaultUser.email) {
+          const fbPwd = defaultUser.password || `${defaultUser.username}123`;
+          let authed = await firebaseSignIn(defaultUser.email, fbPwd);
+          if (!authed) {
+            await firebaseCreateUser(defaultUser.email, fbPwd);
+            authed = await firebaseSignIn(defaultUser.email, fbPwd);
+          }
+          addToStaffWhitelist(defaultUser.email);
+        }
         validateLogin(defaultUser, DEFAULT_USERS);
         return;
       }
     }
 
     setLoading(false);
-    setErrorMsg('User identity not recognized.');
+    setErrorMsg('User identity not recognized. Please check your username or contact an admin.');
   };
 
   const handleForcePwdSubmit = (e: React.FormEvent) => {
