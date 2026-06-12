@@ -13,6 +13,8 @@ interface HotelsPageProps {
   hotels: Hotel[];
   onSaveHotel: (hotel: Hotel) => void;
   onDeleteHotel: (id: string) => void;
+  hasMoreHotels?: boolean;
+  onLoadMoreHotels?: () => void;
 }
 
 // API Keys
@@ -326,7 +328,7 @@ const PRESET_HOTELS: Partial<Hotel>[] = [
   }
 ];
 
-export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: HotelsPageProps) {
+export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel, hasMoreHotels = false, onLoadMoreHotels }: HotelsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t, lang } = useLang();
   
@@ -352,19 +354,12 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
   const [filterCity, setFilterCity] = useState('');
   const [filterStars, setFilterStars] = useState('');
 
-  // Pagination state
-  const [hotelPage, setHotelPage] = useState(0);
-  const [hotelPageSize, setHotelPageSize] = useState(50);
-
-  // Filtered hotels (extracted for pagination)
+  // Filtered hotels (extracted for cursor pagination)
   const filteredHotels = useMemo(() => hotels.filter(h =>
     (!searchTerm || h.name.toLowerCase().includes(searchTerm.toLowerCase()) || h.city.toLowerCase().includes(searchTerm.toLowerCase()) || (h.nameAr && h.nameAr.includes(searchTerm)) || (h.hotelNumber && h.hotelNumber.toString() === searchTerm)) &&
     (!filterCity || h.city === filterCity) &&
     (!filterStars || h.stars === parseInt(filterStars))
   ), [hotels, searchTerm, filterCity, filterStars]);
-
-  // Reset page on filter change
-  React.useEffect(() => { setHotelPage(0); }, [searchTerm, filterCity, filterStars]);
 
   // Geoapify gather - primary lookup
   const handleGeoapifyGather = async () => {
@@ -1031,6 +1026,17 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel }: Hotel
               </div>
           )}
             />
+          {/* Load More footer */}
+          <div className="flex items-center justify-center gap-3 py-3 text-xs">
+            <span className="text-slate-500">Showing <span className="font-bold text-slate-800">{filteredHotels.length}</span> hotels</span>
+            {hasMoreHotels ? (
+              <button onClick={onLoadMoreHotels} className="px-4 py-1.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-100 transition border border-indigo-200">
+                Load 50 more ▾
+              </button>
+            ) : (
+              <span className="text-slate-400 italic">All hotels loaded</span>
+            )}
+          </div>
         </div>
       )}
     </div>

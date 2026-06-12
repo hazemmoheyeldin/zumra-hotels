@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -76,6 +76,8 @@ if (isFirebaseConfigured) {
 
 export { db, auth, authReadyPromise };
 export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch };
+export { orderBy, limit, startAfter };
+export type { QueryDocumentSnapshot, DocumentSnapshot };
 export type { FBUser };
 
 // ===== Staff Whitelist (Authorization Guard) =====
@@ -477,5 +479,103 @@ export async function firestoreClearCollection(collectionName: string): Promise<
   } catch (error) {
     console.error(`[Firebase] Error clearing ${collectionName}:`, error);
     return 0;
+  }
+}
+
+/**
+ * Subscribe to a Firestore collection with limit + orderBy.
+ * Real-time listener only watches a window of documents (not the full collection).
+ * @param orderByField  Field to order by (e.g., 'id' for reservations, 'hotelNumber' for hotels)
+ * @param direction     'desc' for newest-first (default) or 'asc'
+ * @param limitCount    Max documents to listen to (default 50)
+ */
+export function firestoreSubscribeWithLimit<T>(
+  collectionName: string,
+  orderByField: string,
+  direction: 'asc' | 'desc',
+  limitCount: number,
+  callback: (data: T[], lastDoc: DocumentSnapshot | null) => void
+): () => void {
+  if (!db) {
+    console.warn(`[Firestore] firestoreSubscribeWithLimit: db is null, cannot subscribe to ${collectionName}`);
+    return () => {};
+  }
+
+  try {
+    const q = query(
+      collection(db, collectionName),
+      orderBy(orderByField, direction),
+      limit(limitCount)
+    );
+    let firstEmission = true;
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+      const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+      if (firstEmission) {
+        console.log(`[Firestore] Limited listener: ${collectionName} — ${data.length}/${limitCount} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
+        firstEmission = false;
+      }
+      callback(data, lastDoc);
+    }, (error) => {
+      console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
+      if (error?.code === 'permission-denied') {
+        console.error(`[Firebase] PERMISSION DENIED: Check Firestore rules for '${collectionName}'.`);
+      }
+      if (error?.code === 'failed-precondition') {
+        console.error(`[Firebase] MISSING INDEX: Create a composite index on '${collectionName}' for field '${orderByField}'.`, error?.message);
+      }
+    });
+    return unsubscribe;
+  } catch (err: any) {
+    console.error(`[Firestore] Failed to subscribe with limit to ${collectionName}:`, err?.message);
+    return () => {};
+  }
+}
+
+/**
+ * Fetch the next page of documents from a Firestore collection using a cursor.
+ * Returns the new documents + updated cursor for subsequent pages.
+ */
+export async function firestoreFetchPage<T>(
+  collectionName: string,
+  orderByField: string,
+  direction: 'asc' | 'desc',
+  limitCount: number,
+  lastDoc: DocumentSnapshot
+): Promise<{ data: T[]; lastDoc: DocumentSnapshot | null }> {
+  if (!db) return { data: [], lastDoc: null };
+
+  try {
+    const q = query(
+      collection(db, collectionName),
+      orderBy(orderByField, direction),
+      startAfter(lastDoc),
+      limit(limitCount)
+    );
+    const snapshot = await getDocs(q);
+    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+    const newLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+    console.log(`[Firestore] Fetched page: ${collectionName} — ${data.length} more records`);
+    return { data, lastDoc: newLastDoc };
+  } catch (error: any) {
+    console.error(`[Firebase] Error fetching page for ${collectionName}:`, error?.code, error?.message);
+    return { data: [], lastDoc: null };
+  }
+}
+
+/**
+ * One-time full load of a Firestore collection (for Dashboard/Reports on-demand).
+ * Same as firestoreLoadAll but with a clearer name for the split-architecture pattern.
+ */
+export async function firestoreLoadFull<T>(collectionName: string): Promise<T[]> {
+  if (!db) return [];
+  try {
+    const snapshot = await getDocs(collection(db, collectionName));
+    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+    console.log(`[Firestore] Full load: ${collectionName} — ${data.length} records`);
+    return data;
+  } catch (error) {
+    console.error(`[Firebase] Error loading full ${collectionName}:`, error);
+    return [];
   }
 }

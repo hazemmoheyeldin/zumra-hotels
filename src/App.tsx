@@ -8,7 +8,8 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist } from './lib/firebase';
+import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
 
@@ -306,6 +307,16 @@ export default function App() {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   // Messages & Global Search
   const [messages, setMessages] = useState<Message[]>(() => ZumraDB.getMessages());
+
+  // Split-architecture: paginated windows + on-demand full loads
+  const [reservationsCursor, setReservationsCursor] = useState<DocumentSnapshot | null>(null);
+  const [hotelsCursor, setHotelsCursor] = useState<DocumentSnapshot | null>(null);
+  const [hasMoreReservations, setHasMoreReservations] = useState(true);
+  const [hasMoreHotels, setHasMoreHotels] = useState(true);
+  const [fullReservations, setFullReservations] = useState<Reservation[] | null>(null);
+  const [fullHotels, setFullHotels] = useState<Hotel[] | null>(null);
+  const [fullDataLoading, setFullDataLoading] = useState(false);
+  const PAGE_SIZE = 50;
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const globalSearchRef = useRef<HTMLDivElement>(null);
@@ -798,10 +809,12 @@ export default function App() {
         console.log('[Firestore] Attaching real-time listeners for all collections...');
         // Direct reactive listeners — arraysEqual prevents echo re-renders
         const unsubs = [
-        firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
+        firestoreSubscribeWithLimit<Hotel>(COLLECTIONS.HOTELS, 'hotelNumber', 'asc', PAGE_SIZE, (data, lastDoc) => {
           if (!localStorage.getItem('zumra_hotels_migrated')) {
             localStorage.setItem('zumra_hotels', JSON.stringify(data));
             setHotels(prev => arraysEqual(prev, data) ? prev : data);
+            setHotelsCursor(lastDoc);
+            setHasMoreHotels(data.length >= PAGE_SIZE);
           }
         }),
         firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
@@ -812,9 +825,11 @@ export default function App() {
           localStorage.setItem('zumra_allotments', JSON.stringify(data));
           setAllotments(prev => arraysEqual(prev, data) ? prev : data);
         }),
-        firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+        firestoreSubscribeWithLimit<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
           localStorage.setItem('zumra_reservations', JSON.stringify(data));
           setReservations(prev => arraysEqual(prev, data) ? prev : data);
+          setReservationsCursor(lastDoc);
+          setHasMoreReservations(data.length >= PAGE_SIZE);
         }),
         firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
           localStorage.setItem('zumra_accounts', JSON.stringify(data));
@@ -1189,11 +1204,82 @@ export default function App() {
     showConfirm('Delete Allotment', 'Are you sure you want to delete this allotment? This cannot be undone.', () => doDeleteAllotment(id), 'destructive');
   };
 
+  // --- Split-architecture: Load More handlers ---
+  const loadMoreReservations = async () => {
+    if (!reservationsCursor || !hasMoreReservations) return;
+    try {
+      const result = await firestoreFetchPage<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, reservationsCursor);
+      if (result.data.length > 0) {
+        setReservations(prev => {
+          const existingIds = new Set(prev.map(r => r.id));
+          const newItems = result.data.filter(r => !existingIds.has(r.id));
+          return [...prev, ...newItems];
+        });
+        if (result.lastDoc) setReservationsCursor(result.lastDoc);
+        setHasMoreReservations(result.data.length >= PAGE_SIZE);
+      } else {
+        setHasMoreReservations(false);
+      }
+    } catch (e) {
+      console.error('[App] loadMoreReservations error:', e);
+    }
+  };
+
+  const loadMoreHotels = async () => {
+    if (!hotelsCursor || !hasMoreHotels) return;
+    try {
+      const result = await firestoreFetchPage<Hotel>(COLLECTIONS.HOTELS, 'hotelNumber', 'asc', PAGE_SIZE, hotelsCursor);
+      if (result.data.length > 0) {
+        setHotels(prev => {
+          const existingIds = new Set(prev.map(h => h.id));
+          const newItems = result.data.filter(h => !existingIds.has(h.id));
+          return [...prev, ...newItems];
+        });
+        if (result.lastDoc) setHotelsCursor(result.lastDoc);
+        setHasMoreHotels(result.data.length >= PAGE_SIZE);
+      } else {
+        setHasMoreHotels(false);
+      }
+    } catch (e) {
+      console.error('[App] loadMoreHotels error:', e);
+    }
+  };
+
+  // --- Split-architecture: On-demand full loads for Dashboard/Reports ---
+  const loadFullReservations = async () => {
+    if (fullReservations) return fullReservations; // Already loaded
+    setFullDataLoading(true);
+    try {
+      const data = await firestoreLoadFull<Reservation>(COLLECTIONS.RESERVATIONS);
+      setFullReservations(data);
+      return data;
+    } finally {
+      setFullDataLoading(false);
+    }
+  };
+
+  const loadFullHotels = async () => {
+    if (fullHotels) return fullHotels;
+    setFullDataLoading(true);
+    try {
+      const data = await firestoreLoadFull<Hotel>(COLLECTIONS.HOTELS);
+      setFullHotels(data);
+      return data;
+    } finally {
+      setFullDataLoading(false);
+    }
+  };
+
+  const clearFullData = () => {
+    setFullReservations(null);
+    setFullHotels(null);
+  };
+
   const doSaveReservation = (res: Reservation) => {
-    const updated = reservations.map(item => item.id === res.id ? res : item);
     const isNew = !reservations.some(item => item.id === res.id);
-    if (isNew) updated.push(res);
-    setReservations(updated);
+    // Build updated array: new items go to top (desc order), existing items are replaced in-place
+    const updated = isNew ? [res, ...reservations] : reservations.map(item => item.id === res.id ? res : item);
+    setReservations(updated); // Optimistic UI + state update
     ZumraDB.saveReservations(updated);
     ZumraSync.saveReservation(res);
     toast.success(`Reservation RSV-${res.id} ${isNew ? 'created' : 'updated'} for ${res.guestName}`);
@@ -1972,6 +2058,15 @@ export default function App() {
     navigateTo(tab, initialFilters);
   };
 
+  // On-demand full loads: trigger when navigating to Dashboard/Reports/Ledger
+  useEffect(() => {
+    const fullDataTabs = ['Dashboard', 'Reports', 'Ledger', 'Production', 'Sales'];
+    if (fullDataTabs.includes(activeTab) && !fullReservations && !fullDataLoading) {
+      loadFullReservations();
+      loadFullHotels();
+    }
+  }, [activeTab]);
+
   // Core visual tab panels
   const renderActivePage = () => {
     if (!currentUser) return <div className="text-center py-20 text-slate-400 animate-fade-in"><div className="inline-block w-8 h-8 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin mb-3"></div><p className="text-sm font-medium">Loading operator identities...</p></div>;
@@ -1981,9 +2076,9 @@ export default function App() {
         return (
           <ErrorBoundary fallbackLabel="Dashboard failed to load.">
           <Dashboard
-            reservations={reservations}
+            reservations={fullReservations || reservations}
             agents={agents}
-            hotels={hotels}
+            hotels={fullHotels || hotels}
             users={users}
             followUps={followUps}
             allotments={allotments}
@@ -2060,6 +2155,8 @@ export default function App() {
             onSaveFollowUp={handleSaveFollowUp}
             blackoutPeriods={blackoutPeriods}
             onSaveWaitlist={handleSaveWaitlist}
+            hasMoreReservations={hasMoreReservations}
+            onLoadMoreReservations={loadMoreReservations}
           />
           </ErrorBoundary>
         );
@@ -2070,6 +2167,8 @@ export default function App() {
             hotels={hotels}
             onSaveHotel={handleSaveHotel}
             onDeleteHotel={handleDeleteHotel}
+            hasMoreHotels={hasMoreHotels}
+            onLoadMoreHotels={loadMoreHotels}
           />
           </ErrorBoundary>
         );
@@ -2149,9 +2248,9 @@ export default function App() {
         return (
           <ErrorBoundary fallbackLabel="Reports page failed to load.">
           <ReportsPage
-            reservations={reservations}
+            reservations={fullReservations || reservations}
             agents={agents}
-            hotels={hotels}
+            hotels={fullHotels || hotels}
             transactions={transactions}
             accounts={accounts}
             otherServices={otherServices}
@@ -2169,10 +2268,10 @@ export default function App() {
         return (
           <ErrorBoundary fallbackLabel="Ledger report failed to load.">
           <LedgerReport
-            reservations={reservations}
+            reservations={fullReservations || reservations}
             transactions={transactions}
             agents={agents}
-            hotels={hotels}
+            hotels={fullHotels || hotels}
             expenses={expenses}
             onNavigate={handleNavigate}
           />

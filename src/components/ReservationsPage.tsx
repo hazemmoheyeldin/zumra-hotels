@@ -80,6 +80,8 @@ interface ReservationsPageProps {
   followUps?: FollowUp[];
   blackoutPeriods?: BlackoutPeriod[];
   onSaveWaitlist?: (entry: WaitlistEntry) => void;
+  hasMoreReservations?: boolean;
+  onLoadMoreReservations?: () => void;
 }
 
 const BOOKING_SOURCES = ['Direct', 'Booking.com', 'Expedia', 'Agoda', 'Agent', 'Walk-in', 'Phone', 'Email', 'Social Media', 'Partner', 'Other'];
@@ -110,6 +112,8 @@ export default function ReservationsPage({
   followUps = [],
   blackoutPeriods = [],
   onSaveWaitlist,
+  hasMoreReservations = false,
+  onLoadMoreReservations,
 }: ReservationsPageProps) {
   
   // View states
@@ -327,8 +331,7 @@ export default function ReservationsPage({
   const [compareIds, setCompareIds] = useState<number[]>([]);
 
   // Pagination state
-  const [resPage, setResPage] = useState(0);
-  const [resPageSize, setResPageSize] = useState(50);
+  
 
   // Allotment booking state
   const [selectedAllotmentId, setSelectedAllotmentId] = useState<string>('');
@@ -1350,13 +1353,8 @@ export default function ReservationsPage({
     return 0;
   });
 
-  // Paginated slice
-  const resTotalPages = Math.max(1, Math.ceil(sortedReservations.length / resPageSize));
-  const resSafePage = Math.min(resPage, resTotalPages - 1);
-  const pagedReservations = sortedReservations.slice(resSafePage * resPageSize, (resSafePage + 1) * resPageSize);
-
-  // Reset page to 0 when filters change
-  React.useEffect(() => { setResPage(0); }, [searchTerm, filterAgentId, filterSupplierId, filterStatus, filterDate, filterSort, filterCustom]);
+  // sortedReservations is the full paginated window (filtered + sorted)
+  // No client-side pagination — uses Firestore cursor-based "Load More" instead
 
   const handleExportCSV = () => {
     const spMap = new Map(salesPersons.map(sp => [sp.id, sp.name]));
@@ -2888,9 +2886,9 @@ export default function ReservationsPage({
             <thead>
               <tr className="border-b border-light text-slate-400 font-semibold bg-slate-50/50 uppercase tracking-wider text-[10px]">
                 <th className="py-2.5 px-3 font-mono">
-                  <input type="checkbox" checked={pagedReservations.length > 0 && pagedReservations.every(r => selectedIds.has(r.id))}
+                  <input type="checkbox" checked={sortedReservations.length > 0 && sortedReservations.every(r => selectedIds.has(r.id))}
                     onChange={e => {
-                      const pageIds = pagedReservations.map(r => r.id);
+                      const pageIds = sortedReservations.map(r => r.id);
                       if (e.target.checked) {
                         setSelectedIds(new Set([...selectedIds, ...pageIds]));
                       } else {
@@ -2914,7 +2912,7 @@ export default function ReservationsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-800">
-              {pagedReservations.map((res) => {
+              {sortedReservations.map((res) => {
                 const client = agents.find(a => a.id === res.clientId);
                 const hotel = hotels.find(h => h.id === res.hotelId);
                 const { totalSell, totalBuy, profit } = getReservationTotals(res);
@@ -3123,28 +3121,17 @@ export default function ReservationsPage({
             </tbody>
           </table>
 
-          {/* Pagination footer */}
-          {sortedReservations.length > resPageSize && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2 py-3 border-t border-slate-150 text-xs mt-2">
-              <span className="text-slate-500">
-                Showing <span className="font-bold text-slate-800">{resSafePage * resPageSize + 1}</span>–
-                <span className="font-bold text-slate-800">{Math.min((resSafePage + 1) * resPageSize, sortedReservations.length)}</span> of{' '}
-                <span className="font-bold text-slate-800">{sortedReservations.length}</span> reservations
-              </span>
-              <div className="flex items-center gap-2">
-                <select value={resPageSize} onChange={(e) => { setResPageSize(Number(e.target.value)); setResPage(0); }} className="border border-slate-200 rounded px-2 py-1 text-xs bg-white">
-                  <option value={25}>25 / page</option>
-                  <option value={50}>50 / page</option>
-                  <option value={100}>100 / page</option>
-                </select>
-                <button onClick={() => setResPage(0)} disabled={resSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="First">«</button>
-                <button onClick={() => setResPage(resSafePage - 1)} disabled={resSafePage === 0} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Prev">‹</button>
-                <span className="px-2 text-slate-700 font-medium">Page <span className="font-bold">{resSafePage + 1}</span> of {resTotalPages}</span>
-                <button onClick={() => setResPage(resSafePage + 1)} disabled={resSafePage >= resTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Next">›</button>
-                <button onClick={() => setResPage(resTotalPages - 1)} disabled={resSafePage >= resTotalPages - 1} className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-30" title="Last">»</button>
-              </div>
-            </div>
-          )}
+          {/* Load More footer */}
+          <div className="flex items-center justify-center gap-3 px-2 py-3 border-t border-slate-150 text-xs mt-2">
+            <span className="text-slate-500">Showing <span className="font-bold text-slate-800">{sortedReservations.length}</span> reservations</span>
+            {hasMoreReservations ? (
+              <button onClick={onLoadMoreReservations} className="px-4 py-1.5 bg-indigo-50 text-indigo-700 font-semibold rounded-lg hover:bg-indigo-100 transition border border-indigo-200">
+                Load 50 more ▾
+              </button>
+            ) : (
+              <span className="text-slate-400 italic">All reservations loaded</span>
+            )}
+          </div>
         </div>
         </>
       )}
