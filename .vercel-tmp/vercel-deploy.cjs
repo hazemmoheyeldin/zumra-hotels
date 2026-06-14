@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+/**
+ * Vercel CLI Deployment Script (Cross-Platform)
+ */
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -19,21 +22,36 @@ function getCommandOutput(cmd, args) {
     return result.status === 0 ? (result.stdout || '').trim() : null;
   } catch { return null; }
 }
+function parseArgs(args) {
+  const result = { projectPath: '.', prod: true, yes: false, skipBuild: false };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--prod') result.prod = true;
+    else if (arg === '--yes' || arg === '-y') result.yes = true;
+    else if (arg === '--skip-build') result.skipBuild = true;
+    else if (!arg.startsWith('-')) result.projectPath = arg;
+  }
+  return result;
+}
 function checkVercelInstalled() {
   if (!commandExists('vercel')) { log('Error: Vercel CLI is not installed'); process.exit(1); }
   log(`Vercel CLI version: ${getCommandOutput('vercel', ['--version']) || 'unknown'}`);
 }
 function checkLoginStatus() {
-  log('Checking login status...');
   try {
     const result = spawnSync('vercel', ['whoami'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], shell: isWindows });
     const output = (result.stdout || '').trim();
     if (result.status === 0 && output && !output.includes('Error') && !output.includes('not logged in')) {
-      log(`Logged in as: ${output}`);
-      return true;
+      log(`Logged in as: ${output}`); return true;
     }
   } catch {}
   return false;
+}
+function checkProject(projectPath) {
+  const absPath = path.resolve(projectPath);
+  if (!fs.existsSync(absPath) || !fs.statSync(absPath).isDirectory()) { log(`Error: Project directory does not exist: ${absPath}`); process.exit(1); }
+  log(`Project path: ${absPath}`);
+  return absPath;
 }
 function detectPackageManager(projectPath) {
   if (fs.existsSync(path.join(projectPath, 'pnpm-lock.yaml'))) return 'pnpm';
@@ -45,68 +63,56 @@ function detectPackageManager(projectPath) {
   return null;
 }
 function runBuildIfNeeded(projectPath) {
-  const pkgPath = path.join(projectPath, 'package.json');
-  if (!fs.existsSync(pkgPath)) return true;
-  let pkg;
-  try { pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')); } catch { return true; }
-  if (!pkg.scripts || !pkg.scripts.build) return true;
-  log('\n========================================');
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) return true;
+  let packageJson;
+  try { packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')); } catch { return true; }
+  if (!packageJson.scripts || !packageJson.scripts.build) return true;
   log('Running pre-deployment build...');
-  log('========================================\n');
-  const pm = detectPackageManager(projectPath);
-  if (!pm) { log('Error: No package manager found'); process.exit(1); }
-  const buildArgs = pm === 'npm' ? ['run', 'build'] : ['build'];
-  try {
-    const result = spawnSync(pm, buildArgs, { cwd: projectPath, stdio: 'inherit', shell: isWindows });
-    if (result.status !== 0) throw new Error('Build failed');
-    log('\nBuild completed successfully!');
-    return true;
-  } catch (error) {
-    log('\nBuild FAILED!');
-    process.exit(1);
+  const pkgManager = detectPackageManager(projectPath);
+  if (!pkgManager) { log('Error: No package manager found'); process.exit(1); }
+  const nodeModulesPath = path.join(projectPath, 'node_modules');
+  if (!fs.existsSync(nodeModulesPath)) {
+    const installArgs = pkgManager === 'yarn' ? [] : ['install'];
+    spawnSync(pkgManager, installArgs, { cwd: projectPath, stdio: 'inherit', shell: isWindows });
   }
-}
-function doDeploy(projectPath) {
-  log('\nStarting deployment...\n');
-  log('Deployment environment: Production');
-  const args = ['--yes', '--prod'];
-  log(`Executing command: vercel ${args.join(' ')}\n`);
-  log('========================================');
+  const buildArgs = pkgManager === 'npm' ? ['run', 'build'] : ['build'];
   try {
-    const result = spawnSync('vercel', args, {
-      cwd: projectPath, encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'], timeout: 300000, shell: isWindows
-    });
+    const result = spawnSync(pkgManager, buildArgs, { cwd: projectPath, stdio: 'inherit', shell: isWindows });
+    if (result.status !== 0) throw new Error('Build failed');
+    log('Build completed successfully!');
+    return true;
+  } catch (error) { log('Build FAILED!'); process.exit(1); }
+}
+function doDeploy(projectPath, options) {
+  log('Starting deployment...');
+  const cmdParts = ['vercel'];
+  if (options.yes) cmdParts.push('--yes');
+  if (options.prod) cmdParts.push('--prod');
+  const cmd = cmdParts.join(' ');
+  log(`Executing: ${cmd}`);
+  try {
+    const args = cmdParts.slice(1);
+    const result = spawnSync('vercel', args, { cwd: projectPath, encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'], timeout: 300000, shell: isWindows });
     const output = (result.stdout || '') + (result.stderr || '');
     log(output);
     if (result.status !== 0) throw new Error('Deployment command failed');
     const aliasedMatch = output.match(/Aliased:\s*(https:\/\/[a-zA-Z0-9.-]+\.vercel\.app)/i);
     const deploymentMatch = output.match(/Production:\s*(https:\/\/[a-zA-Z0-9.-]+\.vercel\.app)/i);
     const finalUrl = aliasedMatch ? aliasedMatch[1] : (deploymentMatch ? deploymentMatch[1] : null);
-    log('\n========================================');
     log('Deployment successful!');
-    log('========================================\n');
-    if (finalUrl) {
-      log(`Your site is live! Visit: ${finalUrl}`);
-      console.log(JSON.stringify({ status: 'success', url: finalUrl }));
-    } else {
-      console.log(JSON.stringify({ status: 'success', message: 'Deployment successful' }));
-    }
-  } catch (error) {
-    log(error.message || '');
-    log('\nDeployment failed');
-    process.exit(1);
-  }
+    if (finalUrl) { log(`Your site is live! Visit: ${finalUrl}`); console.log(JSON.stringify({ status: 'success', url: finalUrl })); }
+    else console.log(JSON.stringify({ status: 'success', message: 'Deployment successful' }));
+  } catch (error) { log(error.message || ''); log('Deployment failed'); process.exit(1); }
 }
 function main() {
-  log('========================================');
   log('Vercel CLI Project Deployment');
-  log('========================================\n');
+  const args = process.argv.slice(2);
+  const options = parseArgs(args);
   checkVercelInstalled();
-  log('');
-  if (!checkLoginStatus()) { log('\nError: Not logged in'); process.exit(1); }
-  const projectPath = path.resolve('.');
-  log(`Project path: ${projectPath}`);
-  runBuildIfNeeded(projectPath);
-  doDeploy(projectPath);
+  if (!checkLoginStatus()) { log('Error: Not logged in'); process.exit(1); }
+  const projectPath = checkProject(options.projectPath);
+  if (!options.skipBuild) runBuildIfNeeded(projectPath);
+  doDeploy(projectPath, options);
 }
 main();

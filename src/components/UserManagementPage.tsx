@@ -189,10 +189,10 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
   };
 
   // KPI counts
-  const adminCount = users.filter(u => u.role === 'Admin').length;
-  const salesCount = users.filter(u => u.role === 'Sales').length;
-  const financeCount = users.filter(u => u.role === 'Finance').length;
-  const resCount = users.filter(u => u.role === 'Reservationist').length;
+  const adminCount = users.filter(u => (u.role || 'Reservationist') === 'Admin').length;
+  const salesCount = users.filter(u => (u.role || 'Reservationist') === 'Sales').length;
+  const financeCount = users.filter(u => (u.role || 'Reservationist') === 'Finance').length;
+  const resCount = users.filter(u => (u.role || 'Reservationist') === 'Reservationist').length;
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -440,8 +440,8 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                   >
                     <div className="w-full xl:w-auto">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${getRoleColor(u.role)}`}>
-                          {u.role}
+                        <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${getRoleColor(u.role || 'Reservationist')}`}>
+                          {u.role || 'Reservationist'}
                         </span>
                         <span className={`text-[10px] uppercase tracking-wide font-mono px-2 py-0.5 rounded font-bold border ${
                           (u.status || 'Active') === 'Active'
@@ -456,8 +456,8 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                           </span>
                         )}
                       </div>
-                      <h4 className="font-bold text-slate-800 uppercase mt-1.5">{u.name}</h4>
-                      <p className="text-[10px] text-slate-450 mt-0.5">@{u.username} • {u.email}</p>
+                      <h4 className="font-bold text-slate-800 uppercase mt-1.5">{u.name || u.username || 'Unknown User'}</h4>
+                      <p className="text-[10px] text-slate-450 mt-0.5">@{u.username || u.id} • {u.email || 'no email'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 xl:mt-0 items-center justify-end w-full xl:w-auto">
                       {isAdmin && !isCurrentUser && (

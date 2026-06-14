@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -58,6 +58,39 @@ function tripCircuit(reason: string) {
 
 export function isCircuitOpen(): boolean { return _circuitOpen; }
 export function resetCircuit() { _circuitOpen = false; _permissionDeniedCount = 0; }
+
+/**
+ * Force-reconnect Firestore to live server.
+ * Resets circuit breaker + calls enableNetwork() to break out of offline mode.
+ * Called on: auth state change, page visibility change, manual reconnect.
+ */
+export async function forceFirestoreReconnect(): Promise<void> {
+  resetCircuit();
+  if (db) {
+    try {
+      await enableNetwork(db);
+      console.log('[Firestore] forceReconnect: enableNetwork() succeeded — live mode restored');
+    } catch (err: any) {
+      console.warn('[Firestore] forceReconnect: enableNetwork() failed:', err?.message);
+    }
+  }
+}
+
+// Auto-reconnect when page becomes visible again (tab switch, phone unlock)
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && db) {
+      // If circuit was open, auto-reset and reconnect
+      if (_circuitOpen) {
+        console.log('[Firestore] Page visible — auto-resetting circuit breaker and reconnecting...');
+        forceFirestoreReconnect();
+      } else {
+        // Proactive: ensure network is enabled even if not tripped
+        enableNetwork(db).catch(() => {});
+      }
+    }
+  });
+}
 
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;

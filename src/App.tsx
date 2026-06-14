@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -91,6 +91,38 @@ function arraysEqual(a: any[] | null | undefined, b: any[] | null | undefined): 
     if (a[i]?.id !== b[i]?.id) return false;
   }
   return true;
+}
+
+/** Normalize a User document from Firestore — fills missing fields with safe defaults.
+ *  Prevents React render crashes when a user was created manually in the console
+ *  and is missing fields like name, username, email, role, etc. */
+function normalizeUser(u: any): User {
+  const id = u.id || u.username || 'unknown';
+  const username = u.username || u.email?.split('@')[0] || id;
+  return {
+    ...u,
+    id,
+    username,
+    name: u.name || username.charAt(0).toUpperCase() + username.slice(1) || 'Unknown User',
+    email: u.email || `${username}@zumrahotels.com`,
+    role: u.role || 'Reservationist',
+    isActive: u.isActive !== false,
+    status: u.status || 'Active',
+    mustChangePassword: u.mustChangePassword || false,
+  };
+}
+
+/** Normalize a Message document — fills missing fields with safe defaults. */
+function normalizeMessage(m: any): Message {
+  return {
+    ...m,
+    id: m.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    senderId: m.senderId || 'unknown',
+    receiverId: m.receiverId || 'unknown',
+    content: m.content || '',
+    timestamp: m.timestamp || new Date().toISOString(),
+    read: m.read ?? false,
+  };
 }
 
 // Theme type — all themes must satisfy this shape
@@ -607,6 +639,9 @@ export default function App() {
       console.log('[Auth Bypass] onAuthStateChanged fired. fbUser:', fbUser?.uid || 'null');
 
       if (fbUser) {
+        // Force Firestore back to live mode (resets circuit breaker + enableNetwork)
+        forceFirestoreReconnect().catch(() => {});
+
         // Try localStorage first for full profile
         const savedUser = localStorage.getItem('zumra_current_user');
         if (savedUser) {
@@ -897,6 +932,8 @@ export default function App() {
       // Firestore reads + state updates + localStorage writes on initial load.
       const attachFirestoreListeners = () => {
         console.log('[Firestore] Attaching real-time listeners for all collections...');
+        // Force live mode before attaching listeners (resets circuit breaker + enableNetwork)
+        forceFirestoreReconnect().catch(() => {});
         const unsubs: (() => void)[] = [];
         let attachIndex = 0;
         const STAGGER_MS = 50; // 50ms between each listener attachment
@@ -955,7 +992,7 @@ export default function App() {
           setExternalTransfers(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
-          const safe = data || [];
+          const safe = (data || []).map(normalizeUser);
           const mergedMap = new Map<string, User>();
           DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
           safe.forEach(u => mergedMap.set(u.id, u));
@@ -1032,7 +1069,7 @@ export default function App() {
           setConsolidatedInvoices(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
-          const safe = data || [];
+          const safe = (data || []).map(normalizeMessage);
           scheduleLocalStorageWrite('zumra_messages', safe);
           setMessages(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
@@ -2463,6 +2500,8 @@ export default function App() {
     setCurrentUser(user);
     if (user) {
       ZumraDB.setCurrentUser(user);
+      // Force Firestore back to live mode on every login (breaks out of offline cache)
+      forceFirestoreReconnect().catch(() => {});
     } else {
       localStorage.removeItem('zumra_current_user');
       dataLoadedRef.current = false; // Reset so next login triggers Phase 2 again

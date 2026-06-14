@@ -15,13 +15,13 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
 
-  const chatUsers = users.filter(u => u.id !== currentUser.id);
+  const chatUsers = users.filter(u => u.id !== currentUser.id && u.username); // filter out users with no username
 
   const activeMessages = messages.filter(
     (m) =>
       (m.senderId === currentUser.id && m.receiverId === activeChatUser?.id) ||
       (m.senderId === activeChatUser?.id && m.receiverId === currentUser.id)
-  );
+  ).filter(m => m.id && m.content); // filter out malformed messages
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeChatUser) return;
@@ -65,8 +65,8 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
                   className={`p-3 rounded-xl cursor-pointer transition mb-1 flex justify-between items-center ${activeChatUser?.id === u.id ? 'bg-amber-100 text-amber-900' : 'hover:bg-slate-200 text-slate-700'}`}
                 >
                   <div>
-                    <div className="font-bold text-sm">{u.name}</div>
-                    <div className="text-[10px] uppercase font-mono opacity-60 mt-0.5">{u.role}</div>
+                    <div className="font-bold text-sm">{u.name || u.username || 'Unknown'}</div>
+                    <div className="text-[10px] uppercase font-mono opacity-60 mt-0.5">{u.role || 'Staff'}</div>
                   </div>
                   {unread > 0 && (
                     <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{unread}</span>
@@ -82,7 +82,7 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
           {activeChatUser ? (
             <>
               <div className="p-4 border-b border-slate-150 bg-white/80 backdrop-blur">
-                <h3 className="font-bold text-slate-800">{activeChatUser.name} <span className="text-xs text-slate-400 font-normal ml-2">@{activeChatUser.username}</span></h3>
+                <h3 className="font-bold text-slate-800">{activeChatUser.name || activeChatUser.username} <span className="text-xs text-slate-400 font-normal ml-2">@{activeChatUser.username || activeChatUser.id}</span></h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {activeMessages.length > 0 ? activeMessages.map(m => {
