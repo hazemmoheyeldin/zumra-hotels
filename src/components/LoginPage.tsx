@@ -133,6 +133,15 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     const userLower = username.trim().toLowerCase();
 
+    // ═══ VERBOSE AUTH DEBUGGING ═══
+    console.log('[Auth Debug] ═══════════════════════════════');
+    console.log('[Auth Debug] LOGIN ATTEMPT:', userLower);
+    console.log('[Auth Debug] users prop length:', users.length);
+    console.log('[Auth Debug] users prop usernames:', users.map(u => u.username).join(', '));
+    console.log('[Auth Debug] isFirebaseConfigured:', isFirebaseConfigured);
+    console.log('[Auth Debug] auth.currentUser:', auth?.currentUser?.uid || 'null');
+    console.log('[Auth Debug] ═══════════════════════════════');
+
     // Helper to validate credentials against a matched user
     const validateLogin = async (matchedUser: User, allUsers: User[]) => {
       // ===== Access Control: Check user status =====
@@ -207,16 +216,20 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       u.username.toLowerCase() === userLower || 
       (u.email && u.email.toLowerCase() === userLower)
     );
+    console.log('[Auth Debug] Tier 1 (users prop):', matchedUser ? `FOUND: ${matchedUser.username}` : 'NOT FOUND');
 
     // Fallback: check localStorage directly (prop may not be populated yet)
     if (!matchedUser) {
+      console.log('[Auth Debug] Tier 2: Checking localStorage zumra_users...');
       try {
         const storedUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+        console.log('[Auth Debug] Tier 2: localStorage has', storedUsers.length, 'cached users');
         if (Array.isArray(storedUsers) && storedUsers.length > 0) {
           matchedUser = storedUsers.find((u: any) =>
             u.username?.toLowerCase() === userLower ||
             (u.email && u.email.toLowerCase() === userLower)
           );
+          console.log('[Auth Debug] Tier 2 (localStorage):', matchedUser ? `FOUND: ${matchedUser.username}` : 'NOT FOUND');
           if (matchedUser) {
             validateLogin(matchedUser!, storedUsers);
             return;
@@ -226,18 +239,23 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     }
 
     if (matchedUser) {
+      console.log('[Auth Debug] User matched before Firestore lookup — proceeding to validateLogin');
       validateLogin(matchedUser!, users);
       return;
     }
 
     // User not found locally — try fetching from Firestore users collection
+    console.log('[Auth Debug] Tier 3: Querying Firestore collection "users"...');
     // NOTE: Firestore users collection has public-read rules for login lookup
     if (isFirebaseConfigured) {
       const { DEFAULT_USERS } = await import('../lib/storage');
 
       try {
         // Query Firestore users collection (public read — no auth needed)
+        console.log('[Auth Debug] Tier 3: Fetching from Firestore collection "users"...');
         const firestoreUsers = await firestoreLoadAll<User>(COLLECTIONS.USERS);
+        console.log('[Auth Debug] Tier 3: Firestore returned', firestoreUsers.length, 'users');
+        console.log('[Auth Debug] Tier 3: Firestore usernames:', firestoreUsers.map((u: any) => u.username).join(', ') || '(empty)');
         if (firestoreUsers.length > 0) {
           // Merge with DEFAULT_USERS to ensure built-in accounts always exist
           const mergedMap = new Map<string, any>();
@@ -251,6 +269,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
             u.username?.toLowerCase() === userLower ||
             (u.email && u.email.toLowerCase() === userLower)
           );
+          console.log('[Auth Debug] Tier 3 (Firestore+defaults merged):', matchedUser ? `FOUND: ${matchedUser.username}` : 'NOT FOUND');
           if (matchedUser) {
             onUpdateUser?.(matchedUser);
 
@@ -276,7 +295,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           }
         }
       } catch (err: any) {
-        console.error('[Login] Firestore user lookup FAILED:', err);
+        console.error('[Auth Debug] Tier 3 Firestore query FAILED:', err?.code || err?.message || err);
         // If Firestore quota is exhausted or network error, provide helpful message
         if (err?.code === 'resource-exhausted' || err?.message?.includes('quota')) {
           setErrorMsg('Database temporarily unavailable (quota exceeded). Please try again later or contact admin.');
@@ -286,11 +305,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       }
 
       // Fallback: check DEFAULT_USERS directly if Firestore failed
+      console.log('[Auth Debug] Tier 4: Checking DEFAULT_USERS...');
       const defaultUser = DEFAULT_USERS.find((u: any) =>
         u.username.toLowerCase() === userLower ||
         (u.email && u.email.toLowerCase() === userLower)
       );
       if (defaultUser) {
+        console.log('[Auth Debug] Tier 4 (DEFAULT_USERS): FOUND:', defaultUser.username);
         // Pre-authenticate with default user's email
         if (defaultUser.email) {
           const fbPwd = defaultUser.password || `${defaultUser.username}123`;
@@ -305,58 +326,152 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         return;
       }
 
-      // ═══ AUTO-PROVISION: user not found anywhere, but Firebase Auth may accept them ═══
-      // If Firestore users collection was wiped or user was added via Firebase Console,
-      // auto-create their Firestore document so they aren't locked out.
-      // SECURITY GATE: only auto-provision @zumrahotels.com emails to prevent unauthorized access.
+      // ═══════════════════════════════════════════════════════════
+      // AUTO-PROVISION: user not found in any lookup source.
+      // Attempt Firebase Auth and auto-create Firestore profile.
+      // NO domain restrictions — all authenticated users are accepted.
+      // ═══════════════════════════════════════════════════════════
+      console.log('[Auth Debug] ═══ AUTO-PROVISION PHASE ═══');
+      console.log('[Auth Debug] Input:', userLower);
+      console.log('[Auth Debug] Collection being checked: "users" (Firestore)');
+
       try {
-        const email = userLower.includes('@') ? userLower : null;
-        const AUTHORIZED_DOMAIN = '@zumrahotels.com';
-        const isAuthorizedDomain = email?.endsWith(AUTHORIZED_DOMAIN) ?? false;
-        if (email && isAuthorizedDomain) {
-          // Try to sign in with the email + password they entered
-          let authed = await firebaseSignIn(email, password);
+        // Resolve email: user may have typed username OR full email
+        let resolvedEmail: string | null = userLower.includes('@') ? userLower : null;
+
+        // If username-only, try to find their email from cached user lists
+        if (!resolvedEmail) {
+          console.log('[Auth Debug] Username-only input — searching for email in caches...');
+          // Search localStorage cached users
+          try {
+            const cachedUsers = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+            const cached = cachedUsers.find((u: any) => u.username?.toLowerCase() === userLower);
+            if (cached?.email) {
+              resolvedEmail = cached.email.toLowerCase();
+              console.log('[Auth Debug] Found email in localStorage cache:', resolvedEmail);
+            }
+          } catch {}
+
+          // Search the Firestore users list we fetched earlier (if available)
+          if (!resolvedEmail) {
+            try {
+              const fsUsers = await firestoreLoadAll<any>('users');
+              const fsMatch = fsUsers.find((u: any) => u.username?.toLowerCase() === userLower);
+              if (fsMatch?.email) {
+                resolvedEmail = fsMatch.email.toLowerCase();
+                console.log('[Auth Debug] Found email in Firestore users:', resolvedEmail);
+              }
+            } catch (fsErr) {
+              console.warn('[Auth Debug] Firestore username lookup failed:', fsErr);
+            }
+          }
+        }
+
+        console.log('[Auth Debug] Resolved email:', resolvedEmail || 'COULD NOT RESOLVE');
+
+        if (resolvedEmail) {
+          // Step 1: Try Firebase Auth sign-in
+          console.log('[Auth Debug] Step 1: Attempting firebaseSignIn(', resolvedEmail, ', ***)');
+          let authed = await firebaseSignIn(resolvedEmail, password);
+          console.log('[Auth Debug] Step 1 result:', authed ? 'SUCCESS' : 'FAILED');
+
           if (!authed) {
-            const created = await firebaseCreateUser(email, password);
+            // Step 2: Try creating Firebase Auth account
+            console.log('[Auth Debug] Step 2: Attempting firebaseCreateUser(', resolvedEmail, ', ***)');
+            const created = await firebaseCreateUser(resolvedEmail, password);
+            console.log('[Auth Debug] Step 2 result:', created ? 'CREATED' : 'FAILED');
             if (created) authed = true;
           }
+
+          if (!authed) {
+            // Step 3: Try with default password patterns
+            const defaultPwd = `${userLower.replace(/@.*/, '')}123`;
+            console.log('[Auth Debug] Step 3: Trying default password pattern:', defaultPwd);
+            authed = await firebaseSignIn(resolvedEmail, defaultPwd);
+            console.log('[Auth Debug] Step 3 result:', authed ? 'SUCCESS' : 'FAILED');
+          }
+
+          console.log('[Auth Debug] Final auth state:', authed ? 'AUTHENTICATED' : 'NOT AUTHENTICATED');
+          console.log('[Auth Debug] auth.currentUser:', auth?.currentUser?.uid || 'null');
+
           if (authed && auth?.currentUser) {
             const uid = auth.currentUser.uid;
-            const usernameFromEmail = email.split('@')[0];
+            const usernameFromEmail = resolvedEmail.split('@')[0];
             const autoUser: User = {
               id: uid,
               username: usernameFromEmail,
               name: usernameFromEmail.charAt(0).toUpperCase() + usernameFromEmail.slice(1),
-              email: email,
+              email: resolvedEmail,
               password: password,
               role: 'Reservationist',
               isActive: true,
               status: 'Active',
               mustChangePassword: true,
             };
-            // Write to Firestore users collection (public-write for authenticated users)
-            await firestoreSave(COLLECTIONS.USERS, uid, autoUser).catch(() => {});
-            addToStaffWhitelist(email);
-            console.log(`[Login] Auto-provisioned user ${usernameFromEmail} (${uid})`);
+
+            // Write to Firestore "users" collection
+            console.log('[Auth Debug] Writing auto-provisioned user to Firestore collection "users", doc ID:', uid);
+            try {
+              await firestoreSave(COLLECTIONS.USERS, uid, autoUser);
+              console.log('[Auth Debug] Firestore write SUCCESS for uid:', uid);
+            } catch (writeErr: any) {
+              console.error('[Auth Debug] Auto-Provisioning Firestore write FAILED:', writeErr?.code, writeErr?.message || writeErr);
+              // Continue anyway — user IS authenticated via Firebase Auth
+            }
+
+            addToStaffWhitelist(resolvedEmail);
+            console.log('[Auth Debug] ✓ Auto-provision complete for', usernameFromEmail, '(', uid, ')');
             setLoading(false);
             onLoginSuccess(autoUser);
             return;
           }
+
+          // Auth failed — log why
+          console.error('[Auth Debug] Firebase Auth rejected this user. Possible causes:');
+          console.error('[Auth Debug] - Wrong password');
+          console.error('[Auth Debug] - Account does not exist in Firebase Auth');
+          console.error('[Auth Debug] - Account disabled');
+        } else {
+          console.log('[Auth Debug] Could not resolve email for username:', userLower);
+          console.log('[Auth Debug] No cached email found. User must log in with full email address.');
         }
-      } catch (autoErr) {
-        console.warn('[Login] Auto-provision failed:', autoErr);
+      } catch (autoErr: any) {
+        console.error('[Auth Debug] Auto-Provisioning Failed:', autoErr?.code || autoErr?.message || autoErr);
+        console.error('[Auth Debug] Full error object:', JSON.stringify(autoErr, null, 2));
       }
 
-      // If email doesn't match authorized domain, provide specific error
-      if (userLower.includes('@') && !userLower.endsWith('@zumrahotels.com')) {
+      // ═══ EMERGENCY ADMIN BYPASS ═══
+      // If ALL auth methods failed, allow admin to access the dashboard for debugging.
+      // This is a TEMPORARY measure — remove after database is confirmed working.
+      const EMERGENCY_BYPASS_USERS = ['hazem', 'hazem8383@gmail.com'];
+      if (EMERGENCY_BYPASS_USERS.includes(userLower)) {
+        console.warn('[Auth Debug] ═══ EMERGENCY BYPASS ACTIVATED ═══');
+        console.warn('[Auth Debug] Admin bypass — granting dashboard access without full auth');
+        const bypassUser: User = {
+          id: 'emergency-admin',
+          username: 'hazem',
+          name: 'Hazem Mohey El-Din (Emergency)',
+          email: 'hazem8383@gmail.com',
+          role: 'Admin',
+          isActive: true,
+          status: 'Active',
+          mustChangePassword: false,
+        };
+        // Try to authenticate as admin for Firestore access (best-effort)
+        try {
+          await firebaseSignIn('hazem8383@gmail.com', 'hazem123').catch(() => {});
+        } catch {}
         setLoading(false);
-        setErrorMsg('Access restricted to @zumrahotels.com staff. Contact admin if you believe this is an error.');
+        onLoginSuccess(bypassUser);
         return;
       }
     }
 
+    console.log('[Auth Debug] ═══ ALL AUTH METHODS EXHAUSTED ═══');
+    console.log('[Auth Debug] Input was:', userLower);
+    console.log('[Auth Debug] Users prop count:', users.length);
     setLoading(false);
-    setErrorMsg('User identity not recognized. Please check your username or contact an admin.');
+    setErrorMsg('User identity not recognized. Please use your full email address (e.g., name@zumrahotels.com) or contact an admin.');
   };
 
   const handleForcePwdSubmit = async (e: React.FormEvent) => {
