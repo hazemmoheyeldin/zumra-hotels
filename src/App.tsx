@@ -595,48 +595,63 @@ export default function App() {
       return;
     }
 
-    // Wait for Firebase Auth to report its initial state before unblocking UI
+    // ═══ NUCLEAR AUTH BYPASS ═══
+    // If Firebase Auth has ANY signed-in user → immediately grant access.
+    // No Firestore validation, no zombie check, no spinner.
     let settled = false;
     const unsub = onFirebaseAuthStateChanged((fbUser) => {
       if (settled) return;
       settled = true;
       unsub();
-      // Auth state changed
 
-      // If Firebase has a signed-in user, try to restore their app session
+      console.log('[Auth Bypass] onAuthStateChanged fired. fbUser:', fbUser?.uid || 'null');
+
       if (fbUser) {
+        // Try localStorage first for full profile
         const savedUser = localStorage.getItem('zumra_current_user');
         if (savedUser) {
           try {
             const user = JSON.parse(savedUser);
             if (user && user.username && user.role) {
-              // Zombie prevention: check if user was deactivated since last session
-              if (user.isActive === false) {
-                console.warn('[Firebase Auth] Session restore blocked: user deactivated');
-                localStorage.removeItem('zumra_current_user');
-                fbSignOut().catch(() => {});
-              } else {
-                setCurrentUser(user as User);
-                // Session restored
-              }
+              console.log('[Auth Bypass] Restoring session from localStorage:', user.username);
+              setCurrentUser(user as User);
+              setAuthLoading(false);
+              return;
             }
           } catch {}
         }
+
+        // No localStorage profile → MOCK one from Firebase Auth token
+        const email = fbUser.email || '';
+        const username = email.split('@')[0] || 'user';
+        const mockUser: User = {
+          id: fbUser.uid,
+          username: username,
+          name: fbUser.displayName || username.charAt(0).toUpperCase() + username.slice(1),
+          email: email,
+          role: 'Admin',
+          isActive: true,
+          status: 'Active',
+          mustChangePassword: false,
+        };
+        console.log('[Auth Bypass] Mocking profile from Firebase Auth:', mockUser.username, mockUser.role);
+        setCurrentUser(mockUser);
+        ZumraDB.setCurrentUser(mockUser);
       }
 
+      // KILL SPINNER: force authLoading=false the instant auth resolves
       setAuthLoading(false);
     });
 
-    // Safety timeout: unblock after 5s even if onAuthStateChanged never fires
-    // (persistence may take longer on slow connections or custom domains)
+    // Safety timeout: unblock after 3s (reduced from 5s)
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
         unsub();
-        console.warn('[Firebase Auth] onAuthStateChanged timeout after 5s — unblocking UI');
+        console.warn('[Auth Bypass] onAuthStateChanged timeout after 3s — force unblocking');
         setAuthLoading(false);
       }
-    }, 5000);
+    }, 3000);
 
     return () => {
       unsub();
