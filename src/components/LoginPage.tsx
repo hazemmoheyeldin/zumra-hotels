@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync, DEFAULT_USERS } from '../lib/storage';
-import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, auth } from '../lib/firebase';
+import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -134,17 +134,18 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     console.log('[Auth Bypass] Login attempt:', userLower);
 
     // ═══════════════════════════════════════════════════════════
-    // NUCLEAR AUTH BYPASS: Firebase Auth FIRST, instant access.
-    // No Firestore validation before login. No multi-tier lookup.
-    // If Firebase Auth accepts the user → dashboard immediately.
+    // SINGLE SOURCE OF TRUTH AUTH:
+    // 1. Resolve email (from Firestore LIVE if needed)
+    // 2. Firebase Auth sign-in
+    // 3. Fetch user doc from LIVE Firestore (source of truth)
+    // 4. Gate on mustChangePassword flag
     // ═══════════════════════════════════════════════════════════
     if (isFirebaseConfigured) {
-      // Step 1: Resolve email from input (could be email or username)
+      // Step 1: Resolve email from input
       let email: string | null = userLower.includes('@') ? userLower : null;
 
-      // If username-only, search ALL sources for their email
+      // If username-only, search caches first (fast path)
       if (!email) {
-        // Source A: localStorage cache
         try {
           const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
           const match = cached.find((u: any) => u.username?.toLowerCase() === userLower);
@@ -152,83 +153,119 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         } catch {}
       }
       if (!email) {
-        // Source B: users prop (from Firestore listener)
         const propMatch = users.find(u => u.username.toLowerCase() === userLower);
         if (propMatch?.email) email = propMatch.email.toLowerCase();
       }
       if (!email) {
-        // Source C: DEFAULT_USERS (always present)
         const defMatch = DEFAULT_USERS.find(u => u.username.toLowerCase() === userLower);
         if (defMatch?.email) email = defMatch.email.toLowerCase();
       }
       if (!email) {
-        // Source D: Construct from username + @zumrahotels.com (team domain)
+        // Query LIVE Firestore for the username
+        console.log('[Auth] Username not in cache — querying LIVE Firestore for:', userLower);
+        const liveUser = await fetchUserFromFirestore(userLower);
+        if (liveUser?.email) email = liveUser.email.toLowerCase();
+      }
+      if (!email) {
         email = `${userLower}@zumrahotels.com`;
-        console.log('[Auth Bypass] Email not found in any cache, constructed:', email);
+        console.log('[Auth] Email not found anywhere, constructed:', email);
       }
 
-      console.log('[Auth Bypass] Resolved email:', email);
+      console.log('[Auth] Resolved email:', email);
 
-      // Step 2: Try Firebase Auth sign-in (up to 3 attempts)
+      // Step 2: Firebase Auth sign-in (up to 4 attempts)
       let authed = false;
       if (email) {
-        // Attempt 1: entered password
-        console.log('[Auth Bypass] Auth attempt 1: signIn', email);
+        // Attempt 1: typed password
         authed = await firebaseSignIn(email, password);
-
-        // Attempt 2: create account
         if (!authed) {
-          console.log('[Auth Bypass] Auth attempt 2: createUser', email);
+          // Attempt 2: create Firebase Auth account (handles users only in Firestore)
           const created = await firebaseCreateUser(email, password);
           if (created) authed = true;
         }
-
-        // Attempt 3: default password pattern
         if (!authed) {
+          // Attempt 3: default password pattern (username123)
           const defaultPwd = `${email.split('@')[0]}123`;
-          console.log('[Auth Bypass] Auth attempt 3: default pwd');
           authed = await firebaseSignIn(email, defaultPwd);
+        }
+        if (!authed) {
+          // Attempt 4: try the Firestore-stored password (if we fetched a live user earlier)
+          const liveUserForPwd = await fetchUserFromFirestore(userLower).catch(() => null)
+            || await fetchUserFromFirestore(email).catch(() => null);
+          if (liveUserForPwd?.password && liveUserForPwd.password !== password) {
+            console.log('[Auth] Attempting Firestore-stored password for:', email);
+            authed = await firebaseSignIn(email, liveUserForPwd.password);
+            if (!authed) {
+              // Try to re-create with the stored password
+              const recreated = await firebaseCreateUser(email, liveUserForPwd.password);
+              if (recreated) authed = true;
+            }
+          }
         }
       }
 
-      // Step 3: If Firebase Auth succeeded → INSTANT ACCESS
+      // Step 3: If Firebase Auth succeeded → fetch LIVE profile from Firestore
       if (authed && auth?.currentUser) {
         const uid = auth.currentUser.uid;
         const fbEmail = auth.currentUser.email || email || '';
         const uname = fbEmail.split('@')[0] || userLower;
 
-        console.log('[Auth Bypass] Firebase Auth SUCCESS. UID:', uid);
+        console.log('[Auth] Firebase Auth SUCCESS. UID:', uid, 'Fetching LIVE profile...');
 
-        // Find existing user profile for richer data
-        const existingUser = users.find(u =>
-          u.username.toLowerCase() === uname ||
-          (u.email && u.email.toLowerCase() === fbEmail.toLowerCase())
-        );
+        // Fetch from LIVE Firestore (source of truth)
+        const liveProfile = await fetchUserFromFirestore(uid).catch(() => null)
+          || await fetchUserFromFirestore(fbEmail).catch(() => null)
+          || await fetchUserFromFirestore(uname).catch(() => null);
 
-        // Check localStorage cache too
-        let cachedUser: any = null;
-        if (!existingUser) {
-          try {
-            const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
-            cachedUser = cached.find((u: any) =>
-              u.username?.toLowerCase() === uname ||
-              (u.email && u.email.toLowerCase() === fbEmail.toLowerCase())
-            );
-          } catch {}
-        }
+        // Build the user object — Firestore doc is authoritative
+        // ★ CRITICAL: Normalize mustChangePassword — Firestore may store as string "false" which is truthy in JS
+        const rawMcp = liveProfile?.mustChangePassword;
+        const mustChangePwd = rawMcp === true || rawMcp === 'true' || rawMcp === 1;
 
-        const profileUser: User = existingUser || cachedUser || {
+        const profileUser: User = liveProfile ? {
+          id: liveProfile.id || uid,
+          username: liveProfile.username || uname,
+          name: liveProfile.name || liveProfile.username || uname,
+          email: liveProfile.email || fbEmail,
+          role: liveProfile.role || 'Reservationist',
+          isActive: liveProfile.isActive !== false,
+          status: liveProfile.status || 'Active',
+          mustChangePassword: mustChangePwd,
+          password: liveProfile.password || '',
+        } : {
+          // Fallback: no Firestore doc found — use Firebase Auth token data
           id: uid,
           username: uname,
           name: uname.charAt(0).toUpperCase() + uname.slice(1),
           email: fbEmail,
-          role: 'Admin',
+          role: 'Reservationist',
           isActive: true,
           status: 'Active',
           mustChangePassword: false,
         };
 
-        console.log('[Auth Bypass] Logging in as:', profileUser.username, profileUser.role);
+        console.log('[Auth] Profile loaded:', profileUser.username, profileUser.role,
+          'mustChangePassword:', profileUser.mustChangePassword);
+
+        // Check deactivated / pending
+        if (profileUser.isActive === false) {
+          setLoading(false);
+          setErrorMsg('Your account has been deactivated. Contact admin.');
+          return;
+        }
+        if (profileUser.status === 'Pending') {
+          setLoading(false);
+          setErrorMsg('Account pending approval. Contact admin.');
+          return;
+        }
+
+        // MUST CHANGE PASSWORD GATE
+        if (profileUser.mustChangePassword) {
+          console.log('[Auth] mustChangePassword=true — forcing password change screen');
+          setForcePwdUser(profileUser);
+          setLoading(false);
+          return;
+        }
 
         // Remember me
         if (rememberMe) {
@@ -376,6 +413,10 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
       // 4. Sync to Firestore (user IS authenticated at this point)
       if (isFirebaseConfigured) {
+        // Direct write to Firestore users collection (source of truth)
+        firestoreSave(COLLECTIONS.USERS, updatedUser.id, { ...updatedUser, mustChangePassword: false }).catch((err: any) => {
+          console.warn('[Password Change] Firestore direct save failed:', err?.message);
+        });
         ZumraSync.saveUser(updatedUser).catch((err: any) => {
           console.warn('[Password Change] Firestore user sync failed (non-critical):', err?.message);
         });

@@ -92,7 +92,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
       password: password || (editingUserId ? users.find(u => u.id === editingUserId)?.password : '') || '',
       jobTitle,
       role,
-      mustChangePassword: isNewUser && !isEditingSelf ? true : (isEditingSelf ? false : undefined),
+      mustChangePassword: isNewUser && !isEditingSelf ? true : false,
       status: editingUserId ? (users.find(u => u.id === editingUserId)?.status || 'Active') : 'Active',
       isActive: editingUserId ? (users.find(u => u.id === editingUserId)?.isActive ?? true) : true,
     };

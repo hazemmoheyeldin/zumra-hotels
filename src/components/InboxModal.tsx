@@ -15,13 +15,34 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
 
-  const chatUsers = users.filter(u => u.id !== currentUser.id && u.username); // filter out users with no username
+  const chatUsers = users.filter(u => u.id !== currentUser.id && u.username);
+
+  // Collect all known IDs/usernames for the current user (handles ID mismatches)
+  const myIds = new Set<string>([
+    currentUser.id,
+    currentUser.username,
+    currentUser.email,
+  ].filter(Boolean).map(s => s.toLowerCase()));
+
+  // Helper: check if a message belongs to me (as sender or receiver)
+  const isMine = (field: string) => myIds.has(field?.toLowerCase());
 
   const activeMessages = messages.filter(
-    (m) =>
-      (m.senderId === currentUser.id && m.receiverId === activeChatUser?.id) ||
-      (m.senderId === activeChatUser?.id && m.receiverId === currentUser.id)
-  ).filter(m => m.id && m.content); // filter out malformed messages
+    (m) => {
+      if (!activeChatUser) return false;
+      const theirIds = new Set<string>([
+        activeChatUser.id,
+        activeChatUser.username,
+        activeChatUser.email,
+      ].filter(Boolean).map(s => s.toLowerCase()));
+      const isTheirId = (field: string) => theirIds.has(field?.toLowerCase());
+
+      return (
+        (isMine(m.senderId) && isTheirId(m.receiverId)) ||
+        (isTheirId(m.senderId) && isMine(m.receiverId))
+      );
+    }
+  ).filter(m => m.id && m.content);
 
   const handleSendMessage = () => {
     if (!newMessage.trim() || !activeChatUser) return;
@@ -52,7 +73,7 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {chatUsers.map(u => {
-              const unread = messages.filter(m => m.receiverId === currentUser.id && m.senderId === u.id && !m.read).length;
+              const unread = messages.filter(m => isMine(m.receiverId) && (m.senderId === u.id || m.senderId === u.username) && !m.read).length;
               return (
                 <div 
                   key={u.id}

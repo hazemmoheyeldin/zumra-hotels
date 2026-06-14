@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -108,7 +108,7 @@ function normalizeUser(u: any): User {
     role: u.role || 'Reservationist',
     isActive: u.isActive !== false,
     status: u.status || 'Active',
-    mustChangePassword: u.mustChangePassword || false,
+    mustChangePassword: u.mustChangePassword === true || u.mustChangePassword === 'true',
   };
 }
 
@@ -631,7 +631,7 @@ export default function App() {
     // If Firebase Auth has ANY signed-in user → immediately grant access.
     // No Firestore validation, no zombie check, no spinner.
     let settled = false;
-    const unsub = onFirebaseAuthStateChanged((fbUser) => {
+    const unsub = onFirebaseAuthStateChanged(async (fbUser) => {
       if (settled) return;
       settled = true;
       unsub();
@@ -642,13 +642,41 @@ export default function App() {
         // Force Firestore back to live mode (resets circuit breaker + enableNetwork)
         forceFirestoreReconnect().catch(() => {});
 
-        // Try localStorage first for full profile
+        // Fetch LIVE profile from Firestore (single source of truth)
+        let liveProfile: any = null;
+        try {
+          liveProfile = await fetchUserFromFirestore(fbUser.uid)
+            || await fetchUserFromFirestore(fbUser.email || '');
+        } catch (err) {
+          console.warn('[Auth] Failed to fetch LIVE profile from Firestore:', err);
+        }
+
+        if (liveProfile) {
+          // Firestore doc is authoritative
+          const user: User = {
+            id: liveProfile.id || fbUser.uid,
+            username: liveProfile.username || fbUser.email?.split('@')[0] || 'user',
+            name: liveProfile.name || liveProfile.username || 'User',
+            email: liveProfile.email || fbUser.email || '',
+            role: liveProfile.role || 'Reservationist',
+            isActive: liveProfile.isActive !== false,
+            status: liveProfile.status || 'Active',
+            mustChangePassword: liveProfile.mustChangePassword === true || liveProfile.mustChangePassword === 'true',
+          };
+          console.log('[Auth] LIVE profile loaded:', user.username, user.role, 'mustChangePwd:', user.mustChangePassword);
+          setCurrentUser(user);
+          ZumraDB.setCurrentUser(user);
+          setAuthLoading(false);
+          return;
+        }
+
+        // Fallback: try localStorage
         const savedUser = localStorage.getItem('zumra_current_user');
         if (savedUser) {
           try {
             const user = JSON.parse(savedUser);
             if (user && user.username && user.role) {
-              console.log('[Auth Bypass] Restoring session from localStorage:', user.username);
+              console.log('[Auth] Restoring session from localStorage:', user.username);
               setCurrentUser(user as User);
               setAuthLoading(false);
               return;
@@ -656,7 +684,7 @@ export default function App() {
           } catch {}
         }
 
-        // No localStorage profile → MOCK one from Firebase Auth token
+        // Last resort: mock from Firebase Auth token
         const email = fbUser.email || '';
         const username = email.split('@')[0] || 'user';
         const mockUser: User = {
@@ -664,12 +692,12 @@ export default function App() {
           username: username,
           name: fbUser.displayName || username.charAt(0).toUpperCase() + username.slice(1),
           email: email,
-          role: 'Admin',
+          role: 'Reservationist',
           isActive: true,
           status: 'Active',
           mustChangePassword: false,
         };
-        console.log('[Auth Bypass] Mocking profile from Firebase Auth:', mockUser.username, mockUser.role);
+        console.log('[Auth] Mocking profile from Firebase Auth token:', mockUser.username);
         setCurrentUser(mockUser);
         ZumraDB.setCurrentUser(mockUser);
       }
@@ -3549,7 +3577,9 @@ export default function App() {
               {(() => {
                 // Guard: only show badge if messages array has data and currentUser exists
                 if (!messages || messages.length === 0 || !currentUser?.id) return null;
-                const unread = messages.filter((m: any) => m.receiverId === currentUser.id && !m.read).length;
+                // Match by any of the current user's identifiers (id, username, email)
+                const myIds = [currentUser.id, currentUser.username, currentUser.email].filter(Boolean).map(s => s.toLowerCase());
+                const unread = messages.filter((m: any) => myIds.includes(m.receiverId?.toLowerCase()) && !m.read).length;
                 return unread > 0 ? (
                   <span className="absolute top-1 right-1 bg-blue-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
                     {unread > 9 ? '9+' : unread}

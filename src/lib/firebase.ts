@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -113,20 +113,11 @@ if (isFirebaseConfigured) {
     const useEmulator = import.meta.env.VITE_USE_EMULATOR === 'true' || 
                        (window.location.hostname === 'localhost' && import.meta.env.DEV);
     
-    // Enable offline persistence (IndexedDB cache, multi-tab sync) - skip for emulators
-    if (!useEmulator) {
-      enableMultiTabIndexedDbPersistence(db).catch((err: any) => {
-        if (err.code === 'failed-precondition') {
-          console.warn('[Firestore] Persistence failed: browser not supported');
-        } else if (err.code === 'unimplemented') {
-          console.warn('[Firestore] Persistence not supported in this browser');
-        } else {
-          console.warn('[Firestore] Persistence error:', err?.message);
-        }
-      });
-    } else {
-      console.log('[Firestore] Skipping persistence (emulator mode)');
-    }
+    // DISABLED: Offline persistence (IndexedDB cache).
+    // During launch phase we need the app to strictly read from the live server
+    // on every page load to prevent stale data conflicts and split-brain cache.
+    // enableMultiTabIndexedDbPersistence(db) — disabled intentionally.
+    console.log('[Firestore] Offline persistence DISABLED — live-only mode');
     auth = getAuth(app);
     // ★ CRITICAL: Await persistence before any auth operations.
     // This prevents the "Verifying Session" loop and ensures
@@ -165,7 +156,7 @@ if (isFirebaseConfigured) {
 }
 
 export { db, auth, authReadyPromise };
-export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, serverTimestamp };
+export { collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, serverTimestamp };
 export { orderBy, limit, startAfter };
 export type { QueryDocumentSnapshot, DocumentSnapshot };
 export type { FBUser };
@@ -443,6 +434,37 @@ export const COLLECTIONS = {
   MESSAGES: 'messages',
   DOCUMENT_TEMPLATES: 'document_templates',
 };
+
+/**
+ * Fetch a user document from the LIVE Firestore users collection.
+ * Tries: (1) by UID, (2) by email match, (3) by username match.
+ * Returns the user data or null. This is the SINGLE SOURCE OF TRUTH.
+ */
+export async function fetchUserFromFirestore(identifier: string): Promise<any | null> {
+  if (!db) return null;
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTIONS.USERS));
+    const allUsers: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const idLower = identifier.toLowerCase();
+
+    // Match by UID
+    const byUid = allUsers.find(u => u.id?.toLowerCase() === idLower || u.uid?.toLowerCase() === idLower);
+    if (byUid) return byUid;
+
+    // Match by email
+    const byEmail = allUsers.find(u => u.email?.toLowerCase() === idLower);
+    if (byEmail) return byEmail;
+
+    // Match by username
+    const byUsername = allUsers.find(u => u.username?.toLowerCase() === idLower);
+    if (byUsername) return byUsername;
+
+    return null;
+  } catch (err: any) {
+    console.warn('[Firestore] fetchUserFromFirestore failed:', err?.code || err?.message);
+    return null;
+  }
+}
 
 /**
  * Auto-create user profile in Firestore if it doesn't exist.
