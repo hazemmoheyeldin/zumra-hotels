@@ -323,7 +323,10 @@ export const DEFAULT_USERS: User[] = [
 export function getSavedData<T>(key: string, defaults: T): T {
   try {
     const item = localStorage.getItem(`zumra_${key}`);
-    return item ? JSON.parse(item) : defaults;
+    if (!item) return defaults;
+    const parsed = JSON.parse(item);
+    // Guard against null/undefined stored in localStorage (e.g., empty Firestore snapshot serialized as "null")
+    return parsed ?? defaults;
   } catch (e) {
     return defaults;
   }

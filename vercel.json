@@ -27,7 +27,7 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firestore.googleapis.com https://api.exchangerate-api.com https://api.geoapify.com https://api.emailjs.com; frame-src 'self' blob: https://*.google.com; media-src 'self' blob:; object-src 'self' blob:;" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firestore.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com https://api.exchangerate-api.com https://api.geoapify.com https://api.emailjs.com; frame-src 'self' blob: https://*.google.com; media-src 'self' blob:; object-src 'self' blob:;" }
       ]
     }
   ]

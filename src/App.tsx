@@ -883,47 +883,55 @@ export default function App() {
         // Direct reactive listeners — arraysEqual prevents echo re-renders
         // Each listener is wrapped in attach() for staggered attachment + throttled localStorage writes
         attach(() => firestoreSubscribeWithLimit<Hotel>(COLLECTIONS.HOTELS, 'hotelNumber', 'asc', PAGE_SIZE, (data, lastDoc) => {
+          const safe = data || [];
           if (!localStorage.getItem('zumra_hotels_migrated')) {
-            scheduleLocalStorageWrite('zumra_hotels', data);
-            setHotels(prev => arraysEqual(prev, data) ? prev : data);
+            scheduleLocalStorageWrite('zumra_hotels', safe);
+            setHotels(prev => arraysEqual(prev, safe) ? prev : safe);
             setHotelsCursor(lastDoc);
-            setHasMoreHotels(data.length >= PAGE_SIZE);
+            setHasMoreHotels(safe.length >= PAGE_SIZE);
           }
         }));
         attach(() => firestoreSubscribeWithLimit<Agent>(COLLECTIONS.AGENTS, 'id', 'asc', PAGE_SIZE, (data, lastDoc) => {
-          scheduleLocalStorageWrite('zumra_agents', data);
-          setAgents(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_agents', safe);
+          setAgents(prev => arraysEqual(prev, safe) ? prev : safe);
           setAgentsCursor(lastDoc);
-          setHasMoreAgents(data.length >= PAGE_SIZE);
+          setHasMoreAgents(safe.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          scheduleLocalStorageWrite('zumra_allotments', data);
-          setAllotments(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_allotments', safe);
+          setAllotments(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribeWithLimit<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
-          scheduleLocalStorageWrite('zumra_reservations', data);
-          setReservations(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_reservations', safe);
+          setReservations(prev => arraysEqual(prev, safe) ? prev : safe);
           setReservationsCursor(lastDoc);
-          setHasMoreReservations(data.length >= PAGE_SIZE);
+          setHasMoreReservations(safe.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<Account>(COLLECTIONS.ACCOUNTS, (data) => {
-          scheduleLocalStorageWrite('zumra_accounts', data);
-          setAccounts(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_accounts', safe);
+          setAccounts(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribeWithLimit<Transaction>(COLLECTIONS.TRANSACTIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
-          scheduleLocalStorageWrite('zumra_transactions', data);
-          setTransactions(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_transactions', safe);
+          setTransactions(prev => arraysEqual(prev, safe) ? prev : safe);
           setTransactionsCursor(lastDoc);
-          setHasMoreTransactions(data.length >= PAGE_SIZE);
+          setHasMoreTransactions(safe.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
-          scheduleLocalStorageWrite('zumra_external_transfers', data);
-          setExternalTransfers(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_external_transfers', safe);
+          setExternalTransfers(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
+          const safe = data || [];
           const mergedMap = new Map<string, User>();
           DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
-          data.forEach(u => mergedMap.set(u.id, u));
+          safe.forEach(u => mergedMap.set(u.id, u));
           const merged = Array.from(mergedMap.values());
           scheduleLocalStorageWrite('zumra_users', merged);
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
@@ -937,62 +945,76 @@ export default function App() {
           }
         }));
         attach(() => firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
-          scheduleLocalStorageWrite('zumra_follow_ups', data);
-          setFollowUps(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_follow_ups', safe);
+          setFollowUps(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<SalesPerson>(COLLECTIONS.SALES_PERSONS, (data) => {
-          scheduleLocalStorageWrite('zumra_sales_persons', data);
-          setSalesPersons(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_sales_persons', safe);
+          setSalesPersons(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<CancellationReason>(COLLECTIONS.CANCELLATION_REASONS, (data) => {
-          scheduleLocalStorageWrite('zumra_cancellation_reasons', data);
-          setCancellationReasons(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_cancellation_reasons', safe);
+          setCancellationReasons(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<TermsAndConditions>(COLLECTIONS.TERMS_CONDITIONS, (data) => {
-          scheduleLocalStorageWrite('zumra_terms_conditions', data);
-          setTermsAndConditions(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_terms_conditions', safe);
+          setTermsAndConditions(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<OtherService>(COLLECTIONS.OTHER_SERVICES, (data) => {
-          scheduleLocalStorageWrite('zumra_other_services', data);
-          setOtherServices(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_other_services', safe);
+          setOtherServices(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<PaymentGateway>(COLLECTIONS.PAYMENT_GATEWAYS, (data) => {
-          scheduleLocalStorageWrite('zumra_payment_gateways', data);
-          setPaymentGateways(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_payment_gateways', safe);
+          setPaymentGateways(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<PayByLink>(COLLECTIONS.PAY_BY_LINKS, (data) => {
-          scheduleLocalStorageWrite('zumra_pay_by_links', data);
-          setPayByLinks(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_pay_by_links', safe);
+          setPayByLinks(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<EditApprovalRequest>(COLLECTIONS.EDIT_APPROVALS, (data) => {
-          scheduleLocalStorageWrite('zumra_edit_approvals', data);
-          setEditApprovals(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_edit_approvals', safe);
+          setEditApprovals(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<TaxSettings>(COLLECTIONS.TAX_SETTINGS, (data) => {
-          scheduleLocalStorageWrite('zumra_tax_settings', data);
-          setTaxSettings(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_tax_settings', safe);
+          setTaxSettings(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<Expense>(COLLECTIONS.EXPENSES, (data) => {
-          scheduleLocalStorageWrite('zumra_expenses', data);
-          setExpenses(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_expenses', safe);
+          setExpenses(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<ExpenseCategory>(COLLECTIONS.EXPENSE_CATEGORIES, (data) => {
-          scheduleLocalStorageWrite('zumra_expense_categories', data);
-          setExpenseCategories(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_expense_categories', safe);
+          setExpenseCategories(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<ConsolidatedInvoice>(COLLECTIONS.CONSOLIDATED_INVOICES, (data) => {
-          scheduleLocalStorageWrite('zumra_consolidated_invoices', data);
-          setConsolidatedInvoices(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_consolidated_invoices', safe);
+          setConsolidatedInvoices(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
-          scheduleLocalStorageWrite('zumra_messages', data);
-          setMessages(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          scheduleLocalStorageWrite('zumra_messages', safe);
+          setMessages(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         // Dedicated full-collection reservations listener for real-time notifications
         // Runs alongside the paginated listener — ensures alerts scan ALL reservations
         // not just the 50 most recent (late payments, upcoming check-ins, document expiry)
         attach(() => firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-          setAllReservationsForAlerts(prev => arraysEqual(prev, data) ? prev : data);
+          const safe = data || [];
+          setAllReservationsForAlerts(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
 
         // Store unsubs in ref for cleanup (populated asynchronously as listeners attach)
