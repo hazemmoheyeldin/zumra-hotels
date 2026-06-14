@@ -29,7 +29,7 @@ interface DashboardProps {
 }
 
 function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, expenses = [], currentUser, onNavigate, onQuickReservation, globalDateRange }: DashboardProps) {
-  const todayStr = getEgyptTime().toISOString().split('T')[0];
+  const todayStr = useMemo(() => getEgyptTime().toISOString().split('T')[0], []);
   const [sendingSummary, setSendingSummary] = useState(false);
   const [showDailyOps, setShowDailyOps] = useState(false);
   const [scheduleEnabled, setScheduleEnabled] = useState(() => {

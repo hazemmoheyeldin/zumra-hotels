@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
@@ -558,7 +558,7 @@ export default function App() {
     localStorage.setItem('zumra_dismissed_alerts', JSON.stringify(updated));
   };
 
-  const allAlerts = getAlerts();
+  const allAlerts = useMemo(() => getAlerts(), [allReservationsForAlerts, reservations, otherServices, allotments, hotels, agents]);
   const currentAlerts = allAlerts.filter(a => !dismissedAlerts.includes(a.id));
   const alertCount = currentAlerts.length;
 
@@ -2555,9 +2555,13 @@ export default function App() {
   };
 
   // Switch tab triggered from Dashboard widgets
-  const handleNavigate = (tab: string, initialFilters?: any) => {
+  const handleNavigate = useCallback((tab: string, initialFilters?: any) => {
     navigateTo(tab, initialFilters);
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleQuickReservation = useCallback(() => {
+    navigateTo('Reservations', { showNewForm: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On-demand full loads: trigger when navigating to Dashboard/Reports/Ledger
   useEffect(() => {
@@ -2588,9 +2592,7 @@ export default function App() {
             currentUser={currentUser}
             onNavigate={handleNavigate}
             globalDateRange={globalDateRange}
-            onQuickReservation={() => {
-              navigateTo('Reservations', { showNewForm: true });
-            }}
+            onQuickReservation={handleQuickReservation}
           />
           </ErrorBoundary>
         );
