@@ -32,12 +32,24 @@ const firebaseConfig = {
 export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 // ═══ CIRCUIT BREAKER: stops ALL Firestore operations after repeated permission-denied errors ═══
+// With 22 staggered listeners, transient auth timing errors during initial load are expected.
+// The circuit only trips if errors PERSIST after a grace period, not during the initial burst.
 let _circuitOpen = false;
 let _permissionDeniedCount = 0;
-const CIRCUIT_THRESHOLD = 3; // Open circuit after 3 permission-denied errors
+const CIRCUIT_THRESHOLD = 8; // Need 8+ persistent errors AFTER grace period to trip
+const _circuitInitTime = Date.now();
+const CIRCUIT_GRACE_MS = 15000; // 15s grace period for initial auth + listener attachment
 
 function tripCircuit(reason: string) {
   _permissionDeniedCount++;
+  const elapsed = Date.now() - _circuitInitTime;
+  // During grace period: log but never trip (transient auth timing errors are expected)
+  if (elapsed < CIRCUIT_GRACE_MS) {
+    if (_permissionDeniedCount <= 3 || _permissionDeniedCount % 5 === 0) {
+      console.warn(`[Circuit Breaker] Permission denied (${_permissionDeniedCount}x) during grace period — not tripping. Reason: ${reason}`);
+    }
+    return;
+  }
   if (_permissionDeniedCount >= CIRCUIT_THRESHOLD && !_circuitOpen) {
     _circuitOpen = true;
     console.error(`[Circuit Breaker] TRIPPED after ${_permissionDeniedCount} permission-denied errors. Reason: ${reason}. All Firestore operations halted.`);
