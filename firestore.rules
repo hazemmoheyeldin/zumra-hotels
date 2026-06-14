@@ -1,62 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ─── Users collection ───────────────────────────────────────────────
-    // Public read: required for login flow (username → email lookup)
-    // Write: any authenticated user (admin manages users via doAddUser)
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // ─── Operational collections ───────────────────────────────────────
-    // Hotels, reservations, transactions, allotments, accounts, agents,
-    // sales_persons, other_services, expenses, commissions, messages,
-    // follow_ups, external_transfers, consolidated_invoices, audit_log,
-    // settings, tax_settings, cancellation_reasons, terms_conditions,
-    // payment_gateways, document_templates, pay_by_links, edit_approvals
-    match /hotels/{document=**}            { allow read, write: if isStaff(); }
-    match /reservations/{document=**}      { allow read, write: if isStaff(); }
-    match /transactions/{document=**}      { allow read, write: if isStaff(); }
-    match /allotments/{document=**}        { allow read, write: if isStaff(); }
-    match /accounts/{document=**}          { allow read, write: if isStaff(); }
-    match /agents/{document=**}            { allow read, write: if isStaff(); }
-    match /sales_persons/{document=**}     { allow read, write: if isStaff(); }
-    match /other_services/{document=**}    { allow read, write: if isStaff(); }
-    match /expenses/{document=**}          { allow read, write: if isStaff(); }
-    match /commissions/{document=**}       { allow read, write: if isStaff(); }
-    match /messages/{document=**}          { allow read, write: if isStaff(); }
-    match /follow_ups/{document=**}        { allow read, write: if isStaff(); }
-    match /external_transfers/{document=**} { allow read, write: if isStaff(); }
-    match /consolidated_invoices/{document=**} { allow read, write: if isStaff(); }
-    match /audit_log/{document=**}         { allow read, write: if isStaff(); }
-    match /edit_approvals/{document=**}    { allow read, write: if isStaff(); }
-
-    // ─── Settings / config collections ──────────────────────────────────
-    match /settings/{document=**}              { allow read, write: if isStaff(); }
-    match /tax_settings/{document=**}          { allow read, write: if isStaff(); }
-    match /cancellation_reasons/{document=**}  { allow read, write: if isStaff(); }
-    match /terms_conditions/{document=**}      { allow read, write: if isStaff(); }
-    match /payment_gateways/{document=**}      { allow read, write: if isStaff(); }
-    match /document_templates/{document=**}    { allow read, write: if isStaff(); }
-    match /pay_by_links/{document=**}          { allow read, write: if isStaff(); }
-
-    // ─── Catch-all: deny everything else ────────────────────────────────
-    // Any collection not explicitly listed above is locked down.
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // ─── Helper functions ──────────────────────────────────────────────
-    function isStaff() {
-      // Must be authenticated
-      return request.auth != null
-        // If user doc exists, isActive must not be false
-        && (
-          !exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive != false
-        );
+      allow read, write: if request.auth != null;
     }
   }
 }
