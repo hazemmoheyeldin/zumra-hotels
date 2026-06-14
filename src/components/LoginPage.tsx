@@ -308,9 +308,12 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       // ═══ AUTO-PROVISION: user not found anywhere, but Firebase Auth may accept them ═══
       // If Firestore users collection was wiped or user was added via Firebase Console,
       // auto-create their Firestore document so they aren't locked out.
+      // SECURITY GATE: only auto-provision @zumrahotels.com emails to prevent unauthorized access.
       try {
         const email = userLower.includes('@') ? userLower : null;
-        if (email) {
+        const AUTHORIZED_DOMAIN = '@zumrahotels.com';
+        const isAuthorizedDomain = email?.endsWith(AUTHORIZED_DOMAIN) ?? false;
+        if (email && isAuthorizedDomain) {
           // Try to sign in with the email + password they entered
           let authed = await firebaseSignIn(email, password);
           if (!authed) {
@@ -342,6 +345,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         }
       } catch (autoErr) {
         console.warn('[Login] Auto-provision failed:', autoErr);
+      }
+
+      // If email doesn't match authorized domain, provide specific error
+      if (userLower.includes('@') && !userLower.endsWith('@zumrahotels.com')) {
+        setLoading(false);
+        setErrorMsg('Access restricted to @zumrahotels.com staff. Contact admin if you believe this is an error.');
+        return;
       }
     }
 
