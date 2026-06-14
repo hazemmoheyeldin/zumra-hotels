@@ -103,7 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({ error: 'Failed to fetch rates' });
     }
 
-    const data = await response.json();
+    const data = await response.json() as { result?: string; conversion_rates?: Record<string, number>; time_last_update_utc?: string };
 
     if (data.result !== 'success' || !data.conversion_rates) {
       console.error('[rates] Unexpected API response:', data);
