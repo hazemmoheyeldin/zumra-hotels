@@ -811,19 +811,19 @@ export default function App() {
                 const localByUsername = new Map<string, any>();
                 localData.forEach((u: any) => {
                   if (u.email) localByEmail.set(u.email.toLowerCase(), u);
-                  localByUsername.set(u.username.toLowerCase(), u);
+                  if (u.username) localByUsername.set(u.username.toLowerCase(), u);
                 });
                 // Add Firestore users first (source of truth)
                 firestoreData.forEach((u: any) => {
                   mergedMap.set(u.id, u);
                   // Remove matching local user so it's not added again
                   if (u.email) localByEmail.delete(u.email.toLowerCase());
-                  localByUsername.delete(u.username.toLowerCase());
+                  if (u.username) localByUsername.delete(u.username.toLowerCase());
                 });
                 // Add remaining local users (not in Firestore by email or username)
                 localData.forEach((u: any) => {
                   const matchedByEmail = u.email && !localByEmail.has(u.email.toLowerCase());
-                  const matchedByUsername = !localByUsername.has(u.username.toLowerCase());
+                  const matchedByUsername = u.username && !localByUsername.has(u.username.toLowerCase());
                   if (matchedByEmail || matchedByUsername) return; // Already merged via Firestore
                   mergedMap.set(u.id, u); // Unique local user, keep it
                 });
