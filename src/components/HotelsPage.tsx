@@ -328,7 +328,7 @@ const PRESET_HOTELS: Partial<Hotel>[] = [
   }
 ];
 
-export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel, hasMoreHotels = false, onLoadMoreHotels }: HotelsPageProps) {
+function HotelsPage({ hotels, onSaveHotel, onDeleteHotel, hasMoreHotels = false, onLoadMoreHotels }: HotelsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t, lang } = useLang();
   
@@ -1042,3 +1042,5 @@ export default function HotelsPage({ hotels, onSaveHotel, onDeleteHotel, hasMore
     </div>
   );
 }
+
+export default React.memo(HotelsPage);

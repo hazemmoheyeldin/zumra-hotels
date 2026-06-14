@@ -40,7 +40,7 @@ export default function GlobalSearchModal({ reservations, agents, hotels, onClos
   // Debounced search
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 200);
+    const timer = setTimeout(() => setDebouncedQuery(query), 500);
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -81,7 +81,7 @@ export default function GlobalSearchModal({ reservations, agents, hotels, onClos
           type: 'agent',
           id: agent.id,
           title: `${agent.companyName || agent.name}`,
-          subtitle: `Agent #${agent.agentNumber} | ${agent.type} | ${agent.country || ''} | Balance: ${agent.balance.toLocaleString()} SAR`,
+          subtitle: `${agent.agentNumber} | ${agent.type} | ${agent.country || ''} | Balance: ${agent.balance.toLocaleString()} SAR`,
           icon: '👥',
           tab: 'Agents',
           filters: { agentId: agent.id },
@@ -161,15 +161,15 @@ export default function GlobalSearchModal({ reservations, agents, hotels, onClos
 
   return (
     <div
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center z-[100] pt-[15vh] p-4"
+      className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-start justify-center z-[100] pt-[10dvh] p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-fade-in-up border border-slate-200"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden animate-fade-in-up border border-slate-200 max-h-[85dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+        <div className="flex-shrink-0 flex items-center gap-3 px-5 py-4 border-b border-slate-100">
           <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -190,7 +190,7 @@ export default function GlobalSearchModal({ reservations, agents, hotels, onClos
         </div>
 
         {/* Results */}
-        <div ref={listRef} className="max-h-[50vh] overflow-y-auto">
+        <div ref={listRef} className="flex-1 overflow-y-auto">
           {!debouncedQuery.trim() && (
             <div className="px-5 py-8 text-center text-slate-400 text-sm">
               <p className="font-medium">Start typing to search</p>
@@ -245,7 +245,7 @@ export default function GlobalSearchModal({ reservations, agents, hotels, onClos
 
         {/* Footer */}
         {results.length > 0 && (
-          <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center gap-4 text-[10px] text-slate-400 font-medium">
+          <div className="flex-shrink-0 px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center gap-4 text-[10px] text-slate-400 font-medium">
             <span className="flex items-center gap-1">
               <kbd className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">↑↓</kbd> Navigate
             </span>

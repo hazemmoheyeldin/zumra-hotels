@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Agent, FollowUp, ActivityLogEntry } from '../types';
 import { useLang } from '../lib/LanguageContext';
+import EmptyState from './EmptyState';
 
 interface SalesPageProps {
   agents: Agent[];
@@ -13,12 +14,23 @@ interface SalesPageProps {
   currentUser: string;
   onSaveFollowUp: (fu: FollowUp) => void;
   onDeleteFollowUp: (id: string) => void;
+  onNavigate?: (tab: string, filters?: any) => void;
 }
 
 type Priority = 'High' | 'Medium' | 'Low';
 type ViewMode = 'Upcoming' | 'Completed' | 'All';
+type LayoutMode = 'list' | 'pipeline';
+type PipelineStage = 'New Request' | 'In Negotiation' | 'Follow-Up Required' | 'Won' | 'Lost';
+const PIPELINE_STAGES: PipelineStage[] = ['New Request', 'In Negotiation', 'Follow-Up Required', 'Won', 'Lost'];
+const STAGE_COLORS: Record<PipelineStage, { bg: string; header: string; border: string; badge: string }> = {
+  'New Request': { bg: 'bg-blue-50', header: 'bg-blue-600', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-800' },
+  'In Negotiation': { bg: 'bg-amber-50', header: 'bg-amber-600', border: 'border-amber-200', badge: 'bg-amber-100 text-amber-800' },
+  'Follow-Up Required': { bg: 'bg-purple-50', header: 'bg-purple-600', border: 'border-purple-200', badge: 'bg-purple-100 text-purple-800' },
+  'Won': { bg: 'bg-emerald-50', header: 'bg-emerald-600', border: 'border-emerald-200', badge: 'bg-emerald-100 text-emerald-800' },
+  'Lost': { bg: 'bg-slate-100', header: 'bg-slate-500', border: 'border-slate-300', badge: 'bg-slate-200 text-slate-600' },
+};
 
-export default function SalesPage({ agents, followUps, currentUser, onSaveFollowUp, onDeleteFollowUp }: SalesPageProps) {
+export default function SalesPage({ agents, followUps, currentUser, onSaveFollowUp, onDeleteFollowUp, onNavigate }: SalesPageProps) {
   const { t, lang } = useLang();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -33,11 +45,17 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
 
   const [activeTab, setActiveTab] = useState<ViewMode>('Upcoming');
   const [searchTerm, setSearchTerm] = useState('');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('list');
 
   const todayStr = new Date().toISOString().split('T')[0];
 
   // Filter out auto-created reservation system alerts (shown on Dashboard, not CRM)
-  const crmFollowUps = followUps.filter(f => !f.topic.startsWith('Option Expiry - RSV-'));
+  // Also filter out Operations/Finance-origin topics to ensure strict CRM isolation
+  const NON_CRM_PATTERNS = ['Option Expiry - RSV-', 'Payment', 'Booking', 'Transaction', 'Cancellation', 'Refund', 'Invoice'];
+  const crmFollowUps = followUps.filter(f => {
+    const topic = f.topic || '';
+    return !NON_CRM_PATTERNS.some(p => topic.includes(p));
+  });
 
   // KPI metrics
   const kpis = useMemo(() => {
@@ -152,6 +170,53 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
     if (diff === 1) return 'Tomorrow';
     return `${diff} days`;
   };
+
+  // Pipeline helpers
+  const moveStage = (fu: FollowUp, direction: 'left' | 'right') => {
+    const currentStage = fu.pipelineStage || 'New Request';
+    const idx = PIPELINE_STAGES.indexOf(currentStage);
+    const newIdx = direction === 'right' ? Math.min(idx + 1, PIPELINE_STAGES.length - 1) : Math.max(idx - 1, 0);
+    const newStage = PIPELINE_STAGES[newIdx];
+    onSaveFollowUp({
+      ...fu,
+      pipelineStage: newStage,
+      activityLog: [...(fu.activityLog || []), { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), user: currentUser, action: 'Stage Move', detail: `Moved to ${newStage}` }]
+    });
+  };
+
+  const setStage = (fu: FollowUp, stage: PipelineStage) => {
+    onSaveFollowUp({
+      ...fu,
+      pipelineStage: stage,
+      activityLog: [...(fu.activityLog || []), { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), user: currentUser, action: 'Stage Move', detail: `Moved to ${stage}` }]
+    });
+  };
+
+  const snoozeOneDay = (fu: FollowUp) => {
+    const next = new Date(fu.date);
+    next.setDate(next.getDate() + 1);
+    const newDate = next.toISOString().split('T')[0];
+    onSaveFollowUp({
+      ...fu,
+      date: newDate,
+      activityLog: [...(fu.activityLog || []), { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), user: currentUser, action: 'Snoozed', detail: `Snoozed to ${newDate}` }]
+    });
+  };
+
+  const convertToReservation = (fu: FollowUp) => {
+    if (onNavigate) {
+      onNavigate('Reservations', { showNewForm: true, prefill: { clientId: fu.clientId, topic: fu.topic, notes: fu.notes } });
+    }
+  };
+
+  const pipelineData = useMemo(() => {
+    const map: Record<PipelineStage, FollowUp[]> = { 'New Request': [], 'In Negotiation': [], 'Follow-Up Required': [], 'Won': [], 'Lost': [] };
+    crmFollowUps.filter(f => f.status !== 'Closed').forEach(fu => {
+      const stage = fu.pipelineStage || 'New Request';
+      if (map[stage]) map[stage].push(fu);
+    });
+    return map;
+  }, [crmFollowUps]);
 
   return (
     <div className="space-y-5">
@@ -279,22 +344,28 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
           </form>
         ) : (
           <div>
-            {/* Tabs + Search */}
+            {/* Tabs + View Toggle + Search */}
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                {(['Upcoming', 'Completed', 'All'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`py-2 px-4 rounded-lg text-[10px] font-bold uppercase transition min-h-[36px] ${
-                      activeTab === tab
-                        ? tab === 'Completed' ? 'bg-emerald-600 text-white shadow' : tab === 'Upcoming' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-700 text-white shadow'
-                        : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {tab} {tab === 'Upcoming' ? `(${kpis.pending})` : tab === 'Completed' ? `(${kpis.completed})` : `(${kpis.total})`}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                  {(['Upcoming', 'Completed', 'All'] as const).map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`py-2 px-4 rounded-lg text-[10px] font-bold uppercase transition min-h-[36px] ${
+                        activeTab === tab
+                          ? tab === 'Completed' ? 'bg-emerald-600 text-white shadow' : tab === 'Upcoming' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-700 text-white shadow'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {tab} {tab === 'Upcoming' ? `(${kpis.pending})` : tab === 'Completed' ? `(${kpis.completed})` : `(${kpis.total})`}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-0.5 bg-slate-100 p-1 rounded-xl">
+                  <button onClick={() => setLayoutMode('list')} className={`py-2 px-3 rounded-lg text-[10px] font-bold transition ${layoutMode === 'list' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'}`}>☰ List</button>
+                  <button onClick={() => setLayoutMode('pipeline')} className={`py-2 px-3 rounded-lg text-[10px] font-bold transition ${layoutMode === 'pipeline' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'}`}>▤ Pipeline</button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -307,14 +378,100 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
               </div>
             </div>
 
-            {/* Activity List */}
+            {/* Activity List or Pipeline Board */}
+            {layoutMode === 'pipeline' ? (
+              <div className="overflow-x-auto pb-4">
+                <div className="grid grid-cols-5 gap-3 min-w-[900px]">
+                  {PIPELINE_STAGES.map(stage => {
+                    const colors = STAGE_COLORS[stage];
+                    const items = pipelineData[stage];
+                    const stageIdx = PIPELINE_STAGES.indexOf(stage);
+                    return (
+                      <div key={stage} className={`rounded-xl border ${colors.border} ${colors.bg} flex flex-col`}>
+                        <div className={`${colors.header} text-white px-3 py-2 rounded-t-xl flex items-center justify-between`}>
+                          <span className="text-[10px] font-bold uppercase tracking-wide">{stage}</span>
+                          <span className="bg-white/20 text-white text-[10px] font-bold rounded-full px-2 py-0.5">{items.length}</span>
+                        </div>
+                        <div className="p-2 space-y-2 flex-1 min-h-[200px] max-h-[600px] overflow-y-auto thin-scrollbar">
+                          {items.length === 0 ? (
+                            <div className="text-center text-[10px] text-slate-400 py-8 italic">No items</div>
+                          ) : items.map(fu => {
+                            const p = getPriority(fu);
+                            const overdue = isOverdue(fu);
+                            return (
+                              <div key={fu.id} className={`bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition ${overdue ? 'border-rose-300' : 'border-slate-200'}`}>
+                                <div className="flex items-start justify-between gap-1 mb-1.5">
+                                  <h5 className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2 flex-1">{fu.topic}</h5>
+                                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${p === 'High' ? 'bg-rose-100 text-rose-600' : p === 'Low' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    {p === 'High' ? '🔴' : p === 'Low' ? '🟢' : '🟡'}
+                                  </span>
+                                </div>
+                                <div className="text-[9px] text-slate-500 space-y-0.5 mb-2">
+                                  <div className="font-semibold text-indigo-600 truncate">👤 {getAgentName(fu.clientId)}</div>
+                                  <div className={overdue ? 'text-rose-600 font-bold' : ''}>📅 {fu.date} {overdue && `(${getDaysUntil(fu.date)})`}</div>
+                                </div>
+                                {fu.notes && <p className="text-[9px] text-slate-500 line-clamp-2 mb-2">{fu.notes}</p>}
+                                {/* Stage move buttons */}
+                                <div className="flex items-center gap-1 mb-1.5">
+                                  <button
+                                    onClick={() => moveStage(fu, 'left')}
+                                    disabled={stageIdx === 0}
+                                    className="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-600 text-[9px] font-bold py-1 rounded transition"
+                                  >
+                                    ←
+                                  </button>
+                                  <button
+                                    onClick={() => moveStage(fu, 'right')}
+                                    disabled={stageIdx === PIPELINE_STAGES.length - 1}
+                                    className="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-600 text-[9px] font-bold py-1 rounded transition"
+                                  >
+                                    →
+                                  </button>
+                                </div>
+                                {/* Action buttons */}
+                                <div className="flex flex-wrap gap-1">
+                                  {fu.status === 'Pending' && (
+                                    <>
+                                      <button
+                                        onClick={() => onSaveFollowUp({...fu, status: 'Completed', activityLog: [...(fu.activityLog || []), { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), user: currentUser, action: 'Completed', detail: 'Marked as done' }]})}
+                                        className="flex-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-[8px] font-bold py-1 rounded transition border border-emerald-200"
+                                      >
+                                        ✓ Done
+                                      </button>
+                                      <button
+                                        onClick={() => snoozeOneDay(fu)}
+                                        className="flex-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-[8px] font-bold py-1 rounded transition border border-amber-200"
+                                      >
+                                        💤 Snooze
+                                      </button>
+                                    </>
+                                  )}
+                                  {stage === 'Won' && (
+                                    <button
+                                      onClick={() => convertToReservation(fu)}
+                                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-[8px] font-bold py-1.5 rounded transition"
+                                    >
+                                      📝 Convert to Reservation
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
             <div className="space-y-2.5">
               {filtered.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  <div className="text-4xl mb-3">📋</div>
-                  <p className="text-sm font-semibold">No {activeTab.toLowerCase()} activities found</p>
-                  <p className="text-xs mt-1">Click "+ New Activity" to create one</p>
-                </div>
+                <EmptyState
+                  icon="📋"
+                  title={`No ${activeTab.toLowerCase()} activities found`}
+                  description='Click "+ New Activity" to create one'
+                />
               ) : (
                 filtered.map(fu => {
                   const p = getPriority(fu);
@@ -336,18 +493,18 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <h4 className="text-sm font-extrabold text-slate-900 truncate">{fu.topic}</h4>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border ${
-                              overdue ? 'bg-rose-100 text-rose-700 border-rose-200' :
-                              dueToday ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                              fu.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                              'bg-slate-100 text-slate-600 border-slate-200'
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
+                              overdue ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                              dueToday ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              fu.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              'bg-slate-50 text-slate-600 border-slate-200'
                             }`}>
                               {overdue ? '⚠️ Overdue' : dueToday ? '📌 Due Today' : fu.status}
                             </span>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
-                              p === 'High' ? 'bg-rose-50 text-rose-600' :
-                              p === 'Low' ? 'bg-green-50 text-green-600' :
-                              'bg-amber-50 text-amber-600'
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
+                              p === 'High' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                              p === 'Low' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' :
+                              'bg-amber-50 text-amber-600 border-amber-200'
                             }`}>
                               {p === 'High' ? '🔴' : p === 'Low' ? '🟢' : '🟡'} {p}
                             </span>
@@ -445,12 +602,21 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                             📝 {fu.activityLog?.length || 0}
                           </button>
                           {fu.status === 'Pending' && (
+                            <>
                             <button
                               onClick={() => onSaveFollowUp({...fu, status: 'Completed', activityLog: [...(fu.activityLog || []), { id: `log_${Date.now()}`, timestamp: new Date().toISOString(), user: currentUser, action: 'Completed', detail: 'Marked as done' }]})}
                               className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold px-3 py-1.5 rounded-lg transition border border-emerald-200"
                             >
                               ✓ Done
                             </button>
+                            <button
+                              onClick={() => snoozeOneDay(fu)}
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-bold px-3 py-1.5 rounded-lg transition border border-amber-200"
+                              title="Snooze 1 day"
+                            >
+                              💤 Snooze
+                            </button>
+                            </>
                           )}
                           <button
                             onClick={() => editFu(fu)}
@@ -471,6 +637,7 @@ export default function SalesPage({ agents, followUps, currentUser, onSaveFollow
                 })
               )}
             </div>
+            )}
           </div>
         )}
       </div>

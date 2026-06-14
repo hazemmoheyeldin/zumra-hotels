@@ -14,6 +14,7 @@ interface UserManagementPageProps {
   onSetCurrentUser: (user: User) => void;
   onAddUser: (user: User) => void;
   onDeleteUser: (userId: string) => void;
+  onReactivateUser?: (userId: string) => void;
   onToast?: (type: 'success' | 'error' | 'warning', msg: string) => void;
 }
 
@@ -30,8 +31,9 @@ function FormField({ label, error, children }: { label: string; error?: string; 
   );
 }
 
-export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser, onToast }: UserManagementPageProps) {
+export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser, onReactivateUser, onToast }: UserManagementPageProps) {
   const { t, lang } = useLang();
+  const [showDeactivated, setShowDeactivated] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
@@ -92,6 +94,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
       role,
       mustChangePassword: isNewUser && !isEditingSelf ? true : (isEditingSelf ? false : undefined),
       status: editingUserId ? (users.find(u => u.id === editingUserId)?.status || 'Active') : 'Active',
+      isActive: editingUserId ? (users.find(u => u.id === editingUserId)?.isActive ?? true) : true,
     };
 
     onAddUser(updatedUser);
@@ -410,17 +413,29 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
               </div>
             </div>
 
-            <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">{t('users.allUsers')}</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase font-bold text-slate-400 tracking-wider">{t('users.allUsers')}</h3>
+              {users.some(u => u.isActive === false) && (
+                <button
+                  onClick={() => setShowDeactivated(!showDeactivated)}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-lg transition ${showDeactivated ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'}`}
+                >
+                  {showDeactivated ? '🚫 Hide Deactivated' : `👻 Show Deactivated (${users.filter(u => u.isActive === false).length})`}
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {users.map((u) => {
-                const isActive = u.id === currentUser.id;
+              {users.filter(u => showDeactivated ? true : u.isActive !== false).map((u) => {
+                const isCurrentUser = u.id === currentUser.id;
+                const isDeactivated = u.isActive === false;
                 const isAdmin = currentUser.role === 'Admin';
                 const isInviting = invitingUserId === u.id;
                 return (
                   <div
                     key={u.id}
                     className={`border rounded-2xl p-4 flex justify-between items-center transition flex-wrap gap-2 ${
-                      isActive ? 'border-amber-500 bg-amber-50/10 shadow-sm' : 'border-slate-100 hover:border-slate-300 bg-white'
+                      isDeactivated ? 'border-rose-200 bg-rose-50/30 opacity-70' :
+                      isCurrentUser ? 'border-amber-500 bg-amber-50/10 shadow-sm' : 'border-slate-100 hover:border-slate-300 bg-white'
                     }`}
                   >
                     <div className="w-full xl:w-auto">
@@ -445,7 +460,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                       <p className="text-[10px] text-slate-450 mt-0.5">@{u.username} • {u.email}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 xl:mt-0 items-center justify-end w-full xl:w-auto">
-                      {isAdmin && !isActive && (
+                      {isAdmin && !isCurrentUser && (
                         <button
                           onClick={() => handleInvite(u)}
                           disabled={isInviting || !isEmailConfigured}
@@ -464,7 +479,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                           ) : '✉ Invite'}
                         </button>
                       )}
-                      {isAdmin && !isActive && (
+                      {isAdmin && (u.status || 'Active') === 'Pending' && !isDeactivated && (
                         <button
                           onClick={() => handleToggleStatus(u)}
                           className={`font-bold text-xs px-3 py-1.5 rounded-xl transition border flex items-center gap-1 ${
@@ -472,15 +487,38 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                               ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'
                               : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border-emerald-200'
                           }`}
-                          title={(u.status || 'Active') === 'Active' ? 'Deactivate user (block login)' : 'Activate user (allow login)'}
+                          title={(u.status || 'Active') === 'Active' ? 'Set to Pending (block login)' : 'Approve user (allow login)'}
                         >
-                          {(u.status || 'Active') === 'Active' ? '🔒 Deactivate' : '✅ Activate'}
+                          {(u.status || 'Active') === 'Active' ? '🔒 Set Pending' : '✅ Approve'}
                         </button>
                       )}
-                      {isActive && (
+                      {isCurrentUser && (
                         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
                           Logged In
                         </span>
+                      )}
+                      {isDeactivated ? (
+                        <>
+                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                            🚫 Deactivated
+                          </span>
+                          {onReactivateUser && (
+                            <button
+                              onClick={() => { if (confirm(`Reactivate user ${u.name}? They will be able to log in again.`)) onReactivateUser(u.id); }}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-emerald-200"
+                            >
+                              ✅ Reactivate
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => onDeleteUser(u.id)}
+                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-rose-200"
+                          title="Deactivate user (soft delete)"
+                        >
+                          🚫 Deactivate
+                        </button>
                       )}
                       <button onClick={() => initiateEdit(u)} className="bg-slate-50 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-slate-200">
                         Edit
@@ -492,22 +530,6 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                           title="Reset user password"
                         >
                           Reset PW
-                        </button>
-                      )}
-                      {!isActive && (
-                        <button
-                          onClick={() => { if (confirm(`Delete user ${u.name}?`)) onDeleteUser(u.id); }}
-                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-rose-200"
-                        >
-                          Delete
-                        </button>
-                      )}
-                      {!isActive && (
-                        <button
-                          onClick={() => onSetCurrentUser(u)}
-                          className="bg-slate-100 hover:bg-amber-600 hover:text-white text-slate-700 font-bold text-xs px-3 py-1.5 rounded-xl transition"
-                        >
-                          Switch
                         </button>
                       )}
                     </div>
@@ -526,7 +548,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
         const strength = getPasswordStrength(pwdNew);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setPwdModalUserId(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm max-h-[90dvh] flex flex-col overflow-hidden p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-800">
                   {pwdModalIsSelf ? 'Change Your Password' : `Reset Password: ${targetUser.name}`}

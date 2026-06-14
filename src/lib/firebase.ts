@@ -6,13 +6,14 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableMultiTabIndexedDbPersistence, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential,
   signOut as fbSignOut, onAuthStateChanged as fbOnAuthStateChanged,
   GoogleAuthProvider, signInWithPopup,
+  connectAuthEmulator,
   User as FBUser
 } from 'firebase/auth';
 
@@ -62,16 +63,25 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    // Enable offline persistence (IndexedDB cache, multi-tab sync)
-    enableMultiTabIndexedDbPersistence(db).catch((err: any) => {
-      if (err.code === 'failed-precondition') {
-        console.warn('[Firestore] Persistence failed: browser not supported');
-      } else if (err.code === 'unimplemented') {
-        console.warn('[Firestore] Persistence not supported in this browser');
-      } else {
-        console.warn('[Firestore] Persistence error:', err?.message);
-      }
-    });
+    
+    // Check if using emulators (skip persistence for emulators)
+    const useEmulator = import.meta.env.VITE_USE_EMULATOR === 'true' || 
+                       (window.location.hostname === 'localhost' && import.meta.env.DEV);
+    
+    // Enable offline persistence (IndexedDB cache, multi-tab sync) - skip for emulators
+    if (!useEmulator) {
+      enableMultiTabIndexedDbPersistence(db).catch((err: any) => {
+        if (err.code === 'failed-precondition') {
+          console.warn('[Firestore] Persistence failed: browser not supported');
+        } else if (err.code === 'unimplemented') {
+          console.warn('[Firestore] Persistence not supported in this browser');
+        } else {
+          console.warn('[Firestore] Persistence error:', err?.message);
+        }
+      });
+    } else {
+      console.log('[Firestore] Skipping persistence (emulator mode)');
+    }
     auth = getAuth(app);
     // ★ CRITICAL: Await persistence before any auth operations.
     // This prevents the "Verifying Session" loop and ensures
@@ -79,7 +89,7 @@ if (isFirebaseConfigured) {
     authReadyPromise = Promise.race([
       setPersistence(auth, browserLocalPersistence)
         .then(() => {
-          console.log('[Firebase Auth] Persistence set to LOCAL');
+          // Auth persistence configured
         })
         .catch(err => {
           console.warn('[Firebase Auth] Persistence setup failed:', err?.message);
@@ -89,7 +99,19 @@ if (isFirebaseConfigured) {
       console.warn('[Firebase Auth] authReadyPromise rejected:', err?.message || err);
       // Proceed anyway — auth operations will work, just without guaranteed persistence
     });
-    console.log('[Firebase] Initialized successfully | Project:', firebaseConfig.projectId);
+    // Firebase initialized
+
+    // ═══ EMULATOR CONNECTION (for local development) ═══
+    // Connect to Firebase Emulators when VITE_USE_EMULATOR=true or when running on localhost
+    if (useEmulator && db && auth) {
+      try {
+        connectFirestoreEmulator(db, 'localhost', 8080);
+        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        console.log('[Firebase] Emulator mode active');
+      } catch (err) {
+        console.warn('[Firebase] Failed to connect to emulators:', err);
+      }
+    }
   } catch (error) {
     console.error('[Firebase] Initialization failed:', error);
     db = null;
@@ -98,7 +120,7 @@ if (isFirebaseConfigured) {
 }
 
 export { db, auth, authReadyPromise };
-export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch };
+export { collection, doc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, serverTimestamp };
 export { orderBy, limit, startAfter };
 export type { QueryDocumentSnapshot, DocumentSnapshot };
 export type { FBUser };
@@ -161,7 +183,7 @@ export function addToStaffWhitelist(email: string): void {
   if (!STAFF_WHITELIST.some(e => e.toLowerCase() === lower)) {
     STAFF_WHITELIST.push(lower);
     _persistWhitelist();
-    console.log(`[Auth] Added ${email} to staff whitelist`);
+    // Staff whitelist entry added
   }
 }
 
@@ -194,7 +216,7 @@ export async function firebaseGoogleSignIn(): Promise<{
       return null; // Caller should show "Unauthorized" message
     }
 
-    console.log(`[Auth] Google sign-in: ${user.uid} (${email})`);
+    // Google sign-in successful
     return {
       uid: user.uid,
       email,
@@ -222,18 +244,18 @@ export async function firebaseCreateUser(email: string, password: string): Promi
   await authReadyPromise;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    console.log(`[Firebase Auth] Created user: ${cred.user.uid} (${email})`);
+    // New user account created
     return { uid: cred.user.uid };
   } catch (err: any) {
     // If user already exists, try signing in with the provided password
     if (err?.code === 'auth/email-already-in-use') {
-      console.log(`[Firebase Auth] User ${email} already exists — attempting sign-in`);
+      // Existing user — attempting sign-in
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
-        console.log(`[Firebase Auth] Signed in existing user: ${cred.user.uid}`);
+        // Signed in existing user
         return { uid: cred.user.uid };
       } catch (signinErr: any) {
-        console.log(`[Firebase Auth] Existing user sign-in failed for ${email}: ${signinErr?.code}`);
+        console.warn(`[Auth] Sign-in failed: ${signinErr?.code}`);
         return null; // Caller should handle this case
       }
     }
@@ -251,7 +273,7 @@ export async function firebaseSignIn(email: string, password: string): Promise<b
   await authReadyPromise;
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    console.log(`[Firebase Auth] Signed in: ${cred.user.uid}`);
+    // Email sign-in successful
     return true;
   } catch (err: any) {
     console.warn(`[Firebase Auth] Sign in failed for ${email}:`, err?.code || err?.message || err);
@@ -276,7 +298,7 @@ export async function firebaseUpdatePassword(email: string, oldPassword: string,
     await reauthenticateWithCredential(auth.currentUser, credential);
     // Update password
     await updatePassword(auth.currentUser, newPassword);
-    console.log(`[Firebase Auth] Password updated for ${email}`);
+    // Password updated
     return true;
   } catch (err: any) {
     console.warn(`[Firebase Auth] Password update failed for ${email}:`, err?.code || err?.message || err);
@@ -374,6 +396,7 @@ export const COLLECTIONS = {
   AUDIT_LOG: 'audit_log',
   COMMISSIONS: 'commissions',
   MESSAGES: 'messages',
+  DOCUMENT_TEMPLATES: 'document_templates',
 };
 
 /**
@@ -409,9 +432,9 @@ export async function ensureUserProfileInFirestore(profile: {
         authProvider: 'google',
       };
       await setDoc(userRef, userData);
-      console.log(`[Firestore] Auto-created user profile: ${profile.email} (uid: ${profile.uid})`);
+      // User profile auto-created
     } else {
-      console.log(`[Firestore] User profile already exists: ${profile.email}`);
+      // User profile already exists
     }
   } catch (err) {
     console.warn('[Firestore] Failed to ensure user profile:', err);
@@ -524,6 +547,29 @@ export async function firestoreBulkSave(collectionName: string, items: any[]): P
   } catch (error) {
     console.error(`[Firebase] Error bulk saving ${collectionName}:`, error);
   }
+}
+
+/**
+ * Atomic multi-collection write using Firestore writeBatch.
+ * All writes succeed or fail together — critical for financial ledger consistency.
+ * @param writes Array of { collection, id, data } operations to commit atomically.
+ */
+export async function firestoreAtomicWrite(
+  writes: Array<{ collection: string; id: string; data: any }>
+): Promise<void> {
+  if (!db || writes.length === 0) return;
+  if (_circuitOpen) {
+    console.warn('[Circuit Breaker] Skipping atomic write');
+    throw new Error('Circuit breaker open');
+  }
+  const batch = writeBatch(db);
+  const timestamp = new Date().toISOString();
+  writes.forEach(({ collection, id, data }) => {
+    const docRef = doc(db, collection, String(id));
+    batch.set(docRef, { ...data, _updatedAt: timestamp });
+  });
+  await batch.commit();
+  console.log(`[Firebase] Atomic write: ${writes.length} docs committed`);
 }
 
 /**

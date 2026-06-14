@@ -7,7 +7,7 @@ import React, { useState, useMemo } from 'react';
 import { Reservation, Agent, Hotel, RoomLine, Transaction, Account, User, Allotment, AmendmentEntry, GlobalAuditEntry, TermsAndConditions, SalesPerson, FollowUp, BlackoutPeriod, WaitlistEntry, BookingTemplate } from '../types';
 import ZumraLogo from './ZumraLogo';
 import Tooltip from './Tooltip';
-import { getReservationTotals, getEgyptTime, exportToCSV, exportToExcel, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold, loadBookingTemplates, saveBookingTemplates, loadCommissions, saveCommissions, recordCommissionEntries, reverseCommissionEntries, calculateSalesPersonCommission, calculateSupplierCommission } from '../lib/storage';
+import { getReservationTotals, getEgyptTime, exportToCSV, exportToExcel, getNextVoucherNo, getNextDocNo, checkAllotmentCapacity, loadMarginThreshold, loadBookingTemplates, saveBookingTemplates, loadCommissions, saveCommissions, recordCommissionEntries, reverseCommissionEntries, calculateSalesPersonCommission, calculateSupplierCommission, ZumraDB } from '../lib/storage';
 import { isEmailConfigured, sendBookingConfirmation, sendPaymentReminder, sendSupplierRateConfirmation } from '../lib/email';
 import { useLang } from '../lib/LanguageContext';
 import ConfirmationPDF from './ConfirmationPDF';
@@ -22,6 +22,7 @@ import BookingTemplatesModal from './BookingTemplatesModal';
 import CreditNotePDF from './CreditNotePDF';
 import { loadCreditNotes, saveCreditNotes } from '../lib/storage';
 import { CreditNoteEntry } from '../types';
+import EmptyState from './EmptyState';
 
 interface RoomSelection {
   roomType: string;
@@ -59,10 +60,12 @@ interface ReservationsPageProps {
   reservations: Reservation[];
   agents: Agent[];
   hotels: Hotel[];
+  fullHotels?: Hotel[] | null; // Full hotel list for edit lookups (not paginated)
   users: User[];
   currentUser: string;
   initialFilters?: any;
   onSaveReservation: (reservation: Reservation) => void;
+  onUpdateReservationDirect?: (reservation: Reservation) => void;
   onDeleteReservation: (id: string) => void;
   onBulkAction?: (action: 'confirm' | 'cancel' | 'delete', ids: number[]) => void;
   accounts?: Account[];
@@ -88,14 +91,16 @@ interface ReservationsPageProps {
 const BOOKING_SOURCES = ['Direct', 'Booking.com', 'Expedia', 'Agoda', 'Agent', 'Walk-in', 'Phone', 'Email', 'Social Media', 'Partner', 'Other'];
 const TAG_OPTIONS = ['VIP', 'Honeymoon', 'Corporate', 'Family', 'Group-Tour', 'Long-Stay', 'Urgent', 'Repeat-Guest'];
 
-export default function ReservationsPage({
+function ReservationsPage({
   reservations,
   agents,
   hotels,
+  fullHotels,
   users,
   currentUser,
   initialFilters,
   onSaveReservation,
+  onUpdateReservationDirect,
   onDeleteReservation,
   onBulkAction,
   accounts = [],
@@ -120,6 +125,7 @@ export default function ReservationsPage({
   
   // View states
   const [showForm, setShowForm] = useState(false);
+    const [formStep, setFormStep] = useState(1);
   const [showTemplates, setShowTemplates] = useState(false);
   const [bookingTemplates, setBookingTemplates] = useState<BookingTemplate[]>(() => loadBookingTemplates());
   const [expandedNightlyGrid, setExpandedNightlyGrid] = useState<Set<number>>(new Set());
@@ -131,6 +137,30 @@ export default function ReservationsPage({
   const [printingDoc, setPrintingDoc] = useState<{ res: Reservation; isVoucher: boolean } | null>(null);
   const [printingInvoice, setPrintingInvoice] = useState<Reservation | null>(null);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Print interceptor: immediately render default confirmation (no template selection)
+  const requestPrint = (res: Reservation, isVoucher: boolean) => {
+    setPrintingDoc({ res, isVoucher });
+  };
+
+  // Floating Booking Summary toggle + drag state
+  const [showFloatingSummary, setShowFloatingSummary] = useState(true);
+  const [summaryPos, setSummaryPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingSummary, setIsDraggingSummary] = useState(false);
+  const dragOffset = React.useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const summaryRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!isDraggingSummary) return;
+    const onMove = (e: MouseEvent) => {
+      setSummaryPos({ x: e.clientX - dragOffset.current.dx, y: e.clientY - dragOffset.current.dy });
+    };
+    const onUp = () => setIsDraggingSummary(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [isDraggingSummary]);
 
   // Local editing states for detailed modal view
   const [localHotelConf, setLocalHotelConf] = useState('');
@@ -154,7 +184,7 @@ export default function ReservationsPage({
   const openConfirm = (title: string, message: string, action: () => void, variant: 'standard' | 'destructive' = 'standard') => {
     setConfirmDlg({ open: true, title, message, variant, action });
   };
-  const closeConfirmDlg = () => setConfirmDlg(prev => ({ ...prev, open: false, action: null }));
+  const closeConfirmDlg = () => { setConfirmDlg(prev => ({ ...prev, open: false, action: null })); setIsSubmitting(false); };
   const execConfirm = () => { confirmDlg.action?.(); closeConfirmDlg(); };
 
   // Cancellation Wizard state - holds the reservation being cancelled, or null
@@ -189,6 +219,17 @@ export default function ReservationsPage({
 
   // Draft recovery
   const [showDraftBanner, setShowDraftBanner] = useState(() => hasDraft('reservation_form'));
+
+  // Re-check for draft whenever the form closes (user may have typed data then closed without saving)
+  React.useEffect(() => {
+    if (!showForm) {
+      // Small delay to let the auto-save effect write the draft first
+      const timer = setTimeout(() => {
+        setShowDraftBanner(hasDraft('reservation_form'));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showForm]);
   const resumeDraft = () => {
     const d = loadDraft<any>('reservation_form');
     if (d) {
@@ -262,7 +303,13 @@ export default function ReservationsPage({
       setShowForm(true);
       setEditingId(null);
       setViewingId(null);
-      // Start with blank client/supplier — user must select explicitly
+      // Handle CRM prefill from convert-to-booking
+      if (initialFilters.prefill) {
+        const pf = initialFilters.prefill;
+        if (pf.clientId) setClientId(pf.clientId);
+        if (pf.notes) setInternalNotes(pf.notes);
+        if (pf.topic) setSpecialRequests(pf.topic);
+      }
     }
   }, [initialFilters]);
 
@@ -359,7 +406,10 @@ export default function ReservationsPage({
     return () => clearTimeout(timer);
   }, [showForm, guestName, clientId, supplierId, hotelId, checkIn, checkOut, status, guestNationality, rooms]);
 
-  const selectedHotelObj = hotels.find(h => h.id === hotelId);
+  // Use fullHotels as fallback for edit lookups (handles paginated hotel list)
+  const selectedHotelObj = hotels.find(h => h.id === hotelId) 
+    || (fullHotels && fullHotels.find(h => h.id === hotelId))
+    || null;
 
   // Allotment helpers
   const selectedAllotment = allotments.find(a => a.id === selectedAllotmentId) || null;
@@ -431,7 +481,7 @@ export default function ReservationsPage({
 
         setRooms([{
           roomType: a.roomType || hotel.roomTypes[0] || 'Double',
-          view: hotel.views[0] || 'City View',
+          view: deriveViewFromRoomType(a.roomType || hotel.roomTypes[0] || 'Double') || hotel.views[0] || '',
           mealPlan: hotel.mealPlans[0] || 'B.B',
           qty: 1,
           pax: getPaxForRoomType(a.roomType || hotel.roomTypes[0] || 'Double'),
@@ -468,6 +518,56 @@ export default function ReservationsPage({
     if (t.includes('quad')) return 4;
     if (t.includes('quint')) return 5;
     return 2; // default fallback solver
+  };
+
+  // Detect premium views that typically require a supplement (excludes standard/non views)
+  const isPremiumView = (view: string): boolean => {
+    const v = view.toLowerCase();
+    const excluded = ['non view', 'no view', 'city view', 'standard view', 'street view'];
+    return !excluded.some(e => v.includes(e));
+  };
+
+  // Detect room types that typically need extra bed (triple, quad, quint with pax > 2)
+  const needsExtraBedSuggestion = (roomType: string): boolean => {
+    const t = roomType.toLowerCase();
+    return (t.includes('triple') || t.includes('quad') || t.includes('quint')) && getPaxForRoomType(roomType) > 2;
+  };
+
+  // Derive view from room type name — replaces manual View dropdown
+  const deriveViewFromRoomType = (roomTypeName: string): string => {
+    if (!roomTypeName) return 'City View';
+    // Strip HTML entities and normalize
+    const raw = roomTypeName.replace(/&#x[0-9A-Fa-f]+;/g, '').trim();
+    const t = raw.toLowerCase();
+
+    // Partial views (check BEFORE full views)
+    if (/partial\s*(h\.?v|haram\s*view|kaaba\s*view|k\.?v)/i.test(raw)) {
+      if (t.includes('kaaba') || t.includes('k.v') || t.includes('partial k')) return 'Partial Kaaba View';
+      return 'Partial Haram View';
+    }
+    if (t.includes('partial city view')) return 'Partial City View';
+    if (t.includes('partial sea view')) return 'Partial Sea View';
+
+    // Far city view
+    if (t.includes('far c.v') || t.includes('far cv') || t.includes('far city')) return 'Far City View';
+
+    // Full views — ordered by specificity
+    if (t.includes('kaaba') || t.includes('k.v') || /\bk\.v\b/i.test(raw) || t.includes('k.v gold') || t.includes('premier kaaba') || t.includes('premier k.v') || t.includes('kabba')) return 'Kaaba View';
+    if (t.includes('haram') || t.includes('h.v') || t.includes('h. v') || /\bhv\b/i.test(raw)) return 'Haram View';
+    if (t.includes('sea view') || t.includes('sea-view') || t.includes('seaview') || t.includes('single.sea') || t.includes('double.sea') || t.includes('triple.sea') || t.includes('ocean') || t.includes('partial seaview') || t.includes('nile')) return 'Sea View';
+    if (t.includes('pool') || t.includes('p.v') || /\bpv\b/i.test(raw) || t.includes('patio.v') || t.includes('patio view')) return 'Pool View';
+    if (t.includes('garden') || /\bgv\b/i.test(raw) || t.includes('garden view')) return 'Garden View';
+    if (t.includes('side view') || t.includes('side h.v') || t.includes('back side')) return 'Side View';
+    if (t.includes('street view')) return 'Street View';
+    if (t.includes('road view')) return 'Road View';
+    if (t.includes('classic deluxe view')) return 'Classic Deluxe View';
+    if (t.includes('non view') || t.includes('non.view') || t.includes('no view') || /\bru\b/i.test(raw)) return 'Non View';
+
+    // City view abbreviations (very common)
+    if (t.includes('c.v') || t.includes('cv') || t.includes('city view') || t.includes('c. v')) return 'City View';
+
+    // Fallback: no identifiable view
+    return '';
   };
 
   // Calculate the actual total rate across all nights (accounting for weekend rates)
@@ -517,14 +617,15 @@ export default function ReservationsPage({
 
   const handleAddRoomRow = () => {
     if (!selectedHotelObj) return;
+    const rt = selectedHotelObj.roomTypes[0] || 'Double';
     setRooms([
       ...rooms,
       {
-        roomType: selectedHotelObj.roomTypes[0] || 'Double',
-        view: selectedHotelObj.views[0] || 'City View',
+        roomType: rt,
+        view: deriveViewFromRoomType(rt) || selectedHotelObj.views[0] || '',
         mealPlan: selectedHotelObj.mealPlans[0] || 'B.B',
         qty: 1,
-        pax: getPaxForRoomType(selectedHotelObj.roomTypes[0] || 'Double'),
+        pax: getPaxForRoomType(rt),
         buyPriceNum: 100,
         sellPriceNum: 150
       }
@@ -539,6 +640,13 @@ export default function ReservationsPage({
     } else if (fields.roomType && fields.roomType.toLowerCase().includes('suite')) {
       // Keep existing pax if set manually, or default to 2
       item.pax = item.pax || 2;
+    }
+    // Auto-derive view from room type selection (keep existing if no view detected)
+    if (fields.roomType) {
+      const derived = deriveViewFromRoomType(fields.roomType);
+      if (derived) {
+        item.view = derived;
+      }
     }
     updated[index] = item;
     setRooms(updated);
@@ -911,36 +1019,20 @@ export default function ReservationsPage({
       reverseCommissionEntries(reservationToSave.id);
     }
 
-    // Auto-create follow-up for option dates
-    if (onSaveFollowUp && reservationToSave.status === 'Tentative') {
-      const followUpDate = reservationToSave.clientOptionDate || reservationToSave.supplierOptionDate;
-      if (followUpDate) {
-        const existingFollowUp = followUps.find(f => f.topic.includes(`RSV-${reservationToSave.id}`) && f.status === 'Pending');
-        if (!existingFollowUp) {
-          const newFollowUp: FollowUp = {
-            id: `fu_auto_${Date.now()}`,
-            clientId: reservationToSave.clientId,
-            date: followUpDate,
-            topic: `Option Expiry - RSV-${reservationToSave.id}`,
-            notes: `Auto-created: ${reservationToSave.guestName} at ${hotels.find(h => h.id === reservationToSave.hotelId)?.name || ''}. Client option: ${reservationToSave.clientOptionDate || 'N/A'}, Supplier option: ${reservationToSave.supplierOptionDate || 'N/A'}`,
-            status: 'Pending',
-            createdBy: currentUser
-          };
-          onSaveFollowUp(newFollowUp);
-        }
-      }
-    }
-
     resetForm();
+    setIsSubmitting(false);
     toast.success(`Booking Reservation RSV-${nextId} saved successfully!`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!clientId || !supplierId || !hotelId || !checkIn || !checkOut) {
       toast.warning('Please fill out all mandatory booking specs.');
       return;
     }
+
+    setIsSubmitting(true);
 
     // Blank guest name warning (non-blocking)
     if (!guestName) {
@@ -1069,6 +1161,7 @@ export default function ReservationsPage({
     setAssignedTo('');
     setCompareIds([]);
     setRooms([{ roomType: 'Double', view: 'City View', mealPlan: 'B.B', qty: 1, pax: 2, buyPriceNum: 0, sellPriceNum: 0 }]);
+    setFormStep(1);
     setShowForm(false);
   };
 
@@ -1274,6 +1367,7 @@ export default function ReservationsPage({
         originalCurrency: payCurrency,
         originalAmount: payCurrency === 'EGP' ? payOriginalAmount : undefined,
         exchangeRate: payCurrency === 'EGP' ? payExchangeRate : undefined,
+        baseAmountSAR: computedAmount,
         createdBy: currentUser || 'Hazem'
       };
 
@@ -1288,7 +1382,12 @@ export default function ReservationsPage({
       };
 
       if (onSaveTransaction) { onSaveTransaction(newTr); }
-      onSaveReservation(updatedRes);
+      // Use direct update for payments (no confirmation dialog needed)
+      if (onUpdateReservationDirect) {
+        onUpdateReservationDirect(updatedRes);
+      } else {
+        onSaveReservation(updatedRes);
+      }
       if (onLogAudit) {
         onLogAudit({
           user: currentUser,
@@ -1516,8 +1615,8 @@ export default function ReservationsPage({
 
       {/* Upper hidden area for printing rooming list */}
       {printingRoomingList && (
-        <div className="fixed inset-0 bg-white z-[9999] overflow-y-auto block print:block pb-16">
-          <div className="flex justify-between items-center p-4 bg-slate-100 border-b border-slate-200 print:hidden text-xs">
+        <div className="fixed inset-0 bg-white z-[9999] h-[100dvh] flex flex-col print:block print:h-auto">
+          <div className="flex-shrink-0 flex justify-between items-center p-4 bg-slate-100 border-b border-slate-200 print:hidden text-xs">
             <h2 className="font-bold text-slate-800">{t('res.printRoomingList')}</h2>
             <div className="flex gap-2">
               <button onClick={() => window.print()} className="bg-indigo-650 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded shadow transition">{t('res.printList')}</button>
@@ -1525,6 +1624,7 @@ export default function ReservationsPage({
             </div>
           </div>
           
+          <div className="flex-1 overflow-y-auto print:overflow-visible">
           <div id="rooming-list-pdf" className="bg-white p-8 max-w-4xl mx-auto my-8 print:my-0 shadow-sm print:shadow-none text-slate-900 font-sans border border-slate-200 print:border-none">
             <div className="flex justify-between items-center mb-2 border-b-[3px] border-slate-300 pb-2 gap-4">
               <div className="flex flex-col text-left font-sans gap-1 flex-1">
@@ -1618,6 +1718,7 @@ export default function ReservationsPage({
             <div className="mt-8 text-[11px] text-slate-500">
               {printingRoomingList.guestName} - {getEgyptTime().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}
             </div>
+          </div>
           </div>
         </div>
       )}
@@ -1762,7 +1863,7 @@ export default function ReservationsPage({
 
       {/* Main Form content or Table list view */}
       {showForm ? (
-        <form onSubmit={handleSubmit} className="bg-slate-50 border border-slate-200 rounded-[24px] p-6 shadow-xl space-y-5 animate-in fade-in slide-in-from-bottom-4 leading-relaxed text-xs max-w-6xl mx-auto">
+        <form onSubmit={handleSubmit} className="relative bg-slate-50 border border-slate-200 rounded-[24px] p-6 shadow-xl space-y-5 animate-in fade-in slide-in-from-bottom-4 leading-relaxed text-xs max-w-7xl mx-auto">
           
           {/* Form Header */}
           <div className="flex justify-between items-center border-b border-slate-200 pb-4">
@@ -1824,7 +1925,7 @@ export default function ReservationsPage({
                         type="button"
                         onClick={() => {
                           const editingRes = reservations.find(r => r.id.toString() === editingId);
-                          if (editingRes) setPrintingDoc({ res: editingRes, isVoucher: false });
+                          if (editingRes) requestPrint(editingRes, false);
                           setPrintMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition"
@@ -1835,7 +1936,7 @@ export default function ReservationsPage({
                         type="button"
                         onClick={() => {
                           const editingRes = reservations.find(r => r.id.toString() === editingId);
-                          if (editingRes) setPrintingDoc({ res: editingRes, isVoucher: true });
+                          if (editingRes) requestPrint(editingRes, true);
                           setPrintMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition"
@@ -1850,10 +1951,10 @@ export default function ReservationsPage({
                           if (!editingRes) return;
                           setPrintMenuOpen(false);
                           // Print Confirmation first
-                          setPrintingDoc({ res: editingRes, isVoucher: false });
+                          requestPrint(editingRes, false);
                           await new Promise(r => setTimeout(r, 2000));
                           // Then Voucher
-                          setPrintingDoc({ res: editingRes, isVoucher: true });
+                          requestPrint(editingRes, true);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50 transition"
                       >
@@ -1907,7 +2008,40 @@ export default function ReservationsPage({
             </div>
           </div>
 
-          {/* Section 1: Booking Details */}
+          {/* Wizard Step Indicator */}
+          {(() => {
+            const wizardSteps = [
+              { num: 1, label: 'Assignment', icon: '📋' },
+              { num: 2, label: 'Rooms', icon: '🛏️' },
+              { num: 3, label: 'Options & Details', icon: '💰' },
+            ];
+            return (
+              <div className="flex items-center justify-center gap-1 md:gap-2 py-3 px-2">
+                {wizardSteps.map((step, idx) => (
+                  <React.Fragment key={step.num}>
+                    {idx > 0 && <div className={`h-0.5 w-6 md:w-14 rounded-full transition-colors duration-300 ${formStep >= step.num ? 'bg-amber-400' : 'bg-slate-200'}`} />}
+                    <button
+                      type="button"
+                      onClick={() => { if (formStep > step.num) setFormStep(step.num); }}
+                      className={`flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs font-bold transition-all duration-200 ${
+                        formStep === step.num
+                          ? 'bg-amber-400 text-emerald-950 shadow-md scale-105'
+                          : formStep > step.num
+                            ? 'bg-emerald-100 text-emerald-700 cursor-pointer hover:bg-emerald-200'
+                            : 'bg-slate-100 text-slate-400'
+                      }`}
+                    >
+                      <span className="text-sm md:text-base">{step.icon}</span>
+                      <span className="hidden sm:inline">{step.label}</span>
+                      <span className="sm:hidden">{step.num}</span>
+                    </button>
+                  </React.Fragment>
+                ))}
+              </div>
+            );
+          })()}
+
+          {formStep === 1 && (
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
               <span className="text-amber-600">●</span> {t('res.bookingAssignment')}
@@ -2007,7 +2141,7 @@ export default function ReservationsPage({
                     setHotelId(eid);
                     const matchedH = hotels.find(h => h.id === eid);
                     if (matchedH) {
-                      setRooms([{ roomType: matchedH.roomTypes[0] || 'Double', view: matchedH.views[0] || 'City View', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(matchedH.roomTypes[0] || 'Double'), buyPriceNum: 100, sellPriceNum: 150 }]);
+                      const firstRT = matchedH.roomTypes[0] || 'Double'; setRooms([{ roomType: firstRT, view: deriveViewFromRoomType(firstRT) || matchedH.views[0] || '', mealPlan: matchedH.mealPlans[0] || 'B.B', qty: 1, pax: getPaxForRoomType(firstRT), buyPriceNum: 100, sellPriceNum: 150 }]);
                     }
                   }}
                   placeholder="Enter Hotel Name"
@@ -2065,8 +2199,8 @@ export default function ReservationsPage({
                         }
                       }
                       applyStatus();
-                    }} className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-0.5 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-sm' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
-                      <span className="text-[9px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>
+                    }} className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center justify-center gap-1 whitespace-nowrap ${status === s ? s === 'Confirmed' ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-200' : s === 'Cancelled' ? 'bg-rose-600 text-white shadow-md ring-2 ring-rose-200' : 'bg-amber-500 text-white shadow-md ring-2 ring-amber-200' : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'}`}>
+                      <span className="text-[10px] leading-none">{s === 'Tentative' ? '⏳' : s === 'Confirmed' ? '✅' : '❌'}</span>
                       <span>{abbr}</span>
                     </button>
                   );
@@ -2074,9 +2208,109 @@ export default function ReservationsPage({
                 </div>
               </div>
             </div>
-          </div>
 
+            {/* Stay Summary Badge */}
+            {checkIn && checkOut && calculateNightsCount() > 0 && (() => {
+              const nights = calculateNightsCount();
+              const checkInDay = new Date(checkIn + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+              const checkOutDay = new Date(checkOut + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+              const hasWeekends = (() => {
+                const d = new Date(checkIn + 'T00:00:00');
+                const end = new Date(checkOut + 'T00:00:00');
+                while (d < end) {
+                  const day = d.getDay();
+                  if (day === 4 || day === 5) return true;
+                  d.setDate(d.getDate() + 1);
+                }
+                return false;
+              })();
+              return (
+                <div className={`mt-3 flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-xl border ${hasWeekends ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'} animate-in fade-in duration-200`}>
+                  <span className="text-[10px] font-bold text-slate-600">📅 <strong className="text-slate-800">{nights} night{nights !== 1 ? 's' : ''}</strong></span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-[10px] font-bold text-slate-600">Check-in: <strong className="text-indigo-700">{checkInDay}</strong></span>
+                  <span className="text-slate-300">|</span>
+                  <span className="text-[10px] font-bold text-slate-600">Check-out: <strong className="text-indigo-700">{checkOutDay}</strong></span>
+                  {hasWeekends && <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">★ Includes Thu/Fri weekend</span>}
+                </div>
+              );
+            })()}
+          </div>
+          )}
+
+          {formStep === 2 && (<>
           {/* Section 2: Room Configuration */}
+
+          {/* Floating Summary Sidebar (toggleable + draggable) */}
+          {selectedHotelObj && checkIn && checkOut && (
+            <>
+              {/* Toggle button when hidden */}
+              {!showFloatingSummary && (
+                <button
+                  type="button"
+                  onClick={() => setShowFloatingSummary(true)}
+                  className="hidden xl:flex fixed bottom-6 right-6 z-40 bg-white border border-slate-200 shadow-lg rounded-full w-12 h-12 items-center justify-center hover:bg-indigo-50 transition text-lg"
+                  title="Show Booking Summary"
+                >
+                  📋
+                </button>
+              )}
+              {/* Summary panel */}
+              {showFloatingSummary && (
+                <div
+                  ref={summaryRef}
+                  className="hidden xl:block fixed z-30 w-56 animate-in fade-in duration-200"
+                  style={summaryPos ? { left: summaryPos.x, top: summaryPos.y } : { right: 16, top: 96 }}
+                >
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-4 space-y-3">
+                    {/* Draggable header */}
+                    <div
+                      className="flex items-center justify-between cursor-move select-none"
+                      onMouseDown={(e) => {
+                        const rect = summaryRef.current?.getBoundingClientRect();
+                        if (rect) {
+                          dragOffset.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+                          setSummaryPos({ x: rect.left, y: rect.top });
+                        }
+                        setIsDraggingSummary(true);
+                      }}
+                    >
+                      <div className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">Booking Summary</div>
+                      <button type="button" onClick={() => setShowFloatingSummary(false)} className="text-slate-400 hover:text-slate-600 text-sm leading-none" title="Hide">&times;</button>
+                    </div>
+                    <div className="space-y-1.5 text-[10px]">
+                      {guestName && <div className="font-bold text-slate-800 truncate">👤 {guestName}</div>}
+                      <div className="text-slate-600 truncate">🏨 {selectedHotelObj.name}</div>
+                      <div className="text-slate-600">📅 {checkIn} → {checkOut}</div>
+                      <div className="text-slate-600">🌙 {calculateNightsCount()} night{calculateNightsCount() !== 1 ? 's' : ''}</div>
+                    </div>
+                    <div className="border-t border-slate-100 pt-2 space-y-1">
+                      {(() => {
+                        const totalBuy = rooms.reduce((a, rm) => a + roomFullTotal(rm, 'buy'), 0);
+                        const totalSell = rooms.reduce((a, rm) => a + roomFullTotal(rm, 'sell'), 0);
+                        const profit = totalSell - totalBuy;
+                        const margin = totalSell > 0 ? Math.round((profit / totalSell) * 100) : 0;
+                        return (
+                          <>
+                            <div className="flex justify-between text-[10px]"><span className="text-red-600 font-bold">Cost</span><span className="font-mono text-red-700">{totalBuy.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-[10px]"><span className="text-emerald-600 font-bold">Sell</span><span className="font-mono text-emerald-700">{totalSell.toLocaleString()}</span></div>
+                            <div className="flex justify-between text-[10px] pt-1 border-t border-dashed border-slate-100">
+                              <span className={`font-bold ${profit >= 0 ? 'text-amber-700' : 'text-rose-700'}`}>Profit</span>
+                              <span className={`font-mono font-bold ${profit >= 0 ? 'text-amber-700' : 'text-rose-700'}`}>{profit.toLocaleString()}</span>
+                            </div>
+                            <div className={`text-center text-[9px] font-bold rounded-full py-0.5 ${margin >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{margin}% margin</div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <div className="border-t border-slate-100 pt-2 text-[10px] text-slate-500">
+                      🛏️ {rooms.reduce((a, rm) => a + rm.qty, 0)} room{rooms.reduce((a, rm) => a + rm.qty, 0) !== 1 ? 's' : ''} · 👥 {rooms.reduce((a, rm) => a + rm.qty * rm.pax, 0)} pax
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           {selectedHotelObj && (
             <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
               {/* Header + Summary Bar */}
@@ -2200,10 +2434,17 @@ export default function ReservationsPage({
                   const roomSellTotal = roomFullTotal(rm, 'sell');
                   const roomProfit = roomSellTotal - roomBuyTotal;
                   return (
-                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div key={idx} className={`border-2 rounded-xl overflow-hidden transition-colors duration-200 ${roomProfit > 0 ? 'border-emerald-200' : roomProfit < 0 ? 'border-rose-300' : 'border-slate-200'}`}>
                       {/* Room Header Bar */}
-                      <div className="bg-slate-50 px-4 py-2 flex items-center justify-between border-b border-slate-200">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Room Line #{idx + 1}</span>
+                      <div className={`px-4 py-2 flex items-center justify-between border-b ${roomProfit > 0 ? 'bg-emerald-50/50 border-emerald-200' : roomProfit < 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">Room Line #{idx + 1}</span>
+                          {rm.buyPriceNum > 0 && rm.sellPriceNum > 0 && calculateNightsCount() > 0 && (
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${roomProfit >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {roomProfit >= 0 ? '↑' : '↓'} {Math.abs(Math.round((rm.sellPriceNum - rm.buyPriceNum) / rm.buyPriceNum * 100))}% margin
+                            </span>
+                          )}
+                        </div>
                         <div className="flex gap-1.5">
                           <button type="button" onClick={() => { setRateCompareIdx(idx); setShowRateCompare(true); }} className="text-[9px] font-bold text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded-lg transition" title="Compare supplier rates" disabled={!hotelId || !checkIn || !checkOut}>💰 Compare Rates</button>
                                                     <button type="button" onClick={() => handleCopyRoomRow(idx)} className="text-[9px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition" title="Copy this room line">📋 Copy</button>
@@ -2213,18 +2454,17 @@ export default function ReservationsPage({
 
                       <div className="p-4">
                         {/* Room Info Row */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.roomType')}</label>
+                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">
+                              {rm.roomType.toLowerCase().includes('single') ? '🛏️' : rm.roomType.toLowerCase().includes('double') ? '🛏️🛏️' : rm.roomType.toLowerCase().includes('triple') ? '🛏️🛏️🛏️' : rm.roomType.toLowerCase().includes('quad') ? '🛏️×4' : rm.roomType.toLowerCase().includes('suite') ? '👑' : '🏠'} {t('res.roomType')}
+                            </label>
                             <select value={rm.roomType} onChange={(e) => handleUpdateRoomRow(idx, { roomType: e.target.value })} className="w-full px-2.5 py-2.5 border border-slate-200 bg-white rounded-lg text-xs font-semibold">
                               {selectedHotelObj.roomTypes.map((rt, i) => (<option key={i} value={rt}>{rt}</option>))}
                             </select>
-                          </div>
-                          <div>
-                            <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.view')}</label>
-                            <select value={rm.view} onChange={(e) => handleUpdateRoomRow(idx, { view: e.target.value })} className="w-full px-2 py-2.5 border border-slate-200 bg-white rounded-lg text-xs">
-                              {selectedHotelObj.views.map((v, i) => (<option key={i} value={v}>{v}</option>))}
-                            </select>
+                            {rm.view && (
+                              <span className="text-[8px] font-bold text-sky-600 bg-sky-50 border border-sky-100 rounded px-1.5 py-0.5 mt-1 inline-block" title="Auto-derived from room type">👁 {rm.view}</span>
+                            )}
                           </div>
                           <div>
                             <label className="text-[9px] uppercase font-bold text-slate-500 block mb-1">{t('res.mealPlan')}</label>
@@ -2256,6 +2496,20 @@ export default function ReservationsPage({
                           </div>
                         </div>
 
+                        {/* Smart Suggestion Banners */}
+                        {needsExtraBedSuggestion(rm.roomType) && !rm.hasExtraBed && (
+                          <div className="mt-2 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 animate-in fade-in duration-200">
+                            <span className="text-[10px] font-bold text-indigo-700">💡 {rm.roomType} rooms typically require an extra bed for {rm.pax} pax</span>
+                            <button type="button" onClick={() => handleUpdateRoomRow(idx, { hasExtraBed: true })} className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-bold rounded-lg transition shadow-sm">+ Enable Extra Bed</button>
+                          </div>
+                        )}
+                        {isPremiumView(rm.view) && !rm.hasViewSupplement && (
+                          <div className="mt-2 flex items-center justify-between bg-sky-50 border border-sky-200 rounded-lg px-3 py-2 animate-in fade-in duration-200">
+                            <span className="text-[10px] font-bold text-sky-700">💡 {rm.view} usually has a view supplement</span>
+                            <button type="button" onClick={() => handleUpdateRoomRow(idx, { hasViewSupplement: true })} className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white text-[9px] font-bold rounded-lg transition shadow-sm">+ Enable View Supplement</button>
+                          </div>
+                        )}
+
                         {/* Pricing Row */}
                         <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-dashed border-slate-200">
                           <div>
@@ -2267,6 +2521,12 @@ export default function ReservationsPage({
                             <input type="number" value={rm.sellPriceNum || ''} onChange={(e) => handleUpdateRoomRow(idx, { sellPriceNum: Number(e.target.value) })} className="w-full px-3 py-2.5 border border-emerald-200 rounded-lg text-emerald-800 font-bold font-mono text-xs bg-emerald-50/30" />
                           </div>
                         </div>
+                        {/* Sell < Buy Warning */}
+                        {rm.sellPriceNum > 0 && rm.buyPriceNum > 0 && rm.sellPriceNum < rm.buyPriceNum && (
+                          <div className="mt-2 flex items-center gap-2 bg-rose-50 border border-rose-300 rounded-lg px-3 py-2 animate-in fade-in duration-200">
+                            <span className="text-[10px] font-bold text-rose-700">⚠️ Selling below cost! Loss of {(rm.buyPriceNum - rm.sellPriceNum).toLocaleString()} SAR/night</span>
+                          </div>
+                        )}
 
                         {/* Supplements Toggle Bar */}
                         <div className="mt-3 pt-3 border-t border-dashed border-slate-200">
@@ -2411,8 +2671,9 @@ export default function ReservationsPage({
               </div>
             </div>
           )}
+          </>)}
 
-
+          {formStep === 3 && (<>
           {/* Section 3: Status-Specific Fields & References */}
           <div className="bg-white p-5 rounded-2xl border border-slate-150 shadow-sm">
             <h4 className="font-bold text-slate-800 uppercase tracking-widest text-[10px] mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
@@ -2707,23 +2968,28 @@ export default function ReservationsPage({
               </div>
             </div>
           )}
+          </>)}
 
 
 
-          <div className="flex gap-2.5 pt-4 border-t border-slate-100">
-            <button
-              type="submit"
-              className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm"
-            >
-              {t('res.saveBooking')}
-            </button>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-6 py-2.5 rounded-xl transition"
-            >
-              {t('common.cancel')}
-            </button>
+          <div className="flex items-center justify-between gap-2.5 pt-4 border-t border-slate-100">
+            {formStep > 1 ? (
+              <button type="button" onClick={() => setFormStep(formStep - 1)} className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-sm flex items-center gap-1.5">
+                <span>←</span> Back
+              </button>
+            ) : (
+              <button type="button" onClick={resetForm} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-6 py-2.5 rounded-xl transition">{t('common.cancel')}</button>
+            )}
+            <div className="flex items-center gap-2">
+              {formStep < 3 && (
+                <button type="button" onClick={() => setFormStep(formStep + 1)} className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5">
+                  Next <span>→</span>
+                </button>
+              )}
+              {formStep === 3 && (
+                <button type="submit" disabled={isSubmitting} className="bg-amber-400 hover:bg-amber-500 disabled:bg-amber-200 disabled:cursor-not-allowed text-emerald-950 font-bold text-xs px-6 py-2.5 rounded-xl transition-all shadow-sm">{isSubmitting ? 'Saving...' : t('res.saveBooking')}</button>
+              )}
+            </div>
           </div>
 
         </form>
@@ -2733,11 +2999,7 @@ export default function ReservationsPage({
         {/* Mobile Card Layout (virtualized + paginated) */}
         <div className="md:hidden">
           {sortedReservations.length === 0 ? (
-            <div className="py-16 text-center animate-fade-in">
-              <div className="text-5xl mb-4">📋</div>
-              <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
-              <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
-            </div>
+            <EmptyState icon="📋" title={t('res.noReservations')} description={t('res.tryAdjustFilters')} />
           ) : (
             <VirtualTable
               items={sortedReservations}
@@ -2758,7 +3020,7 @@ export default function ReservationsPage({
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <span className="font-bold font-mono text-slate-900 bg-amber-50 px-2 py-0.5 rounded text-[10px]">RSV-{res.id}</span>
-                    <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] font-bold ${res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800' : res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{res.status === 'Confirmed' ? t('res.confirmed') : res.status === 'Cancelled' ? t('res.cancelled') : t('res.tentative')}</span>
+                    <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : res.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{res.status === 'Confirmed' ? t('res.confirmed') : res.status === 'Cancelled' ? t('res.cancelled') : t('res.tentative')}</span>
                     {res.nonRefundable && <span className="ml-1 px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-rose-100 text-rose-700 border border-rose-200">NON-REF</span>}
                   </div>
                   <span className={`font-mono font-bold text-[11px] ${netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{netProfit.toLocaleString()} SAR</span>
@@ -2782,8 +3044,8 @@ export default function ReservationsPage({
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setViewingId(res.id.toString())} className="flex-1 min-w-[100px] bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold px-3 py-2.5 rounded-lg border border-slate-200 text-[10px]">{t('res.detailsPay')}</button>
-                  <button onClick={() => setPrintingDoc({ res, isVoucher: false })} className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2.5 rounded-lg border border-indigo-200 text-[10px]">{t('res.confirmation')}</button>
-                  <button onClick={() => setPrintingDoc({ res, isVoucher: true })} className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2.5 rounded-lg border border-emerald-200 text-[10px]">{t('res.voucher')}</button>
+                  <button onClick={() => requestPrint(res, false)} className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-2.5 rounded-lg border border-indigo-200 text-[10px]">{t('res.confirmation')}</button>
+                  <button onClick={() => requestPrint(res, true)} className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-3 py-2.5 rounded-lg border border-emerald-200 text-[10px]">{t('res.voucher')}</button>
                   <button onClick={() => handleEdit(res)} className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-3 py-2.5 rounded-lg border border-amber-200 text-[10px]">{t('common.edit')}</button>
                   <button onClick={() => cloneReservation(res)} className="bg-cyan-50 hover:bg-cyan-100 text-cyan-700 font-bold px-3 py-2.5 rounded-lg border border-cyan-200 text-[10px]">📋 Clone</button>
                   <button onClick={() => { onDeleteReservation(res.id.toString()); }} className="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2.5 rounded-lg border border-rose-200 text-[10px]">{t('common.delete')}</button>
@@ -2897,10 +3159,10 @@ export default function ReservationsPage({
         )}
 
         {/* Desktop Table Layout */}
-        <div className="hidden md:block bg-white border border-slate-150 rounded-2xl p-4 shadow-sm overflow-x-auto text-[11px] -webkit-overflow-scrolling: touch">
+        <div className="hidden md:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-x-auto text-[11px]" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full text-left border-collapse min-w-[900px] md:min-w-0">
             <thead>
-              <tr className="border-b border-light text-slate-400 font-semibold bg-slate-50/50 uppercase tracking-wider text-[10px]">
+              <tr className="border-b border-gray-200 text-slate-500 font-semibold bg-gray-50 uppercase tracking-wider text-[10px] sticky top-0 z-10">
                 <th className="py-2.5 px-3 font-mono">
                   <input type="checkbox" checked={sortedReservations.length > 0 && sortedReservations.every(r => selectedIds.has(r.id))}
                     onChange={e => {
@@ -2936,7 +3198,7 @@ export default function ReservationsPage({
                 const paidPercent = totalSell > 0 ? Math.round((clientPaid / totalSell) * 100) : 0;
 
                 return (
-                  <tr key={res.id} className={`hover:bg-slate-50/40 text-xs ${selectedIds.has(res.id) ? 'bg-indigo-50/40' : ''}`}>
+                  <tr key={res.id} className={`hover:bg-slate-50 transition-colors cursor-pointer text-xs ${selectedIds.has(res.id) ? 'bg-indigo-50/40' : ''}`}>
                     <td className="py-3 px-3">
                       <input type="checkbox" checked={selectedIds.has(res.id)}
                         onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(res.id) : s.delete(res.id); setSelectedIds(s); }}
@@ -2975,10 +3237,10 @@ export default function ReservationsPage({
                           }
                           applyStatusChange();
                         }}
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-bold outline-none cursor-pointer border ${
-                          res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' :
-                          res.status === 'Cancelled' ? 'bg-rose-50 text-rose-800 border-rose-100' :
-                          'bg-amber-50 text-amber-800 border-amber-100'
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium outline-none cursor-pointer border ${
+                          res.status === 'Confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          res.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
                         }`}
                       >
                         <option value="Tentative">Tentative</option>
@@ -3029,7 +3291,9 @@ export default function ReservationsPage({
                             openConfirm('Record Client Payment', `Quick-record full client payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`, () => {
                               setViewingId(res.id.toString());
                               setActiveDetailTab('payment');
+                              setPayDirection('client'); // Explicit: Client Pay → 'client' tab
                               setPayAmount(outstanding);
+                              setPayVoucher(getNextVoucherNo('REC', transactions || []));
                             });
                           }}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-1.5 py-1 rounded border border-emerald-200 text-[9px] whitespace-nowrap"
@@ -3044,7 +3308,9 @@ export default function ReservationsPage({
                             openConfirm('Record Supplier Payment', `Quick-record full supplier payment of ${outstanding.toLocaleString()} SAR for RSV-${res.id}?\n\nYou will need to select a treasury account in the Details pane.`, () => {
                               setViewingId(res.id.toString());
                               setActiveDetailTab('payment');
+                              setPayDirection('supplier'); // Explicit: Supplier Pay → 'supplier' tab
                               setPayAmount(outstanding);
+                              setPayVoucher(getNextVoucherNo('PAY', transactions || []));
                             });
                           }}
                           className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-1.5 py-1 rounded border border-blue-200 text-[9px] whitespace-nowrap"
@@ -3053,14 +3319,14 @@ export default function ReservationsPage({
                           {t('res.supplierPay')}
                         </button>
                         <button
-                          onClick={() => setPrintingDoc({ res: res, isVoucher: false })}
+                          onClick={() => requestPrint(res, false)}
                           className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-1 rounded border border-indigo-200 text-[10px] whitespace-nowrap hidden lg:block"
                           title={t('res.confirmation')}
                         >
                           {t('res.confirmation')}
                         </button>
                         <button
-                          onClick={() => setPrintingDoc({ res: res, isVoucher: true })}
+                          onClick={() => requestPrint(res, true)}
                           className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded border border-emerald-200 text-[10px] whitespace-nowrap hidden lg:block"
                           title={t('res.printVoucher')}
                         >
@@ -3127,10 +3393,8 @@ export default function ReservationsPage({
               })}
               {filteredReservations.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-16 text-center animate-fade-in">
-                    <div className="text-5xl mb-4">📋</div>
-                    <p className="text-sm font-bold text-slate-500">{t('res.noReservations')}</p>
-                    <p className="text-xs text-slate-400 mt-1">{t('res.tryAdjustFilters')}</p>
+                  <td colSpan={10} className="py-16 text-center">
+                    <EmptyState icon="📋" title={t('res.noReservations')} description={t('res.tryAdjustFilters')} />
                   </td>
                 </tr>
               )}
@@ -3169,10 +3433,10 @@ export default function ReservationsPage({
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto" onClick={() => setViewingId(null)}>
-            <div className="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full my-0 md:my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden max-h-[100vh] md:max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white md:rounded-2xl shadow-2xl max-w-5xl w-full my-0 md:my-6 animate-in fade-in zoom-in-95 text-xs overflow-hidden max-h-[100dvh] md:max-h-[95dvh] flex flex-col" onClick={(e) => e.stopPropagation()}>
 
               {/* Header Bar */}
-              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center">
+              <div className="flex-shrink-0 bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center">
                 <div>
                   <h3 className="font-extrabold text-base flex items-center gap-2">
                     <span className="bg-amber-400 text-slate-900 px-2 py-0.5 rounded-lg text-[10px] font-black">RSV-{resObj.id}</span>
@@ -3217,7 +3481,7 @@ export default function ReservationsPage({
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex border-b border-slate-200 bg-slate-50/50 px-2 md:px-4 overflow-x-auto">
+              <div className="flex-shrink-0 flex border-b border-slate-200 bg-slate-50/50 px-2 md:px-4 overflow-x-auto">
                 {([
                   { key: 'overview' as const, label: t('res.overview'), icon: '📋' },
                   { key: 'payment' as const, label: t('res.recordPaymentTitle'), icon: '💳' },
@@ -3240,7 +3504,7 @@ export default function ReservationsPage({
               </div>
 
               {/* Tab Content */}
-              <div className="p-4 md:p-6 max-h-[70vh] overflow-y-auto thin-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 thin-scrollbar">
 
                 {/* ===== OVERVIEW TAB ===== */}
                 {activeDetailTab === 'overview' && (
@@ -3569,7 +3833,7 @@ export default function ReservationsPage({
                             <select value={payAccountId} onChange={(e) => setPayAccountId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 px-3 rounded-xl py-2 text-xs font-semibold focus:ring-2 focus:ring-amber-500" required>
                               <option value="">{t('res.selectAccount')}</option>
                               {accounts.map(acc => (
-                                <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toLocaleString()} SAR)</option>
+                                <option key={acc.id} value={acc.id}>{acc.name} ({acc.balance.toLocaleString()} {acc.currency || 'SAR'})</option>
                               ))}
                             </select>
                           </div>
@@ -3715,7 +3979,7 @@ export default function ReservationsPage({
                         <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.agentConfirmation')}</h5>
                         <p className="text-[10px] text-slate-500 mb-4">{t('res.agentConfDesc')}</p>
                         <button
-                          onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })}
+                          onClick={() => requestPrint(resObj, false)}
                           className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
                         >
                           {t('res.printConfirmationPDF')}
@@ -3726,7 +3990,7 @@ export default function ReservationsPage({
                         <h5 className="font-bold text-sm text-slate-800 mb-1">{t('res.guestCardVoucher')}</h5>
                         <p className="text-[10px] text-slate-500 mb-4">{t('res.guestCardDesc')}</p>
                         <button
-                          onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })}
+                          onClick={() => requestPrint(resObj, true)}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl transition shadow text-xs w-full"
                         >
                           {t('res.printVoucherPDF')}
@@ -3836,8 +4100,8 @@ export default function ReservationsPage({
               {/* Footer */}
               <div className="border-t border-slate-200 px-6 py-3 bg-slate-50/50 flex justify-between items-center">
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: false })} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.confirmation')}</button>
-                  <button onClick={() => setPrintingDoc({ res: resObj, isVoucher: true })} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.voucher')}</button>
+                  <button onClick={() => requestPrint(resObj, false)} className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.confirmation')}</button>
+                  <button onClick={() => requestPrint(resObj, true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.voucher')}</button>
                   <button onClick={() => setPrintingInvoice(resObj)} className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px]">{t('res.invoice')}</button>
                   {isEmailConfigured && (() => {
                     const client = agents.find(a => a.id === resObj.clientId);
@@ -3986,8 +4250,8 @@ export default function ReservationsPage({
         ];
         return (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setCompareIds([])}>
-            <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90dvh] flex flex-col overflow-hidden p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex-shrink-0 flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-slate-900">⇔ Booking Comparison</h2>
                 <button onClick={() => setCompareIds([])} className="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
               </div>
@@ -4054,8 +4318,8 @@ export default function ReservationsPage({
         });
         return (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setShowRateCompare(false); setRateCompareIdx(null); }}>
-            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] overflow-auto p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90dvh] flex flex-col overflow-hidden p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex-shrink-0 flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">💰 Supplier Rate Comparison</h2>
                   <p className="text-xs text-slate-500 mt-0.5">{rm.roomType} • {checkIn} → {checkOut} ({calculateNightsCount()}N)</p>
@@ -4129,3 +4393,5 @@ export default function ReservationsPage({
     </div>
   );
 }
+
+export default React.memo(ReservationsPage);

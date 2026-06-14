@@ -1,0 +1,444 @@
+/**
+ * ZumraCustomConfirmation - "RMS ARM Conf" template
+ * Pixel-perfect A4 booking confirmation matching the attached design.
+ * Consumes standard Reservation/Hotel/Agent data objects as props.
+ */
+
+import React, { useState } from 'react';
+import { Reservation, Agent, Hotel, User, Account, TermsAndConditions, StampPosition } from '../types';
+import { getReservationTotals, getPaxForRoomType, abbreviateMealPlan } from '../lib/storage';
+import MasterPDFHeader from './MasterPDFHeader';
+import StampOverlay, { getStampSettings, saveStampSettings } from './StampOverlay';
+import { compressImagesForPrint, exportPDF } from '../lib/pdfGenerator';
+import { usePageBreaks } from '../lib/usePageBreaks';
+
+interface ZumraCustomConfirmationProps {
+  reservation: Reservation;
+  client: Agent | undefined;
+  hotel: Hotel | undefined;
+  onClose: () => void;
+  creatorName: string;
+  users?: User[];
+  accounts?: Account[];
+  termsAndConditionsList?: TermsAndConditions[];
+}
+
+export default function ZumraCustomConfirmation({
+  reservation,
+  client,
+  hotel,
+  onClose,
+  creatorName,
+  users = [],
+  accounts = [],
+  termsAndConditionsList = [],
+}: ZumraCustomConfirmationProps) {
+  const { PageBreakToggle } = usePageBreaks();
+  const stampDefaults = getStampSettings();
+  const [stampVisible, setStampVisible] = useState(false);
+  const [stampPosition, setStampPosition] = useState<StampPosition>(stampDefaults.position);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [printError, setPrintError] = useState(false);
+
+  const { totalSell } = getReservationTotals(reservation);
+
+  // 15% VAT (inclusive)
+  const calculatedVat = totalSell * (15 / 115);
+  const calculatedNet = totalSell - calculatedVat;
+
+  const creatorUser = users.find(u => u.username === reservation.createdBy || u.name === reservation.createdBy || u.name === creatorName);
+  const creatorJobTitle = creatorUser?.jobTitle || 'Reservations Executive';
+
+  // Pre-compress images for smaller PDF
+  React.useEffect(() => { compressImagesForPrint('print-area'); }, []);
+
+  // --- Date helpers ---
+  const formatStandardDate = (dateStr: string) => {
+    if (!dateStr) return 'N/A';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      const d = new Date(dateStr);
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    } catch { return dateStr; }
+  };
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const getStatusLabel = () => {
+    if (reservation.status === 'Tentative') return 'Tentative';
+    if (reservation.status === 'Cancelled') return 'Cancelled';
+    return 'Definite';
+  };
+
+  // --- Save filename: (status) Guest Name CheckIn ---
+  const handlePrint = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintError(false);
+    try {
+      const status = reservation.status || 'Confirmation';
+      const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const filename = `(${status}) ${guestSafe} ${reservation.checkIn}.pdf`;
+      const success = await exportPDF('print-area', filename, { landscape: false });
+      if (success) {
+        setTimeout(onClose, 400);
+      } else {
+        setPrintError(true);
+      }
+    } catch (e) {
+      console.error('PDF generation failed:', e);
+      setPrintError(true);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // WhatsApp share link
+  const getWhatsAppLink = () => {
+    const statusText = getStatusLabel();
+    const text = `*ZUMRA HOTELS - ${statusText} Confirmation*\n` +
+      `*Res. No:* RSV-${reservation.id}\n` +
+      `*Guest Name:* ${reservation.guestName}\n` +
+      `*Hotel:* ${hotel?.name || 'Hotel'}\n` +
+      `*Period:* ${formatStandardDate(reservation.checkIn)} to ${formatStandardDate(reservation.checkOut)} (${reservation.nights} Nights)\n` +
+      `*Status:* ${reservation.status}\n` +
+      `*Total Price:* ${totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR\n` +
+      `*Confirmation No:* ${reservation.hotelConfirmationNo || 'Pending'}\n` +
+      `Thank you for choosing Zumra Hotels!`;
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 h-[100dvh]">
+      {/* Fixed Action Bar — never scrolls out of view, hidden when printing */}
+      <div className="fixed top-0 inset-x-0 z-[60] bg-white border-b border-slate-200 shadow-lg print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 max-w-4xl mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
+            <h2 className="text-lg font-bold text-slate-800">RMS ARM Confirmation</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer">
+              <input type="checkbox" checked={stampVisible} onChange={e => setStampVisible(e.target.checked)} className="rounded" /> Stamp
+            </label>
+            {stampVisible && (
+              <button
+                onClick={() => { setStampPosition('bottom-right'); saveStampSettings({ enabled: stampVisible, position: 'bottom-right', opacity: 0.85 }); }}
+                className="px-2 py-1 border rounded text-xs bg-white hover:bg-slate-50 text-slate-500 cursor-pointer"
+              >Reset</button>
+            )}
+            <PageBreakToggle />
+            <button
+              onClick={handlePrint}
+              disabled={isGenerating}
+              className="bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm cursor-pointer min-h-[44px]"
+            >
+              {isGenerating ? (
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+              )}
+              {isGenerating ? 'Generating...' : 'Print & Save PDF'}
+            </button>
+            {printError && (
+              <button
+                onClick={() => { setPrintError(false); setIsGenerating(false); }}
+                className="bg-rose-100 hover:bg-rose-200 text-rose-700 font-medium px-3 py-2 rounded-lg transition text-sm cursor-pointer min-h-[44px]"
+              >Reset</button>
+            )}
+            <a
+              href={getWhatsAppLink()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+              WhatsApp
+            </a>
+            <button onClick={onClose} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 rounded-lg transition cursor-pointer">Close</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable A4 Paper Content */}
+      <div className="h-full overflow-y-auto bg-slate-900/60 backdrop-blur-sm pt-16 pb-8 print:bg-white print:static print:inset-auto print:overflow-visible print:pt-0 print:pb-0" onClick={onClose}>
+        <div className="max-w-4xl w-full mx-auto bg-white shadow-2xl print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white" onClick={(e) => e.stopPropagation()}>
+          {/* ===== PRINTABLE A4 AREA ===== */}
+          <div
+            id="print-area"
+            className="relative bg-white w-[210mm] min-h-[297mm] p-8 pb-10 text-slate-900 font-sans shadow-inner overflow-y-auto no-scrollbar print:w-full print:p-8 print:pb-0 print:border-none print:shadow-none print:overflow-visible"
+          >
+            <StampOverlay
+              visible={stampVisible}
+              position={stampPosition}
+              opacity={0.85}
+              onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
+            />
+
+          {/* Document Header */}
+          <MasterPDFHeader />
+
+          {/* === BODY: Definite Confirmation Layout === */}
+          <div className="text-left">
+
+            {/* Date & Partner Metadata */}
+            <div className="grid grid-cols-2 gap-2 text-xs mb-1.5">
+              <div className="space-y-1 text-slate-800 font-sans">
+                <p><span className="font-bold inline-block w-14 text-slate-600">Date:</span> {formatStandardDate(reservation.createdAt ? reservation.createdAt.split(' ')[0] : todayStr)}</p>
+                <p className="font-medium"><span className="font-bold inline-block w-14 text-slate-600">To:</span> <span className="uppercase text-slate-900 font-semibold">{client?.name || client?.companyName || ''}</span></p>
+                <p><span className="font-bold inline-block w-14 text-slate-600">Res. No.:</span> <span className="font-mono font-extrabold text-slate-900">{reservation.id}</span></p>
+                <p><span className="font-bold inline-block w-14 text-slate-600">Guest Name:</span> <span className="uppercase text-slate-950 font-bold">{reservation.guestName}</span></p>
+              </div>
+
+              <div className="text-right flex flex-col items-end">
+                <h2 className="text-2xl font-bold text-[#b4babe] tracking-wider leading-tight uppercase font-sans">
+                  {reservation.status === 'Cancelled' ? 'Cancellation' : `${getStatusLabel()} Confirmation`}
+                </h2>
+                {reservation.nonRefundable && (
+                  <span className="text-rose-700 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-200 mt-1 inline-block">
+                    NON-REFUNDABLE
+                  </span>
+                )}
+                {reservation.status === 'Tentative' && reservation.clientOptionDate && (
+                  <span className="text-rose-600 font-extrabold text-[10px] uppercase font-mono tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-100 mt-1 inline-block">
+                    Option Date: {formatStandardDate(reservation.clientOptionDate)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Letter intro */}
+            <div className="text-xs text-slate-800 font-normal mb-2 leading-relaxed font-sans">
+              We are pleased to confirm the following reservation as per the details below:
+            </div>
+
+            {/* Summary Box Header */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 grid grid-cols-3 gap-2 text-xs mb-2 print:bg-slate-50 font-sans">
+              <div>
+                <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Res No</span>
+                <span className="font-extrabold text-slate-900 font-mono text-xs">RSV-{reservation.id}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Guest Name</span>
+                <span className="font-bold text-slate-900 uppercase text-xs truncate block">{reservation.guestName}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[9px] uppercase font-bold tracking-wider">Nationality</span>
+                <span className="font-semibold text-slate-800 text-xs block">{reservation.guestNationality || ''}</span>
+              </div>
+            </div>
+
+            {/* Rooms and rates details table */}
+            <div className="overflow-x-auto border border-slate-200 rounded-lg mb-2 font-sans">
+              <table className="w-full text-left border-collapse text-[10px]">
+                <thead>
+                  <tr className="bg-[#d2d7df] border-b border-slate-300 text-slate-800 font-extrabold text-center">
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase font-mono text-left border-r border-slate-200">RSVP #</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Hotel</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Conf. #</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">QTY</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">Room Type</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase text-left border-r border-slate-200">MP</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200">Check In</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">NTS</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase border-r border-slate-200 font-bold">Check Out</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase text-right border-r border-slate-200 font-bold">Room Rate</th>
+                    <th className="py-1.5 px-1.5 text-[9px] uppercase text-right font-bold">Total Price</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 text-slate-800 text-[10px]">
+                  {reservation.rooms.map((room, idx) => {
+                    const pax = getPaxForRoomType(room.roomType);
+                    const n = reservation.nights;
+
+                    const getBaseRateForNight = (nightIdx: number): number => {
+                      if (typeof room.nightlyRates === 'number') return room.nightlyRates;
+                      const keys = Object.keys(room.nightlyRates);
+                      return room.nightlyRates[keys[nightIdx]] || room.nightlyRates[keys[0]] || 0;
+                    };
+
+                    const extraBedPerNight = room.hasExtraBed ? (room.extraBedRate || 0) : 0;
+                    const viewSuppPerNight = room.hasViewSupplement ? (room.viewSupplementRate || 0) : 0;
+                    const mealPerNight = room.hasSeparateMealRate ? (room.mealRate || 0) * pax : 0;
+                    const extraMeal1PerNight = room.hasExtraMeal1 ? (room.extraMeal1Rate || 0) * pax : 0;
+                    const extraMeal2PerNight = room.hasExtraMeal2 ? (room.extraMeal2Rate || 0) * pax : 0;
+                    const addOnsPerNight = extraBedPerNight + viewSuppPerNight + mealPerNight + extraMeal1PerNight + extraMeal2PerNight;
+
+                    const nightlyEffectiveRates: number[] = [];
+                    let lineTotal = 0;
+                    for (let i = 0; i < n; i++) {
+                      const effRate = getBaseRateForNight(i) + addOnsPerNight;
+                      nightlyEffectiveRates.push(effRate);
+                      lineTotal += effRate * room.qty;
+                    }
+
+                    const uniqueRates = Array.from(new Set(nightlyEffectiveRates.map(r => Math.round(r * 100) / 100)));
+                    let rateStr: string;
+                    if (uniqueRates.length === 0) rateStr = '0.00';
+                    else if (uniqueRates.length === 1) rateStr = uniqueRates[0].toFixed(2);
+                    else rateStr = uniqueRates.map(v => v.toFixed(2)).join(' / ');
+
+                    const breakdownParts: string[] = [];
+                    if (typeof room.nightlyRates === 'number') {
+                      breakdownParts.push(`Room: ${room.nightlyRates}`);
+                    } else {
+                      const vals = Object.values(room.nightlyRates);
+                      const uniq = Array.from(new Set(vals));
+                      breakdownParts.push(`Room: ${uniq.map(v => v.toFixed(0)).join('/')}`);
+                    }
+                    if (extraBedPerNight > 0) breakdownParts.push(`+Extra Bed: ${extraBedPerNight}`);
+                    if (viewSuppPerNight > 0) breakdownParts.push(`+View: ${viewSuppPerNight}`);
+                    if (mealPerNight > 0) breakdownParts.push(`+Meals: ${mealPerNight}`);
+                    if (extraMeal1PerNight > 0) breakdownParts.push(`+${room.extraMeal1Label || 'Meal1'}: ${extraMeal1PerNight}`);
+                    if (extraMeal2PerNight > 0) breakdownParts.push(`+${room.extraMeal2Label || 'Meal2'}: ${extraMeal2PerNight}`);
+
+                    return (
+                      <tr key={room.id} className="bg-white hover:bg-slate-50/50">
+                        <td className="py-1.5 px-1.5 font-mono font-bold text-slate-900 border-r border-slate-200">{reservation.id}-{idx + 1}</td>
+                        <td className="py-1.5 px-1.5 font-bold text-slate-800 border-r border-slate-200 leading-tight">{hotel?.name || ''}</td>
+                        <td className="py-1.5 px-1.5 text-center font-mono font-semibold text-emerald-800 border-r border-slate-200">
+                          {reservation.hotelConfirmationNo || '-'}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-bold text-slate-800 border-r border-slate-200">{room.qty}</td>
+                        <td className="py-1.5 px-1.5 text-slate-700 font-medium border-r border-slate-200">
+                          {room.roomType}
+                          <div className="text-[8px] text-slate-400 mt-0.5">{room.view || 'Standard'}</div>
+                        </td>
+                        <td className="py-1.5 px-1.5 text-slate-700 font-semibold border-r border-slate-200">{abbreviateMealPlan(room.mealPlan)}</td>
+                        <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkIn)}</td>
+                        <td className="py-1.5 px-1.5 text-center font-bold border-r border-slate-200">{reservation.nights}</td>
+                        <td className="py-1.5 px-1.5 text-center font-mono border-r border-slate-200">{formatStandardDate(reservation.checkOut)}</td>
+                        <td className="py-1.5 px-1.5 text-right font-mono text-[9px] text-slate-600 border-r border-slate-200 whitespace-pre" title={breakdownParts.join('\n')}>
+                          {rateStr}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-right font-bold text-slate-900 font-mono">
+                          {lineTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {/* Net Accommodation Charge row */}
+                  <tr className="bg-slate-50 border-t border-slate-300 font-bold">
+                    <td colSpan={10} className="py-1 px-2 text-right text-slate-700 font-sans border-r border-slate-200 uppercase text-[9px] tracking-wider">
+                      Net Accommodation Charge
+                    </td>
+                    <td className="py-1 px-2 text-right font-mono text-slate-900 font-extrabold text-[10px]">
+                      {totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* VAT Accounting summary block */}
+            <div className="bg-white border-2 border-slate-200 rounded-xl p-2.5 max-w-sm ml-auto mr-0 my-2 text-xs font-semibold space-y-1 font-sans">
+              <div className="flex justify-between text-slate-600">
+                <span>Total</span>
+                <span className="font-mono font-bold text-slate-900">{calculatedNet.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>VAT 15%</span>
+                <span className="font-mono font-bold text-slate-900">{calculatedVat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="border-t border-slate-200 pt-2 flex justify-between text-sm font-black text-slate-900">
+                <span>Total Net Value</span>
+                <span className="font-mono font-extrabold">{totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            {/* Terms & Conditions Block */}
+            <div className="mt-2 border-t border-slate-100 pt-2 text-[10px] font-sans">
+              <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Terms & Conditions:</h3>
+              <div className="text-[9px] text-slate-600 space-y-0 font-medium leading-snug max-w-2xl text-left">
+                {(() => {
+                  const selectedTc = reservation.tcId ? termsAndConditionsList.find(tc => tc.id === reservation.tcId) : null;
+                  const defaultTc = !selectedTc ? termsAndConditionsList.find(tc => tc.isDefault && tc.active) : null;
+                  const activeTc = selectedTc || defaultTc;
+                  if (activeTc) {
+                    return (
+                      <>
+                        {activeTc.content.split('\n').map((line, i) => (
+                          <p key={i}>{line}</p>
+                        ))}
+                        {reservation.termsAndConditions && (
+                          <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-200">Additional: {reservation.termsAndConditions}</p>
+                        )}
+                      </>
+                    );
+                  }
+                  return (
+                    <>
+                      <p>- Rates quoted in Saudi Riyals (SAR) and are subject to availability at the time of booking.</p>
+                      <p>- Rooms are subject to availability at the time of confirmation.</p>
+                      <p>- Check-in: 12:00 PM / Check-out: 04:00 PM.</p>
+                      <p>- Confirmation is required from the hotel within 48 hours of booking request.</p>
+                      <p>- Cancellation less than 30 days before arrival: 100% of total booking value.</p>
+                      <p>- Cancellation 15-30 days before arrival: 25% of total booking value.</p>
+                      <p>- Cancellation 7-15 days before arrival: 15% of total booking value.</p>
+                      <p>- No-show or late cancellation will be charged the full amount.</p>
+                      <p>- Amendments accepted with applicable rate adjustments as specified.</p>
+                      {reservation.termsAndConditions && (
+                        <p className="text-slate-500 italic font-bold mt-2 leading-tight bg-slate-50 p-2 rounded border border-slate-200">Additional: {reservation.termsAndConditions}</p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Bank Accounts Section */}
+            <div className="mt-2 border-t border-slate-200 pt-2 text-[10px] font-sans">
+              <h3 className="font-bold text-slate-900 uppercase underline tracking-wide mb-1 text-[10px]">Our Bank Account</h3>
+              {reservation.bankAccountId ? (() => {
+                const acc = accounts.find(a => a.id === reservation.bankAccountId);
+                if (acc) {
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] leading-relaxed max-w-2xl text-slate-600 font-medium">
+                      <div>
+                        <p><span className="font-extrabold text-slate-800 inline-block w-28">Account name</span> {acc.accountHolderName || ''}</p>
+                        <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-28">Bank name</span> {acc.name}</p>
+                        <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-28">Branch</span> -</p>
+                      </div>
+                      <div>
+                        <p><span className="font-extrabold text-slate-800 inline-block w-24">Account #</span> {acc.code || '-'}</p>
+                        <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24">IBAN #</span> {acc.accountNumber || '-'}</p>
+                        <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24">Swift Code</span> {acc.currency || 'SAR'}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })() : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1.5 text-[11px] leading-relaxed max-w-2xl text-slate-600 font-medium">
+                  <div>
+                    <p><span className="font-extrabold text-slate-800 inline-block w-28">Account name</span> زمرة للتسويق السياحي</p>
+                    <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-28">Bank name</span> بنك مصر</p>
+                    <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-28">Branch</span> -</p>
+                  </div>
+                  <div>
+                    <p><span className="font-extrabold text-slate-800 inline-block w-24">Account #</span> 7810137000000095</p>
+                    <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24">IBAN #</span> EG040002078107810137000000095</p>
+                    <p className="mt-0.5"><span className="font-extrabold text-slate-800 inline-block w-24">Swift Code</span> BMISEGCXXX</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Thanks & Regards */}
+            <div className="flex justify-end items-end border-t border-slate-200 pt-2 mt-2 text-[10px] text-slate-500 font-sans">
+              <div className="text-right">
+                <p className="font-bold text-slate-700 italic">Thanks, and Best Regards</p>
+                <p className="text-sm font-bold text-slate-900 mt-1 block uppercase font-sans">{creatorName || reservation.createdBy || ''}</p>
+                <p className="text-[10px] text-slate-400 font-medium">{creatorJobTitle}, Zumra Hotels</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  );
+}

@@ -10,7 +10,7 @@ export interface SmartSelectOption {
   id: string;
   label: string;
   sublabel?: string;    // Secondary text (e.g. Arabic name)
-  number?: number;       // Numeric lookup (hotel number, agent number)
+  number?: string | number;       // Lookup number (hotel number, agent ID like C-001)
   badge?: string;        // Badge text (e.g. city, stars)
   disabled?: boolean;    // Greyed out option
   warning?: string;      // Warning text (e.g. Suspended, Blacklisted)
@@ -206,7 +206,7 @@ export default function SmartSelect({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 {selectedOption.number && (
-                  <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">#{selectedOption.number}</span>
+                  <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded">{selectedOption.number}</span>
                 )}
                 <span className={`text-xs font-semibold truncate ${selectedOption.warning ? 'text-rose-600' : 'text-slate-800'}`}>
                   {selectedOption.label}
@@ -285,7 +285,7 @@ export default function SmartSelect({
               >
                 <div className="flex items-center gap-2">
                   {opt.number !== undefined && (
-                    <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded shrink-0">#{opt.number}</span>
+                    <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 rounded shrink-0">{opt.number}</span>
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">

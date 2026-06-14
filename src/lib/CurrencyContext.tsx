@@ -48,12 +48,30 @@ function saveCache(data: CachedRates): void {
   } catch {}
 }
 
-// Cache validity: 5 hours (extended caching for performance)
-const CACHE_VALIDITY_MS = 5 * 60 * 60 * 1000; // 5 hours
+// Cache validity: 24 hours (refresh once daily at 9 AM Cairo time)
+const CACHE_VALIDITY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Egypt UTC offset: +2 (EET winter) or +3 (EEST summer, April-October)
+const EGYPT_UTC_OFFSET = 3;
 
 function isCacheFresh(cached: CachedRates | null): boolean {
   if (!cached) return false;
   return (Date.now() - cached.fetchedAt) < CACHE_VALIDITY_MS;
+}
+
+/** Get milliseconds until next 9 AM Cairo time */
+function getMsUntilNext9AMCairo(): number {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const cairoNow = new Date(utcMs + EGYPT_UTC_OFFSET * 3600000);
+  const next9AM = new Date(cairoNow);
+  next9AM.setUTCHours(9, 0, 0, 0);
+  if (cairoNow.getTime() >= next9AM.getTime()) {
+    next9AM.setUTCDate(next9AM.getUTCDate() + 1);
+  }
+  // Convert back to local time ms
+  const next9AMLocal = next9AM.getTime() - EGYPT_UTC_OFFSET * 3600000 - now.getTimezoneOffset() * 60000;
+  return next9AMLocal - now.getTime();
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -129,9 +147,19 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchRates();
-    // Check every 5 hours if cache has expired
-    const interval = setInterval(fetchRates, 5 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
+
+    // Schedule next refresh at 9 AM Cairo time, then every 24h after
+    const scheduleNextRefresh = () => {
+      const msUntil9AM = getMsUntilNext9AMCairo();
+      return setTimeout(() => {
+        fetchRates();
+        // After the 9 AM refresh, set a 24h interval for subsequent checks
+        timerId = setInterval(fetchRates, 24 * 60 * 60 * 1000);
+      }, msUntil9AM);
+    };
+
+    let timerId: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> = scheduleNextRefresh();
+    return () => clearTimeout(timerId as any);
   }, []);
 
   const convertAmount = (amount: number, from: Currency, to: Currency): number => {

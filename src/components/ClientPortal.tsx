@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Reservation, Agent, Hotel } from '../types';
 import { getReservationTotals } from '../lib/storage';
 import { loadPortalSettings, PortalVisibilitySettings } from './ClientPortalSettings';
@@ -21,7 +21,18 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [loadTimeout, setLoadTimeout] = useState(false);
   const visibility: PortalVisibilitySettings = loadPortalSettings();
+
+  // Timeout for loading state - if agents don't load in 10s, show error
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (agents.length === 0) {
+        setLoadTimeout(true);
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [agents.length]);
 
   const client = agents.find(a => a.id === clientId);
   const clientName = client?.companyName || client?.name || 'Client';
@@ -74,10 +85,26 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
       </div>
 
       {/* Data Loading Indicator */}
-      {agents.length === 0 && (
+      {agents.length === 0 && !loadTimeout && (
         <div className="max-w-5xl mx-auto px-6 py-12 text-center">
           <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-sm font-medium text-slate-500">Loading your bookings...</p>
+          <p className="text-xs text-slate-400 mt-2">If this takes too long, please refresh the page.</p>
+        </div>
+      )}
+
+      {/* Loading Timeout Error */}
+      {agents.length === 0 && loadTimeout && (
+        <div className="max-w-5xl mx-auto px-6 py-16 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-slate-700 mb-2">Unable to Load Bookings</h2>
+          <p className="text-sm text-slate-500 mb-4">We couldn't connect to the database. This might be due to a temporary service issue.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition"
+          >
+            Try Again
+          </button>
         </div>
       )}
 

@@ -136,7 +136,13 @@ export default function ConsolidatedInvoiceBuilder({
 
     const invoice: ConsolidatedInvoice = {
       id: `cinv_${Date.now()}`,
-      invoiceNo: `CINV-${String(consolidatedInvoices.length + 1).padStart(3, '0')}`,
+      invoiceNo: (() => {
+        const maxNum = consolidatedInvoices.reduce((max, ci) => {
+          const m = ci.invoiceNo?.match(/^CINV-(\d+)$/);
+          return m ? Math.max(max, parseInt(m[1], 10)) : max;
+        }, 0);
+        return `CINV-${String(maxNum + 1).padStart(3, '0')}`;
+      })(),
       clientId,
       items,
       currency,
@@ -158,10 +164,10 @@ export default function ConsolidatedInvoiceBuilder({
   const fmt = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95dvh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Create Consolidated Invoice</h2>
             <p className="text-xs text-slate-500">Combine multiple services into one invoice</p>
@@ -312,7 +318,7 @@ export default function ConsolidatedInvoiceBuilder({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
+        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-slate-50">
           <button onClick={onClose} className="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-300">Cancel</button>
           <button onClick={handleSave} disabled={items.length === 0} className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Create Invoice & Open PDF

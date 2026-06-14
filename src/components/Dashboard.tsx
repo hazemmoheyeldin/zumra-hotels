@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Reservation, Agent, Hotel, User, FollowUp, Allotment, Transaction } from '../types';
-import { getReservationTotals, getEgyptTime } from '../lib/storage';
+import { Reservation, Agent, Hotel, User, FollowUp, Allotment, Transaction, Expense } from '../types';
+import { getReservationTotals, getEgyptTime, getAgentActualBalance } from '../lib/storage';
 import { useCurrency } from '../lib/CurrencyContext';
 import { useLang } from '../lib/LanguageContext';
 import { sendDailySummaryEmail, isEmailConfigured } from '../lib/email';
@@ -21,12 +21,14 @@ interface DashboardProps {
   followUps: FollowUp[];
   allotments: Allotment[];
   transactions: Transaction[];
+  expenses?: Expense[];
   currentUser: User;
   onNavigate: (tab: string, initialFilters?: any) => void;
   onQuickReservation: () => void;
+  globalDateRange?: { label: string; from: string; to: string } | null;
 }
 
-export default function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, currentUser, onNavigate, onQuickReservation }: DashboardProps) {
+function Dashboard({ reservations, agents, hotels, users, followUps, allotments, transactions, expenses = [], currentUser, onNavigate, onQuickReservation, globalDateRange }: DashboardProps) {
   const todayStr = getEgyptTime().toISOString().split('T')[0];
   const [sendingSummary, setSendingSummary] = useState(false);
   const [showDailyOps, setShowDailyOps] = useState(false);
@@ -65,7 +67,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
     const checkOuts = reservations.filter(r => r.checkOut === todayStr && r.status !== 'Cancelled');
     const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
     const cancToday = reservations.filter(r => r.status === 'Cancelled' && r.cancellationReason && r.createdAt.startsWith(todayStr));
-    const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+    const activeRes = reservations.filter(r => r.status === 'Confirmed');
     let totalRev = 0, totalCst = 0, totalComm = 0;
     activeRes.forEach(r => {
       const totals = getReservationTotals(r);
@@ -74,7 +76,8 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       totalComm += totals.totalCommission;
     });
     const grossProfit = totalRev - totalCst;
-    const netProfit = grossProfit - totalComm;
+    const totalExpAmt = expenses.reduce((s, e) => s + e.amount, 0);
+    const netProfit = grossProfit - totalComm - totalExpAmt;
     const summary = `Zumra Hotels - Daily Summary ${todayStr}\n\n` +
       `Check-ins Today: ${checkIns.length}\n` +
       `Check-outs Today: ${checkOuts.length}\n` +
@@ -85,6 +88,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       `Total Cost: ${totalCst.toLocaleString()} SAR\n` +
       `Gross Profit: ${grossProfit.toLocaleString()} SAR\n` +
       `Commission: ${totalComm.toLocaleString()} SAR\n` +
+      `Expenses: ${totalExpAmt.toLocaleString()} SAR\n` +
       `Net Profit: ${netProfit.toLocaleString()} SAR`;
     const result = await sendDailySummaryEmail(adminEmail, summary, `Daily Summary - ${todayStr}`);
     setSendingSummary(false);
@@ -102,42 +106,50 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
   // Filtered reservations based on dashboard filters
   const filteredReservations = useMemo(() => {
     let list = reservations;
-    if (dateFrom) list = list.filter(r => r.createdAt.split(' ')[0] >= dateFrom);
-    if (dateTo) list = list.filter(r => r.createdAt.split(' ')[0] <= dateTo);
+    if (globalDateRange) {
+      list = list.filter(r => r.createdAt.split(' ')[0] >= globalDateRange.from && r.createdAt.split(' ')[0] <= globalDateRange.to);
+    } else {
+      if (dateFrom) list = list.filter(r => r.createdAt.split(' ')[0] >= dateFrom);
+      if (dateTo) list = list.filter(r => r.createdAt.split(' ')[0] <= dateTo);
+    }
     if (statusFilter !== 'All') list = list.filter(r => r.status === statusFilter);
     return list;
-  }, [reservations, dateFrom, dateTo, statusFilter]);
+  }, [reservations, dateFrom, dateTo, statusFilter, globalDateRange]);
 
   // ALL dashboard statistics computed in a SINGLE pass to prevent repeated iterations
   const dashboardStats = useMemo(() => {
     let reservationsTodayCount = 0;
     let totalBookings = filteredReservations.length;
     let tentativeBookings = 0, confirmedBookings = 0, cancelledBookings = 0;
-    let totalRevenue = 0, totalCost = 0;
+    let totalRevenue = 0, totalCost = 0, totalCommissions = 0;
     const checkInsTodayList: Reservation[] = [];
     const expiringOptionsList: Reservation[] = [];
     const inHouseListLocal: Reservation[] = [];
 
     for (const res of filteredReservations) {
       if (res.createdAt.startsWith(todayStr)) reservationsTodayCount++;
-      if (res.status === 'Tentative') tentativeBookings++;
-      else if (res.status === 'Confirmed') confirmedBookings++;
-      else if (res.status === 'Cancelled') { cancelledBookings++; continue; }
+      if (res.status === 'Tentative') {
+        tentativeBookings++;
+        if (res.clientOptionDate === todayStr) expiringOptionsList.push(res);
+        continue; // EXCLUDE from revenue
+      }
+      if (res.status === 'Confirmed') confirmedBookings++;
+      if (res.status === 'Cancelled') { cancelledBookings++; continue; }
 
-      const { totalSell, totalBuy } = getReservationTotals(res);
+      const { totalSell, totalBuy, totalCommission } = getReservationTotals(res);
       totalRevenue += totalSell;
       totalCost += totalBuy;
+      totalCommissions += totalCommission;
 
       if (res.checkIn === todayStr) checkInsTodayList.push(res);
-      if (res.clientOptionDate === todayStr && res.status === 'Tentative') expiringOptionsList.push(res);
-      if (res.checkIn <= todayStr && res.checkOut > todayStr && res.status === 'Confirmed') inHouseListLocal.push(res);
+      if (res.checkIn <= todayStr && res.checkOut > todayStr) inHouseListLocal.push(res);
     }
 
     // Supplier/Client stats with O(1) Map lookups instead of O(n) agents.find()
     const supplierStats: Record<string, { id: string; name: string; sales: number; roomNights: number; bookings: number }> = {};
     const clientStats: Record<string, { id: string; name: string; sales: number; roomNights: number; bookings: number }> = {};
     for (const res of filteredReservations) {
-      if (res.status === 'Cancelled') continue;
+      if (res.status === 'Cancelled' || res.status === 'Tentative') continue; // Only Confirmed in stats
       const { totalSell, totalBuy } = getReservationTotals(res);
       const nights = res.rooms.reduce((s, rm) => s + (rm.qty * res.nights), 0);
       // Supplier
@@ -160,7 +172,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 
     return {
       reservationsTodayCount, totalBookings, tentativeBookings, confirmedBookings, cancelledBookings,
-      totalRevenue, totalCost, totalProfit: totalRevenue - totalCost,
+      totalRevenue, totalCost, totalCommissions, totalProfit: totalRevenue - totalCost,
       checkInsToday: checkInsTodayList, expiringOptions: expiringOptionsList, inHouseList: inHouseListLocal,
       topSuppliers: topSuppliersLocal, topClients: topClientsLocal,
     };
@@ -168,8 +180,12 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 
   // Destructure for easy access
   const { reservationsTodayCount, totalBookings, tentativeBookings, confirmedBookings, cancelledBookings,
-    totalRevenue, totalCost, totalProfit, checkInsToday, expiringOptions, inHouseList,
+    totalRevenue, totalCost, totalCommissions, totalProfit, checkInsToday, expiringOptions, inHouseList,
     topSuppliers, topClients } = dashboardStats;
+
+  // Net Profit: Revenue - Cost - Commissions - Expenses
+  const totalExpensesAmt = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
+  const netProfit = totalProfit - totalCommissions - totalExpensesAmt;
   const reservationsToday = checkInsToday; // alias used in template
 
   // Upcoming check-ins (next 7 days)
@@ -185,21 +201,53 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
       .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
   }, [filteredReservations, todayStr]);
 
-  // Occupancy rate
+  // Occupancy rate — uses real allotment room counts when available
+  const totalAvailableRooms = useMemo(() => {
+    const activeAllotments = allotments.filter(a => a.startDate <= todayStr && a.endDate >= todayStr);
+    const fromAllotments = activeAllotments.reduce((sum, a) => sum + a.totalRooms, 0);
+    return fromAllotments > 0 ? fromAllotments : (hotels.length || 1) * 100;
+  }, [allotments, hotels, todayStr]);
+
   const occupancyRate = useMemo(() => {
     const totalInHouseRooms = inHouseList.reduce((sum, res) => sum + res.rooms.reduce((s, rm) => s + rm.qty, 0), 0);
-    const totalHotelRooms = (hotels.length || 1) * 100;
-    return Math.min(100, Math.round((totalInHouseRooms / totalHotelRooms) * 100));
-  }, [inHouseList, hotels]);
+    return Math.min(100, Math.round((totalInHouseRooms / totalAvailableRooms) * 100));
+  }, [inHouseList, totalAvailableRooms]);
 
-  // Filter pending follow-ups: only show those relevant to the current user
+  // Credit limit alerts: check all clients with credit limits
+  const creditLimitAlerts = useMemo(() => {
+    const alerts: { agent: Agent; outstanding: number; limit: number; pct: number }[] = [];
+    agents.filter(a => (a.type === 'Customer' || a.type === 'Both') && a.creditLimit && a.creditLimit > 0).forEach(agent => {
+      // Sum unpaid confirmed bookings for this client
+      const clientRes = reservations.filter(r => r.clientId === agent.id && r.status === 'Confirmed');
+      let unpaidTotal = 0;
+      clientRes.forEach(r => {
+        const { totalSell } = getReservationTotals(r);
+        const outstanding = totalSell - (r.amountPaidByClient || 0);
+        if (outstanding > 0) unpaidTotal += outstanding;
+      });
+      const pct = (unpaidTotal / agent.creditLimit!) * 100;
+      if (pct >= 80) {
+        alerts.push({ agent, outstanding: unpaidTotal, limit: agent.creditLimit!, pct });
+      }
+    });
+    return alerts.sort((a, b) => b.pct - a.pct);
+  }, [agents, reservations]);
+
+  // Filter pending follow-ups: only show genuine CRM activities (not system-generated)
+  const NON_CRM_PATTERNS = ['Option Expiry - RSV-', 'Payment', 'Booking', 'Transaction', 'Cancellation', 'Refund', 'Invoice'];
   const pendingFollowUps = useMemo(() => {
     const agentIds = new Set(agents.map(a => a.id));
     return followUps.filter(f => {
       if (f.status !== 'Pending') return false;
       if (f.date > todayStr) return false;
-      if (f.clientId && !agentIds.has(f.clientId)) return false;
+      if (!f.clientId) return false;
+      if (!agentIds.has(f.clientId)) return false;
+      const client = agents.find(a => a.id === f.clientId);
+      if (!client || client.clientStatus === 'Suspended' || client.clientStatus === 'Blacklisted') return false;
       if (currentUser && f.createdBy !== currentUser.name && f.createdBy !== currentUser.id) return false;
+      // Exclude system-generated / non-CRM topics
+      const topic = f.topic || '';
+      if (NON_CRM_PATTERNS.some(p => topic.includes(p))) return false;
       return true;
     });
   }, [followUps, agents, todayStr, currentUser]);
@@ -686,10 +734,10 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
               const checkIns = reservations.filter(r => r.checkIn === todayStr && r.status !== 'Cancelled');
               const checkOuts = reservations.filter(r => r.checkOut === todayStr && r.status !== 'Cancelled');
               const newToday = reservations.filter(r => r.createdAt.startsWith(todayStr));
-              const activeRes = reservations.filter(r => r.status !== 'Cancelled');
+              const activeRes = reservations.filter(r => r.status === 'Confirmed');
               const totalRev = activeRes.reduce((s, r) => s + getReservationTotals(r).totalSell, 0);
-              const totalProfit = activeRes.reduce((s, r) => { const { totalSell } = getReservationTotals(r); const { totalBuy } = getReservationTotals(r); return s + (totalSell - totalBuy); }, 0);
-              const text = `Zumra Hotels - ${todayStr}\nCheck-ins: ${checkIns.length} | Check-outs: ${checkOuts.length} | New: ${newToday.length}\nRevenue: ${totalRev.toLocaleString()} SAR | Profit: ${totalProfit.toLocaleString()} SAR`;
+              const totalProfit = activeRes.reduce((s, r) => { const { totalSell, totalBuy } = getReservationTotals(r); return s + (totalSell - totalBuy); }, 0);
+              const text = `Zumra Hotels - ${todayStr}\nCheck-ins: ${checkIns.length} | Check-outs: ${checkOuts.length} | New: ${newToday.length}\nRevenue: ${totalRev.toLocaleString()} SAR | Gross: ${totalProfit.toLocaleString()} SAR`;
               navigator.clipboard.writeText(text).then(() => alert('Summary copied to clipboard!'));
             }}
             className="bg-slate-600 font-bold hover:bg-slate-700 text-white px-3 py-2 min-h-[36px] rounded-xl text-[10px] transition flex items-center gap-1 shadow-lg cursor-pointer"
@@ -731,7 +779,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-sm card-hover-lift">
           <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">{t('dash.revenue')}</div>
           <div className="text-lg font-extrabold text-emerald-800 font-mono mt-1">{totalRevenue.toLocaleString()}</div>
-          <div className="text-[9px] text-emerald-500">SAR</div>
+          <div className="text-[9px] text-emerald-500">SAR (Confirmed only)</div>
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm card-hover-lift">
@@ -741,14 +789,58 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
         </div>
 
         <div className={`rounded-2xl p-4 shadow-sm border ${totalProfit >= 0 ? 'bg-indigo-50 border-indigo-200' : 'bg-rose-50 border-rose-200'}`}>
-          <div className={`text-[9px] font-bold uppercase tracking-wide ${totalProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>{t('dash.profit')}</div>
+          <div className={`text-[9px] font-bold uppercase tracking-wide ${totalProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>{t('dash.profit')} (Gross)</div>
           <div className={`text-lg font-extrabold font-mono mt-1 ${totalProfit >= 0 ? 'text-indigo-800' : 'text-rose-800'}`}>{totalProfit.toLocaleString()}</div>
           <div className={`text-[9px] ${totalProfit >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>SAR</div>
+        </div>
+
+        <div className={`rounded-2xl p-4 shadow-sm border ${netProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+          <div className={`text-[9px] font-bold uppercase tracking-wide ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>Net Profit</div>
+          <div className={`text-lg font-extrabold font-mono mt-1 ${netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>{netProfit.toLocaleString()}</div>
+          <div className={`text-[9px] ${netProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>After comm. ({totalCommissions.toLocaleString()}) + exp. ({totalExpensesAmt.toLocaleString()})</div>
         </div>
       </div>
 
       {/* Multi-Currency Summary */}
       <MultiCurrencyBar amount={totalRevenue} label={t('dash.revenue')} />
+
+      {/* Credit Limit Alerts */}
+      {creditLimitAlerts.length > 0 && (
+        <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">🚨</span>
+            <h3 className="text-sm font-bold text-rose-800">Credit Limit Alerts ({creditLimitAlerts.length})</h3>
+            <button
+              onClick={() => onNavigate('Agents', { filterType: 'Customer' })}
+              className="ml-auto text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition"
+            >
+              View All Clients →
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {creditLimitAlerts.slice(0, 6).map(({ agent, outstanding, limit, pct }) => (
+              <div
+                key={agent.id}
+                className={`flex items-center gap-3 p-2.5 rounded-xl border ${
+                  pct >= 100 ? 'bg-rose-100 border-rose-300' : 'bg-amber-50 border-amber-200'
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-slate-800 truncate">{agent.companyName || agent.name}</div>
+                  <div className="text-[9px] text-slate-500">
+                    {outstanding.toLocaleString()} / {limit.toLocaleString()} SAR
+                  </div>
+                </div>
+                <div className={`text-xs font-extrabold font-mono ${
+                  pct >= 100 ? 'text-rose-700' : 'text-amber-700'
+                }`}>
+                  {pct.toFixed(0)}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Upcoming Check-ins + Occupancy + Quick Actions Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -766,7 +858,7 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
             <div className="text-xs text-slate-500">
               <div className="font-bold text-slate-700">{t('dash.groupsInHouse', { count: inHouseList.length })}</div>
               <div className="mt-1">{t('dash.roomsOccupied', { count: inHouseList.reduce((s, r) => s + r.rooms.reduce((a, rm) => a + rm.qty, 0), 0) })}</div>
-              <div className="mt-1 text-[10px] text-slate-400">{t('dash.basedOnHotels', { count: hotels.length })}</div>
+              <div className="mt-1 text-[10px] text-slate-400">{totalAvailableRooms} rooms available</div>
             </div>
           </div>
         </div>
@@ -1287,12 +1379,21 @@ export default function Dashboard({ reservations, agents, hotels, users, followU
 function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) {
   const { fxRates, isLiveRates, ratesTimestamp, ratesSource, refreshRates } = useCurrency();
   const { t } = useLang();
+  const [visible, setVisible] = useState(() => {
+    try { return localStorage.getItem('zumra_multi_currency_visible') !== 'false'; } catch { return true; }
+  });
   const currencies = [
     { code: 'SAR', symbol: 'SAR', flag: '🇸🇦' },
     { code: 'USD', symbol: '$', flag: '🇺🇸' },
     { code: 'EGP', symbol: 'EGP', flag: '🇪🇬' },
     { code: 'EUR', symbol: '€', flag: '🇪🇺' },
   ];
+
+  const toggleVisibility = () => {
+    const next = !visible;
+    setVisible(next);
+    localStorage.setItem('zumra_multi_currency_visible', String(next));
+  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
@@ -1312,23 +1413,32 @@ function MultiCurrencyBar({ amount, label }: { amount: number; label: string }) 
             <span className="text-[8px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{ratesSource}</span>
           )}
         </span>
-        <button onClick={refreshRates} className="text-[9px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer hover:underline">{t('currency.refreshRates')}</button>
+        <div className="flex items-center gap-2">
+          <button onClick={toggleVisibility} className="text-[9px] text-slate-500 hover:text-slate-700 font-medium cursor-pointer hover:underline">
+            {visible ? '👁️ Hide' : '👁️‍🗨️ Show'}
+          </button>
+          <button onClick={refreshRates} className="text-[9px] text-blue-600 hover:text-blue-800 font-medium cursor-pointer hover:underline">{t('currency.refreshRates')}</button>
+        </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {currencies.map(c => {
-          const rate = fxRates[c.code as keyof typeof fxRates];
-          const converted = amount * rate;
-          return (
-            <div key={c.code} className="bg-slate-50 rounded-lg p-2 text-center group relative cursor-default" title={`1 SAR = ${rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} ${c.code}`}>
-              <div className="text-[10px] text-slate-500">{c.flag} {c.code}</div>
-              <div className="text-sm font-bold text-slate-800 font-mono">{converted.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 mb-1 transition-opacity">
-                1 SAR = {rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} {c.code}
+      {visible && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {currencies.map(c => {
+            const rate = fxRates[c.code as keyof typeof fxRates];
+            const converted = amount * rate;
+            return (
+              <div key={c.code} className="bg-slate-50 rounded-lg p-2 text-center group relative cursor-default" title={`1 SAR = ${rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} ${c.code}`}>
+                <div className="text-[10px] text-slate-500">{c.flag} {c.code}</div>
+                <div className="text-sm font-bold text-slate-800 font-mono">{converted.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10 mb-1 transition-opacity">
+                  1 SAR = {rate.toLocaleString('en-US', { minimumFractionDigits: 4 })} {c.code}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+
+export default React.memo(Dashboard);

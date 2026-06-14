@@ -88,6 +88,22 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
 
   const migratedAllotments = useMemo(() => allotments.map(migrateAllotment), [allotments]);
 
+  // Today's utilization summary
+  const utilizationStats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const activeAllotments = migratedAllotments.filter(a => a.startDate <= today && a.endDate >= today);
+    let totalContracted = 0;
+    let totalBookedToday = 0;
+    activeAllotments.forEach(a => {
+      totalContracted += a.totalRooms;
+      if (a.dailyAvailability?.[today]) {
+        totalBookedToday += a.dailyAvailability[today].booked;
+      }
+    });
+    const pct = totalContracted > 0 ? Math.round((totalBookedToday / totalContracted) * 100) : 0;
+    return { totalContracted, totalBookedToday, available: totalContracted - totalBookedToday, pct, activeCount: activeAllotments.length };
+  }, [migratedAllotments]);
+
   // Filtered allotments
   const filteredAllotments = useMemo(() => {
     return migratedAllotments.filter(a => {
@@ -232,6 +248,27 @@ export default function AllotmentsPage({ allotments, hotels, agents, onSaveAllot
           <div className="text-2xl font-black text-indigo-800">{new Set(allotments.map(a => a.supplierId)).size}</div>
         </div>
       </div>
+
+      {/* Utilization Summary Bar */}
+      {utilizationStats.activeCount > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div className="text-[10px] uppercase font-bold text-slate-400">Today's Room Utilization</div>
+            <div className="flex items-center gap-4 text-xs">
+              <span className="font-bold text-slate-700">{utilizationStats.totalContracted} contracted</span>
+              <span className="font-bold text-amber-600">{utilizationStats.totalBookedToday} booked</span>
+              <span className="font-bold text-emerald-600">{utilizationStats.available} available</span>
+              <span className={`font-black text-sm ${utilizationStats.pct >= 80 ? 'text-rose-600' : utilizationStats.pct >= 50 ? 'text-amber-600' : 'text-emerald-600'}`}>{utilizationStats.pct}%</span>
+            </div>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2.5">
+            <div
+              className={`h-2.5 rounded-full transition-all duration-500 ${utilizationStats.pct >= 80 ? 'bg-rose-500' : utilizationStats.pct >= 50 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+              style={{ width: `${Math.min(100, utilizationStats.pct)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="bg-white border border-slate-150 rounded-2xl p-4 md:p-6 shadow-sm text-xs">
         {/* Title block */}

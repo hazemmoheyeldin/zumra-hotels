@@ -5,8 +5,13 @@
  * this module to ensure data consistency, audit traceability, and
  * double-entry verification across the entire application.
  */
-import { Reservation, Transaction, Agent, Account } from '../types';
+import { Reservation, Transaction, Agent, Account, OtherService } from '../types';
 import { getReservationTotals, getNextVoucherNo, getNextDocNo } from './storage';
+
+// ─── Base Currency ─────────────────────────────────────────────────
+// All general ledger aggregations (Balance Sheet, Income Statement,
+// Under Collection, account balances) are strictly normalized to this currency.
+export const BASE_CURRENCY = 'SAR';
 
 // ─── Utility Math Functions ──────────────────────────────────────────
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
@@ -15,6 +20,44 @@ export const safeSubtract = (a: number, b: number): number => round2(a - b);
 export const sumAmounts = (amounts: number[]): number => amounts.reduce((s, v) => safeAdd(s, v || 0), 0);
 export const absAmount = (n: number): number => Math.abs(round2(n || 0));
 export const amountsEqual = (a: number, b: number): boolean => Math.abs(round2(a) - round2(b)) < 0.01;
+
+// ─── Multi-Currency Normalization Utility ─────────────────────────
+// Single function for all currency conversions across the app.
+// Prevents inline math and ensures consistent rounding.
+export function calculateBaseCurrency(
+  amount: number,
+  rate: number,
+  currency: string
+): { transactionAmount: number; transactionCurrency: string; exchangeRate: number; baseAmountSAR: number } {
+  if (currency === BASE_CURRENCY || !rate || rate <= 0) {
+    return { transactionAmount: round2(amount), transactionCurrency: BASE_CURRENCY, exchangeRate: 1, baseAmountSAR: round2(amount) };
+  }
+  // rate = units of foreign currency per 1 SAR (e.g. 14 EGP per 1 SAR)
+  const baseAmountSAR = round2(amount / rate);
+  return { transactionAmount: round2(amount), transactionCurrency: currency, exchangeRate: rate, baseAmountSAR };
+}
+
+// Compute original-currency balance for a specific account from transaction history.
+// Returns a map of { currency: balance } for all currencies that flowed through this account.
+export function computeAccountCurrencyBalances(
+  accountId: string,
+  transactions: Transaction[]
+): Record<string, number> {
+  const balances: Record<string, number> = {};
+  transactions.forEach(tr => {
+    if (tr.fromAccountId !== accountId) return;
+    const curr = tr.originalCurrency || BASE_CURRENCY;
+    const origAmt = tr.originalAmount || tr.amount;
+    let modifier = 0;
+    if (tr.type === 'ClientPayment') modifier = origAmt;        // money IN
+    else if (tr.type === 'SupplierPayment') modifier = -origAmt; // money OUT
+    else if (tr.type === 'ClientRefund') modifier = -origAmt;    // money OUT (refund to client)
+    else if (tr.type === 'SupplierRefund') modifier = origAmt;   // money IN (supplier returned)
+    else if (tr.type === 'CreditApplied') modifier = -origAmt;
+    balances[curr] = safeAdd(balances[curr] || 0, modifier);
+  });
+  return balances;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────
 export interface FinanceResult {
@@ -90,6 +133,7 @@ export function recordPayment(params: {
     originalCurrency: currency || 'SAR',
     originalAmount: currency === 'EGP' ? originalAmount : undefined,
     exchangeRate: currency === 'EGP' ? exchangeRate : undefined,
+    baseAmountSAR: amount,
     createdBy,
   };
   transactions = [newTr, ...transactions];
@@ -150,10 +194,12 @@ export function recordCancellation(params: {
   agents: Agent[];
   accounts: Account[];
   createdBy: string;
+  refundAccountId?: string; // Optional: which bank/safe account to debit for refunds
 }): FinanceResult & { refundAlerts: any[] } {
-  const { reservation, createdBy } = params;
+  const { reservation, createdBy, refundAccountId } = params;
   let transactions = [...params.transactions];
   let agents = [...params.agents];
+  let accounts = [...params.accounts];
   const auditEntries: FinanceAuditEntry[] = [];
   const refundAlerts: any[] = [];
 
@@ -187,13 +233,47 @@ export function recordCancellation(params: {
       detail: `Client credit of ${clientPaid.toLocaleString()} SAR from cancellation`,
     });
   } else if (reservation.clientCreditDisposition === 'Refunded' && clientPaid > 0) {
+    // Create actual Bank/Safes outflow transaction for the refund
+    const refundTr: Transaction = {
+      id: `tr_refund_client_${reservation.id}_${Date.now()}`,
+      docNo: getNextDocNo('REF-C', transactions),
+      date: today(),
+      type: 'ClientRefund',
+      amount: clientPaid,
+      fromAccountId: refundAccountId,
+      agentId: reservation.clientId,
+      reservationId: reservation.id.toString(),
+      description: `Refund to client for cancelled RSV-${reservation.id} (${reservation.guestName})`,
+      paymentMethod: 'Bank Transfer',
+      voucherNo: getNextVoucherNo('REF', transactions),
+      createdBy,
+    };
+    transactions = [...transactions, refundTr];
+    // Reduce bank/safe balance
+    if (refundAccountId) {
+      accounts = accounts.map(acc => acc.id === refundAccountId
+        ? { ...acc, balance: safeSubtract(acc.balance, clientPaid) } : acc);
+    }
+    // Reduce agent balance (reverse the payment)
+    agents = agents.map(a => a.id === reservation.clientId
+      ? { ...a, balance: safeSubtract(a.balance, clientPaid) } : a);
+    auditEntries.push({
+      id: `fa_${Date.now()}_rc`,
+      timestamp: now(),
+      action: 'Cancellation Refund (Client)',
+      reservationId: reservation.id.toString(),
+      transactionId: refundTr.id,
+      agentId: reservation.clientId,
+      amount: clientPaid,
+      detail: `Client refund of ${clientPaid.toLocaleString()} SAR from cancellation — Bank outflow`,
+    });
     refundAlerts.push({
       id: `refund_client_${reservation.id}_${Date.now()}`,
       bookingId: reservation.id,
       amount: clientPaid,
       party: 'Client',
       partyId: reservation.clientId,
-      status: 'Pending',
+      status: 'Processed',
       createdAt: now(),
       note: reservation.clientCreditNote || undefined,
     });
@@ -229,13 +309,47 @@ export function recordCancellation(params: {
       detail: `Supplier credit of ${supplierPaid.toLocaleString()} SAR from cancellation`,
     });
   } else if (reservation.supplierCreditDisposition === 'Refunded' && supplierPaid > 0) {
+    // Create actual Bank/Safes outflow transaction for the refund
+    const refundTr: Transaction = {
+      id: `tr_refund_supp_${reservation.id}_${Date.now()}`,
+      docNo: getNextDocNo('REF-S', transactions),
+      date: today(),
+      type: 'SupplierRefund',
+      amount: supplierPaid,
+      fromAccountId: refundAccountId,
+      agentId: reservation.supplierId,
+      reservationId: reservation.id.toString(),
+      description: `Refund from supplier for cancelled RSV-${reservation.id} (${reservation.guestName})`,
+      paymentMethod: 'Bank Transfer',
+      voucherNo: getNextVoucherNo('REF', transactions),
+      createdBy,
+    };
+    transactions = [...transactions, refundTr];
+    // Reduce bank/safe balance (we get money back from supplier - inflow)
+    if (refundAccountId) {
+      accounts = accounts.map(acc => acc.id === refundAccountId
+        ? { ...acc, balance: safeAdd(acc.balance, supplierPaid) } : acc);
+    }
+    // Reduce supplier agent balance (reverse the payment)
+    agents = agents.map(a => a.id === reservation.supplierId
+      ? { ...a, balance: safeSubtract(a.balance, supplierPaid) } : a);
+    auditEntries.push({
+      id: `fa_${Date.now()}_rs`,
+      timestamp: now(),
+      action: 'Cancellation Refund (Supplier)',
+      reservationId: reservation.id.toString(),
+      transactionId: refundTr.id,
+      agentId: reservation.supplierId,
+      amount: supplierPaid,
+      detail: `Supplier refund of ${supplierPaid.toLocaleString()} SAR from cancellation — Bank inflow`,
+    });
     refundAlerts.push({
       id: `refund_supp_${reservation.id}_${Date.now()}`,
       bookingId: reservation.id,
       amount: supplierPaid,
       party: 'Supplier',
       partyId: reservation.supplierId,
-      status: 'Pending',
+      status: 'Processed',
       createdAt: now(),
       note: reservation.supplierCreditNote || undefined,
     });
@@ -297,6 +411,25 @@ export function getAgentBalanceFromLedger(
     else if (tr.type === 'ClientRefund') balance = safeAdd(balance, -tr.amount);
     else if (tr.type === 'SupplierRefund') balance = safeAdd(balance, tr.amount);
     else if (tr.type === 'CreditApplied') balance = safeAdd(balance, tr.amount);
+  });
+  return balance;
+}
+
+/**
+ * Compute the real account balance from transactions only.
+ * This is the actual cash position: opening balance + all inflows - all outflows.
+ * Ignores the stored balance field which may drift over time.
+ */
+export function getAccountRealBalance(account: Account, transactions: Transaction[]): number {
+  let balance = 0;
+  transactions.forEach(tr => {
+    if (tr.fromAccountId !== account.id) return;
+    if (tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied') {
+      balance = safeAdd(balance, tr.amount);
+    } else if (tr.type === 'SupplierPayment' || tr.type === 'ClientRefund') {
+      balance = safeSubtract(balance, tr.amount);
+    }
+    // Transfers are handled separately via handleModifyBalances
   });
   return balance;
 }
@@ -405,4 +538,137 @@ export function verifyDoubleEntry(
     totalRevenueReservations,
     revenueDifference,
   };
+}
+
+// ─── Central Financial Engine: Accrual-Basis Queries ──────────────
+
+/**
+ * Get the SAR-equivalent sell total for an OtherService.
+ */
+export function getServiceSellTotal(svc: OtherService): number {
+  const sellSAR = svc.sellPriceSAR || (svc.sellPrice * (svc.exchangeRate || 1));
+  return round2(sellSAR * svc.quantity * (1 + (svc.taxRate || 0) / 100));
+}
+
+/**
+ * Get the SAR-equivalent buy total for an OtherService.
+ */
+export function getServiceBuyTotal(svc: OtherService): number {
+  const buySAR = svc.buyPriceSAR || (svc.buyPrice * (svc.exchangeRate || 1));
+  return round2(buySAR * svc.quantity);
+}
+
+/**
+ * Get outstanding amount for an OtherService (like getOutstanding for reservations).
+ * For Client: totalSell - amountPaidByClient
+ * For Supplier: totalBuy - amountPaidToSupplier
+ */
+export function getServiceOutstanding(
+  service: OtherService,
+  transactions: Transaction[],
+  party: 'Client' | 'Supplier'
+): number {
+  const totalOwed = party === 'Client' ? getServiceSellTotal(service) : getServiceBuyTotal(service);
+  const fieldPaid = party === 'Client' ? (service.amountPaidByClient || 0) : (service.amountPaidToSupplier || 0);
+
+  // Sum all linked transactions for this service
+  const linkedPaid = transactions
+    .filter(tr =>
+      tr.description?.includes(`Inv: ${service.invoiceNo}`) &&
+      ((party === 'Client' && tr.type === 'ClientPayment') ||
+       (party === 'Supplier' && tr.type === 'SupplierPayment'))
+    )
+    .reduce((sum, tr) => safeAdd(sum, tr.amount), 0);
+
+  const paid = Math.max(fieldPaid, linkedPaid);
+  return Math.max(0, safeSubtract(totalOwed, paid));
+}
+
+/**
+ * Accrual-basis Accounts Receivable: sum of outstanding from all Confirmed
+ * reservations + Confirmed/Completed Other Services.
+ * Only includes what clients still owe (totalSell - amountPaidByClient).
+ */
+export function getTotalAccountsReceivable(
+  reservations: Reservation[],
+  otherServices: OtherService[],
+  transactions: Transaction[]
+): number {
+  // Reservations: Confirmed only
+  const resAR = reservations
+    .filter(r => r.status === 'Confirmed')
+    .reduce((s, r) => {
+      const { totalSell } = getReservationTotals(r);
+      const paid = r.amountPaidByClient || 0;
+      return safeAdd(s, Math.max(0, safeSubtract(totalSell, paid)));
+    }, 0);
+
+  // Other Services: Confirmed + Completed
+  const svcAR = otherServices
+    .filter(s => s.status === 'Confirmed' || s.status === 'Completed')
+    .reduce((s, svc) => {
+      const totalSell = getServiceSellTotal(svc);
+      const paid = svc.amountPaidByClient || 0;
+      return safeAdd(s, Math.max(0, safeSubtract(totalSell, paid)));
+    }, 0);
+
+  return safeAdd(resAR, svcAR);
+}
+
+/**
+ * Accrual-basis Accounts Payable: sum of outstanding owed to suppliers
+ * from all Confirmed reservations + Confirmed/Completed Other Services.
+ * Only includes what we still owe suppliers (totalBuy - amountPaidToSupplier).
+ */
+export function getTotalAccountsPayable(
+  reservations: Reservation[],
+  otherServices: OtherService[],
+  transactions: Transaction[]
+): number {
+  // Reservations: Confirmed only
+  const resAP = reservations
+    .filter(r => r.status === 'Confirmed')
+    .reduce((s, r) => {
+      const { totalBuy } = getReservationTotals(r);
+      const paid = r.amountPaidToSupplier || 0;
+      return safeAdd(s, Math.max(0, safeSubtract(totalBuy, paid)));
+    }, 0);
+
+  // Other Services: Confirmed + Completed
+  const svcAP = otherServices
+    .filter(s => s.status === 'Confirmed' || s.status === 'Completed')
+    .reduce((s, svc) => {
+      const totalBuy = getServiceBuyTotal(svc);
+      const paid = svc.amountPaidToSupplier || 0;
+      return safeAdd(s, Math.max(0, safeSubtract(totalBuy, paid)));
+    }, 0);
+
+  return safeAdd(resAP, svcAP);
+}
+
+/**
+ * Compute total confirmed revenue (sell) in SAR across reservations + services.
+ * Used by Income Statement and Equity calculations.
+ */
+export function getTotalConfirmedRevenue(
+  reservations: Reservation[],
+  otherServices: OtherService[]
+): { revenue: number; cost: number; commissions: number } {
+  let revenue = 0, cost = 0, commissions = 0;
+
+  // Confirmed reservations
+  reservations.filter(r => r.status === 'Confirmed').forEach(r => {
+    const t = getReservationTotals(r);
+    revenue += t.totalSell;
+    cost += t.totalBuy;
+    commissions += t.totalCommission;
+  });
+
+  // Confirmed + Completed other services (NOT Tentative or Cancelled)
+  otherServices.filter(s => s.status === 'Confirmed' || s.status === 'Completed').forEach(s => {
+    revenue += getServiceSellTotal(s);
+    cost += getServiceBuyTotal(s);
+  });
+
+  return { revenue: round2(revenue), cost: round2(cost), commissions: round2(commissions) };
 }

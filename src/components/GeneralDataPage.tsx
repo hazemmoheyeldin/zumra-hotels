@@ -17,7 +17,6 @@ interface GeneralDataPageProps {
   setTermsAndConditions: (list: TermsAndConditions[]) => void;
   hotels: Hotel[];
   onLogAudit: (action: string, entityType: any, entityId: string, detail: string) => void;
-  onResetFinancialData?: () => Promise<void>;
 }
 
 type Tab = 'salesPersons' | 'cancellationReasons' | 'termsConditions' | 'blackoutPeriods' | 'emailTemplates' | 'backup';
@@ -28,7 +27,6 @@ export default function GeneralDataPage({
   termsAndConditions, setTermsAndConditions,
   hotels,
   onLogAudit,
-  onResetFinancialData,
 }: GeneralDataPageProps) {
   const [activeTab, setActiveTab] = useState<Tab>('salesPersons');
   const [search, setSearch] = useState('');
@@ -402,7 +400,7 @@ export default function GeneralDataPage({
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">General Data</h1>
-        <p className="text-sm text-gray-500">Manage sales persons, cancellation reasons, terms, blackout periods, email templates, and settings</p>
+        <p className="text-sm text-slate-500">Manage sales persons, cancellation reasons, terms, blackout periods, email templates, and settings</p>
       </div>
 
       {/* Tabs */}
@@ -412,7 +410,7 @@ export default function GeneralDataPage({
             key={tab.key}
             onClick={() => handleTabChange(tab.key)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+              activeTab === tab.key ? 'bg-white shadow-sm text-gray-900' : 'text-slate-500 hover:text-gray-700'
             }`}
           >
             {tab.icon} {tab.label}
@@ -482,7 +480,7 @@ export default function GeneralDataPage({
               </thead>
               <tbody className="divide-y">
                 {filteredSP.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-400">No sales persons found</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-slate-400">No sales persons found</td></tr>
                 ) : (
                   filteredSP.map(sp => (
                     <tr key={sp.id} className="hover:bg-gray-50">
@@ -550,7 +548,7 @@ export default function GeneralDataPage({
               </thead>
               <tbody className="divide-y">
                 {filteredCR.length === 0 ? (
-                  <tr><td colSpan={3} className="text-center py-8 text-gray-400">No reasons found</td></tr>
+                  <tr><td colSpan={3} className="text-center py-8 text-slate-400">No reasons found</td></tr>
                 ) : (
                   filteredCR.map(cr => (
                     <tr key={cr.id} className="hover:bg-gray-50">
@@ -624,12 +622,12 @@ export default function GeneralDataPage({
               </thead>
               <tbody className="divide-y">
                 {filteredTC.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">No T&C found</td></tr>
+                  <tr><td colSpan={5} className="text-center py-8 text-slate-400">No T&C found</td></tr>
                 ) : (
                   filteredTC.map(tc => (
                     <tr key={tc.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{tc.title}</td>
-                      <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{tc.content.slice(0, 80)}{tc.content.length > 80 ? '...' : ''}</td>
+                      <td className="px-4 py-3 text-slate-500 max-w-xs truncate">{tc.content.slice(0, 80)}{tc.content.length > 80 ? '...' : ''}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tc.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                           {tc.active ? 'Active' : 'Inactive'}
@@ -639,7 +637,7 @@ export default function GeneralDataPage({
                         {tc.isDefault ? (
                           <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">★ Default</span>
                         ) : (
-                          <button onClick={() => handleSetDefaultTC(tc)} className="text-xs text-gray-400 hover:text-amber-600 font-medium">Set Default</button>
+                          <button onClick={() => handleSetDefaultTC(tc)} className="text-xs text-slate-400 hover:text-amber-600 font-medium">Set Default</button>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
@@ -668,7 +666,7 @@ export default function GeneralDataPage({
               onChange={e => handleSaveMarginThreshold(Number(e.target.value))}
               className="w-20 px-3 py-2 border rounded-lg text-sm"
             />
-            <span className="text-xs text-gray-500">Reservations below this margin will show a warning</span>
+            <span className="text-xs text-slate-500">Reservations below this margin will show a warning</span>
           </div>
 
           <button
@@ -694,7 +692,7 @@ export default function GeneralDataPage({
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-gray-600 whitespace-nowrap">Rate Multiplier:</label>
                   <input type="number" min={0.5} max={10} step={0.1} value={bpForm.rateMultiplier ?? 1} onChange={e => setBpForm({ ...bpForm, rateMultiplier: Number(e.target.value) })} className="w-20 px-3 py-2 border rounded-lg text-sm" />
-                  <span className="text-xs text-gray-400">e.g., 1.5 = 50% markup</span>
+                  <span className="text-xs text-slate-400">e.g., 1.5 = 50% markup</span>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={bpForm.blockBookings ?? false} onChange={e => setBpForm({ ...bpForm, blockBookings: e.target.checked })} className="rounded" />
@@ -741,7 +739,7 @@ export default function GeneralDataPage({
               </thead>
               <tbody className="divide-y">
                 {filteredBP.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-400">No blackout periods found</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-slate-400">No blackout periods found</td></tr>
                 ) : (
                   filteredBP.map(bp => {
                     const isActive = new Date() >= new Date(bp.startDate) && new Date() <= new Date(bp.endDate);
@@ -760,7 +758,7 @@ export default function GeneralDataPage({
                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Open</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500">
+                        <td className="px-4 py-3 text-xs text-slate-500">
                           {!bp.affectedHotels || bp.affectedHotels.length === 0 ? 'All' : bp.affectedHotels.map(hid => hotels.find(h => h.id === hid)?.name || hid).join(', ')}
                         </td>
                         <td className="px-4 py-3 text-right space-x-2">
@@ -849,7 +847,7 @@ export default function GeneralDataPage({
               </thead>
               <tbody className="divide-y">
                 {filteredET.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-gray-400">No email templates found</td></tr>
+                  <tr><td colSpan={5} className="text-center py-8 text-slate-400">No email templates found</td></tr>
                 ) : (
                   filteredET.map(et => (
                     <tr key={et.id} className="hover:bg-gray-50">
@@ -882,7 +880,7 @@ export default function GeneralDataPage({
         <div className="space-y-6">
           <div className="bg-white border rounded-xl p-6 space-y-4">
             <h3 className="font-semibold text-gray-800 flex items-center gap-2">📤 Export Backup</h3>
-            <p className="text-sm text-gray-500">Download a complete backup of all application data as a JSON file. Use this for disaster recovery or to migrate data.</p>
+            <p className="text-sm text-slate-500">Download a complete backup of all application data as a JSON file. Use this for disaster recovery or to migrate data.</p>
             <button
               onClick={() => {
                 const backup: Record<string, any> = { _backupDate: new Date().toISOString(), _version: 1 };
@@ -904,7 +902,7 @@ export default function GeneralDataPage({
 
           <div className="bg-white border rounded-xl p-6 space-y-4">
             <h3 className="font-semibold text-gray-800 flex items-center gap-2">📥 Restore from Backup</h3>
-            <p className="text-sm text-gray-500">Restore data from a previously exported JSON backup file. <span className="text-red-500 font-medium">This will overwrite current data.</span></p>
+            <p className="text-sm text-slate-500">Restore data from a previously exported JSON backup file. <span className="text-red-500 font-medium">This will overwrite current data.</span></p>
             <input
               type="file"
               accept=".json"
@@ -929,7 +927,7 @@ export default function GeneralDataPage({
                 reader.readAsText(file);
                 e.target.value = '';
               }}
-              className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="block text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
             />
           </div>
 
@@ -940,48 +938,29 @@ export default function GeneralDataPage({
                 try { const d = JSON.parse(localStorage.getItem(`zumra_${k}`) || '[]'); return (
                   <div key={k} className="bg-gray-50 rounded-lg p-3 text-center">
                     <div className="text-lg font-bold text-gray-800">{Array.isArray(d) ? d.length : 1}</div>
-                    <div className="text-xs text-gray-500 capitalize">{k.replace(/_/g,' ')}</div>
+                    <div className="text-xs text-slate-500 capitalize">{k.replace(/_/g,' ')}</div>
                   </div>
                 ); } catch { return null; }
               })}
             </div>
           </div>
 
-          {/* Danger Zone */}
-          {onResetFinancialData && (
-            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 space-y-4">
-              <h3 className="font-semibold text-red-800 flex items-center gap-2">⚠️ Danger Zone - Financial Data Reset</h3>
-              <p className="text-sm text-red-600">This will <strong>permanently delete all transactions</strong>, reset all account and agent balances to 0, and clear reservation payment tracking. This action <strong>cannot be undone</strong>.</p>
-              <button
-                onClick={async () => {
-                  if (!confirm('⚠️ WARNING: This will DELETE ALL transactions and RESET ALL balances to 0.\n\nThis is IRREVERSIBLE. Are you absolutely sure?')) return;
-                  if (!confirm('Final confirmation: Type YES in the next prompt to proceed.')) return;
-                  const answer = prompt('Type "YES" to confirm financial data reset:');
-                  if (answer !== 'YES') { showToast('Reset cancelled', 'error'); return; }
-                  await onResetFinancialData();
-                  showToast('All financial data has been reset', 'success');
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 transition"
-              >
-                🗑️ Reset All Financial Data
-              </button>
-            </div>
-          )}
+          
         </div>
       )}
 
       {/* View T&C Modal */}
       {viewingTc && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewingTc(null)}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85dvh] flex flex-col overflow-hidden p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex-shrink-0 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">{viewingTc.title}</h2>
-              <button onClick={() => setViewingTc(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <button onClick={() => setViewingTc(null)} className="text-slate-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
-            <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
+            <div className="flex-1 overflow-y-auto whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
               {viewingTc.content}
             </div>
-            <button onClick={() => setViewingTc(null)} className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50">
+            <button onClick={() => setViewingTc(null)} className="flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50">
               Close
             </button>
           </div>
@@ -991,32 +970,34 @@ export default function GeneralDataPage({
       {/* Email Template Preview Modal */}
       {previewingEt && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreviewingEt(null)}>
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85dvh] flex flex-col overflow-hidden p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex-shrink-0 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">{previewingEt.name}</h2>
-                <span className="text-xs text-gray-500 capitalize">{previewingEt.type} template</span>
+                <span className="text-xs text-slate-500 capitalize">{previewingEt.type} template</span>
               </div>
-              <button onClick={() => setPreviewingEt(null)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <button onClick={() => setPreviewingEt(null)} className="text-slate-400 hover:text-gray-600 text-xl">&times;</button>
             </div>
+            <div className="flex-1 overflow-y-auto space-y-4">
             <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-              <div className="text-xs font-bold text-gray-500">SUBJECT:</div>
+              <div className="text-xs font-bold text-slate-500">SUBJECT:</div>
               <div className="text-sm font-medium text-gray-800">{previewingEt.subject}</div>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-              <div className="text-xs font-bold text-gray-500">BODY PREVIEW:</div>
+              <div className="text-xs font-bold text-slate-500">BODY PREVIEW:</div>
               <div className="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">
                 {previewingEt.body.replace(/\{\{([^}]+)\}\}/g, (_, key) => `[${key}]`)}
               </div>
             </div>
             <div className="flex flex-wrap gap-1 text-[9px]">
               {emailVariables.map(v => (
-                <span key={v.key} className={`px-1.5 py-0.5 rounded font-mono ${previewingEt.body.includes(v.key) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                <span key={v.key} className={`px-1.5 py-0.5 rounded font-mono ${previewingEt.body.includes(v.key) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-slate-400'}`}>
                   {v.key}
                 </span>
               ))}
             </div>
-            <button onClick={() => setPreviewingEt(null)} className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50">
+            </div>
+            <button onClick={() => setPreviewingEt(null)} className="flex-shrink-0 px-4 py-2 border rounded-lg text-sm font-medium hover:bg-gray-50">
               Close
             </button>
           </div>

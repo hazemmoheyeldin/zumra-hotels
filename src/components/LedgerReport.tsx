@@ -41,7 +41,8 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
   // Build chronological ledger entries
   const entries = useMemo(() => {
     const ledger: LedgerEntry[] = [];
-    const activeReservations = reservations.filter(r => r.status !== 'Cancelled');
+    // STRICT: Only Confirmed bookings enter the Financial Ledger (Tentative & Cancelled excluded)
+    const activeReservations = reservations.filter(r => r.status === 'Confirmed');
 
     // 1. Reservation Gross Revenue entries (credit = totalSell)
     activeReservations.forEach(r => {
@@ -152,9 +153,10 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
     const totalCommissions = entries.filter(e => e.description.includes('Sales Commission')).reduce((s, e) => s + e.debit, 0);
     const grossRevenue = entries.filter(e => e.description.includes('Reservation Gross')).reduce((s, e) => s + e.credit, 0);
     const supplierCost = entries.filter(e => e.description.includes('Supplier Cost')).reduce((s, e) => s + e.debit, 0);
-    const netProfit = grossRevenue - supplierCost - totalCommissions;
-    return { totalCredits, totalDebits, totalCommissions, grossRevenue, supplierCost, netProfit };
-  }, [entries]);
+    const totalExpenses = expenses.filter(e => e.date >= dateFrom && e.date <= dateTo).reduce((s, e) => s + e.amount, 0);
+    const netProfit = grossRevenue - supplierCost - totalCommissions - totalExpenses;
+    return { totalCredits, totalDebits, totalCommissions, grossRevenue, supplierCost, netProfit, totalExpenses };
+  }, [entries, expenses, dateFrom, dateTo]);
 
   const formatMoney = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
@@ -247,7 +249,7 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
           <div className="text-[10px] font-bold text-blue-600 uppercase">Gross Revenue</div>
           <div className="text-lg font-bold text-blue-800">{formatMoney(summary.grossRevenue)}</div>
@@ -263,10 +265,15 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
           <div className="text-lg font-bold text-amber-800">{formatMoney(summary.totalCommissions)}</div>
           <div className="text-[10px] text-amber-500">SAR</div>
         </div>
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+          <div className="text-[10px] font-bold text-rose-600 uppercase">Expenses</div>
+          <div className="text-lg font-bold text-rose-800">{formatMoney(summary.totalExpenses)}</div>
+          <div className="text-[10px] text-rose-500">SAR</div>
+        </div>
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
           <div className="text-[10px] font-bold text-emerald-600 uppercase">Net Profit</div>
           <div className="text-lg font-bold text-emerald-800">{formatMoney(summary.netProfit)}</div>
-          <div className="text-[10px] text-emerald-500">Revenue - Cost - Commission</div>
+          <div className="text-[10px] text-emerald-500">Rev - Cost - Comm - Exp</div>
         </div>
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
           <div className="text-[10px] font-bold text-slate-600 uppercase">Total Entries</div>
@@ -355,7 +362,9 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
 
       {/* Integrity Note */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-[10px] text-slate-500">
-        <strong>Financial Integrity:</strong> Net Profit = Gross Revenue ({formatMoney(summary.grossRevenue)}) − Supplier Cost ({formatMoney(summary.supplierCost)}) − Commission ({formatMoney(summary.totalCommissions)}) = <strong className="text-emerald-700">{formatMoney(summary.netProfit)} SAR</strong>
+        <strong>Financial Integrity:</strong> Net Profit = Gross Revenue ({formatMoney(summary.grossRevenue)}) − Supplier Cost ({formatMoney(summary.supplierCost)}) − Commission ({formatMoney(summary.totalCommissions)}) − Expenses ({formatMoney(summary.totalExpenses)}) = <strong className="text-emerald-700">{formatMoney(summary.netProfit)} SAR</strong>
+        <br />
+        <strong>Note:</strong> Only <strong>Confirmed</strong> bookings appear in the ledger. Tentative and Cancelled bookings are excluded from financial statements.
         <br />
         Click any <span className="text-indigo-600 font-bold">RSV-#</span> reference to navigate directly to that reservation.
       </div>

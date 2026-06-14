@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, memo, useMemo, useCallback } from 'react';
+import React, { useState, memo, useMemo, useCallback, useEffect } from 'react';
 import { User } from '../types';
 import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
@@ -20,6 +20,18 @@ interface LoginPageProps {
 
 export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: LoginPageProps) {
   const { t, lang } = useLang();
+
+  // Cache users prop to localStorage for offline/quota-exhausted scenarios
+  useEffect(() => {
+    if (users && users.length > 0) {
+      try {
+        localStorage.setItem('zumra_users', JSON.stringify(users));
+      } catch (e) {
+        console.warn('[Login] Failed to cache users to localStorage:', e);
+      }
+    }
+  }, [users]);
+
   const [username, setUsername] = useState(() => {
     const saved = localStorage.getItem('zumra_remembered_user');
     return saved || '';
@@ -75,6 +87,14 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         return;
       }
 
+      // If user is deactivated (soft-delete) → reject and sign out
+      if (matchedUser.isActive === false) {
+        console.warn(`[Auth] Google sign-in rejected: ${emailLower} has been deactivated`);
+        try { await (await import('../lib/firebase')).firebaseSignOut(); } catch {}
+        setErrorMsg('Your account has been deactivated. Please contact the administrator.');
+        setLoading(false);
+        return;
+      }
       // If user status is Pending → reject
       if (matchedUser.status === 'Pending') {
         console.warn(`[Auth] Google sign-in rejected: ${emailLower} has Pending status`);
@@ -116,6 +136,15 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     // Helper to validate credentials against a matched user
     const validateLogin = async (matchedUser: User, allUsers: User[]) => {
       // ===== Access Control: Check user status =====
+      if (matchedUser.isActive === false) {
+        // Zombie prevention: soft-deleted user trying to log in
+        if (isFirebaseConfigured) {
+          try { await (await import('../lib/firebase')).firebaseSignOut(); } catch {}
+        }
+        setLoading(false);
+        setErrorMsg('Your account has been deactivated. Please contact the administrator.');
+        return;
+      }
       if (matchedUser.status === 'Pending') {
         setLoading(false);
         setErrorMsg('Account Pending: Your account is awaiting activation. Please contact an admin.');
@@ -246,8 +275,14 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
             return;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[Login] Firestore user lookup FAILED:', err);
+        // If Firestore quota is exhausted or network error, provide helpful message
+        if (err?.code === 'resource-exhausted' || err?.message?.includes('quota')) {
+          setErrorMsg('Database temporarily unavailable (quota exceeded). Please try again later or contact admin.');
+          setLoading(false);
+          return;
+        }
       }
 
       // Fallback: check DEFAULT_USERS directly if Firestore failed

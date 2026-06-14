@@ -37,6 +37,7 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
   const [supplierDisp, setSupplierDisp] = useState<FundOption>('N/A');
   const [clientNote, setClientNote] = useState('');
   const [supplierNote, setSupplierNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totals = getReservationTotals(reservation);
   const client = agents.find(a => a.id === reservation.clientId);
@@ -122,6 +123,8 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
   };
 
   const handleConfirm = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     onConfirm(buildResult());
   };
 
@@ -259,9 +262,9 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[9998] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[95dvh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-3 flex items-center justify-between rounded-t-2xl z-10">
+        <div className="flex-shrink-0 bg-white border-b border-slate-100 px-5 py-3 flex items-center justify-between rounded-t-2xl z-10">
           <div>
             <h2 className="text-sm font-bold text-rose-700">Cancellation Wizard</h2>
             <p className="text-[10px] text-slate-400">Step {step + 1} of 4</p>
@@ -270,7 +273,7 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
         </div>
 
         {/* Progress bar */}
-        <div className="px-5 pt-3">
+        <div className="flex-shrink-0 px-5 pt-3">
           <div className="flex gap-1">
             {[0, 1, 2, 3].map(i => (
               <div key={i} className={`h-1 flex-1 rounded-full ${i <= step ? 'bg-rose-500' : 'bg-slate-100'}`} />
@@ -278,13 +281,13 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
           </div>
         </div>
 
-        {/* Step content */}
-        <div className="px-5 py-4">
+        {/* Step content — scrollable body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {steps[step]()}
         </div>
 
         {/* Footer buttons */}
-        <div className="sticky bottom-0 bg-white border-t border-slate-100 px-5 py-3 flex justify-between items-center rounded-b-2xl">
+        <div className="flex-shrink-0 bg-white border-t border-slate-100 px-5 py-3 flex justify-between items-center rounded-b-2xl">
           <button
             onClick={step === 0 ? onClose : () => setStep(step - 1)}
             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-lg transition"
@@ -302,9 +305,10 @@ export default function CancellationWizard({ reservation, agents, currentUser, o
           ) : (
             <button
               onClick={handleConfirm}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-5 py-2 rounded-lg transition shadow"
+              disabled={isSubmitting}
+              className="bg-rose-600 hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed text-white font-bold text-xs px-5 py-2 rounded-lg transition shadow"
             >
-              Confirm Cancellation
+              {isSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
             </button>
           )}
         </div>

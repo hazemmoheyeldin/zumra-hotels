@@ -57,12 +57,12 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
     try {
       const status = reservation.status || 'Confirmation';
       const guestSafe = (reservation.guestName || 'Guest').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
+      const clientName = (client?.companyName || client?.name || 'Client').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const hotelName = (hotel?.name || 'Hotel').replace(/[^a-zA-Z0-9\s-]/g, '').trim();
       const dateRange = `${reservation.checkIn}_to_${reservation.checkOut}`;
       const today = new Date().toISOString().split('T')[0];
-      const filename = type === 'voucher'
-        ? `(V) RSV-${reservation.id} ${guestSafe}.pdf`
-        : `RSV-${reservation.id} (${status}) ${today}.pdf`;
+      const docLabel = type === 'voucher' ? 'Voucher' : status;
+      const filename = `(${status}) ${guestSafe} ${reservation.checkIn}.pdf`;
       const success = await exportPDF('print-area', filename, { landscape: false });
       if (success) {
         setTimeout(onClose, 400);
@@ -120,11 +120,10 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 animate-in fade-in zoom-in-95 my-8 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white" onClick={(e) => e.stopPropagation()}>
-        
-        {/* Interactive action controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-6 no-print">
+    <div className="fixed inset-0 z-50 h-[100dvh]">
+      {/* Fixed Action Bar — never scrolls out of view, hidden when printing */}
+      <div className="fixed top-0 inset-x-0 z-[60] bg-white border-b border-slate-200 shadow-lg print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 max-w-4xl mx-auto">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800">
@@ -180,18 +179,22 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
             </button>
           </div>
         </div>
+      </div>
 
-        {/* PRINTABLE PAPER CONTAINER (A4 Layout) */}
-        <div 
-          id="print-area"
-          className="relative bg-white p-4 pb-8 border border-slate-200 text-slate-900 font-sans shadow-inner max-h-[80vh] overflow-y-auto no-scrollbar print:p-3 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible"
-        >
-          <StampOverlay
-            visible={stampVisible}
-            position={stampPosition}
-            opacity={0.85}
-            onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
-          />
+      {/* Scrollable A4 Paper Content */}
+      <div className="h-full overflow-y-auto bg-slate-900/60 backdrop-blur-sm pt-16 pb-8 print:bg-white print:static print:inset-auto print:overflow-visible print:pt-0 print:pb-0" onClick={onClose}>
+        <div className="max-w-4xl w-full mx-auto bg-white shadow-2xl print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none print:bg-white" onClick={(e) => e.stopPropagation()}>
+          {/* PRINTABLE PAPER CONTAINER (A4 Layout) */}
+          <div 
+            id="print-area"
+            className="relative bg-white p-4 pb-8 border border-slate-200 text-slate-900 font-sans shadow-inner overflow-y-auto no-scrollbar print:p-3 print:pb-0 print:border-none print:shadow-none print:overflow-visible"
+          >
+            <StampOverlay
+              visible={stampVisible}
+              position={stampPosition}
+              opacity={0.85}
+              onPositionChange={(pos) => { setStampPosition(pos); saveStampSettings({ enabled: stampVisible, position: pos, opacity: 0.85 }); }}
+            />
           
           {/* Document Header */}
           <MasterPDFHeader />
@@ -553,6 +556,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
 
         </div>
       </div>
+    </div>
     </div>
   );
 }

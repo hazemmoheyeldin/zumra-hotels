@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry } from '../types';
-import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection, isCircuitOpen } from './firebase';
+import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, EmailTemplate, BookingTemplate, CreditNoteEntry, CommissionEntry, DocumentTemplate } from '../types';
+import { firestoreSave, firestoreDelete, firestoreBulkSave, firestoreAtomicWrite, firestoreLoadAll, isFirebaseConfigured, COLLECTIONS, firestoreClearCollection, isCircuitOpen } from './firebase';
 import { CSV_HOTELS } from './csvHotels';
 import { round2, safeAdd, safeSubtract } from './finance';
 
@@ -33,7 +33,7 @@ const DEFAULT_HOTELS: Hotel[] = CSV_HOTELS;
 const DEFAULT_AGENTS: Agent[] = [
   {
     id: 'a1',
-    agentNumber: 1,
+    agentNumber: 'C-001',
     name: 'Orient Gate Tours',
     companyName: 'Orient Gate Tours LLC',
     country: 'Egypt',
@@ -46,7 +46,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 'a2',
-    agentNumber: 5,
+    agentNumber: 'C-002',
     name: 'Al Hussam Tourism',
     companyName: 'Al Hussam Holding',
     country: 'Saudi Arabia',
@@ -59,7 +59,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 'a3',
-    agentNumber: 8,
+    agentNumber: 'C-003',
     name: 'Najd Tours',
     companyName: 'Najd Travel Services',
     country: 'Egypt',
@@ -72,7 +72,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 'a4',
-    agentNumber: 10,
+    agentNumber: 'C-004',
     name: 'Ameely Events',
     companyName: 'Ameely LLC',
     country: 'Egypt',
@@ -85,7 +85,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 'a5',
-    agentNumber: 13,
+    agentNumber: 'C-005',
     name: 'Areej Taba',
     companyName: 'Areej Taba Hotel Reservations',
     country: 'Indonesia',
@@ -98,7 +98,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 'a6',
-    agentNumber: 18,
+    agentNumber: 'C-006',
     name: 'Marseilia Tours',
     companyName: 'Marseilia Travel Group',
     country: 'Egypt',
@@ -111,7 +111,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 's1',
-    agentNumber: 501,
+    agentNumber: 'S-001',
     name: 'Makkah Towers Provider',
     companyName: 'Makkah Towers Operator',
     country: 'Saudi Arabia',
@@ -124,7 +124,7 @@ const DEFAULT_AGENTS: Agent[] = [
   },
   {
     id: 's2',
-    agentNumber: 502,
+    agentNumber: 'S-002',
     name: 'Madinah Anwar Vendor',
     companyName: 'Madinah Hotels Supplier Co',
     country: 'Saudi Arabia',
@@ -314,9 +314,9 @@ const DEFAULT_TRANSACTIONS: Transaction[] = [
 
 // Default Users
 export const DEFAULT_USERS: User[] = [
-  { id: 'u1', username: 'hazem', name: 'Hazem Mohey El-Din', role: 'Admin', email: 'hazem8383@gmail.com' },
-  { id: 'u2', username: 'zaki', name: 'Zaki Makkawi', role: 'Reservationist', email: 'zaki@zumrahotels.com' },
-  { id: 'u3', username: 'yasmeen', name: 'Yasmeen Madani', role: 'Finance', email: 'yasmeen@zumrahotels.com' },
+  { id: 'u1', username: 'hazem', name: 'Hazem Mohey El-Din', role: 'Admin', email: 'hazem8383@gmail.com', isActive: true },
+  { id: 'u2', username: 'zaki', name: 'Zaki Makkawi', role: 'Reservationist', email: 'zaki@zumrahotels.com', isActive: true },
+  { id: 'u3', username: 'yasmeen', name: 'Yasmeen Madani', role: 'Finance', email: 'yasmeen@zumrahotels.com', isActive: true },
 ];
 
 // LocalStorage helpers
@@ -361,7 +361,7 @@ export function getNextDocNo(prefix: string, transactions: Array<{ docNo?: strin
 export class ZumraDB {
   static getHotels(): Hotel[] {
     // One-time migration: replace old hotel data with xlsx import
-    const HOTEL_DATA_VERSION = 3;
+    const HOTEL_DATA_VERSION = 4;
     const savedVersion = parseInt(localStorage.getItem('zumra_hotels_version') || '0');
     if (savedVersion < HOTEL_DATA_VERSION) {
       saveGlobalData('hotels', CSV_HOTELS);
@@ -471,6 +471,31 @@ export class ZumraDB {
 
   static saveFollowUps(list: FollowUp[]): void {
     saveGlobalData('followups', list);
+  }
+
+  // Document Templates
+  static getDocumentTemplates(): DocumentTemplate[] {
+    const list = getSavedData('document_templates', [] as DocumentTemplate[]);
+    // Seed default if empty
+    if (list.length === 0) {
+      const defaults: DocumentTemplate[] = [
+        { id: 'tpl_default', name: 'Standard Confirmation', type: 'Confirmation', isDefault: true, createdAt: new Date().toISOString() },
+        { id: 'tpl_voucher_default', name: 'Standard Voucher', type: 'Voucher', isDefault: true, createdAt: new Date().toISOString() },
+        { id: 'tpl_rms_arm_conf', name: 'RMS ARM Conf', type: 'Confirmation', isDefault: false, createdAt: new Date().toISOString() },
+      ];
+      saveGlobalData('document_templates', defaults);
+      return defaults;
+    }
+    // Ensure RMS ARM Conf template exists for existing users
+    if (!list.find(t => t.id === 'tpl_rms_arm_conf')) {
+      list.push({ id: 'tpl_rms_arm_conf', name: 'RMS ARM Conf', type: 'Confirmation', isDefault: false, createdAt: new Date().toISOString() });
+      saveGlobalData('document_templates', list);
+    }
+    return list;
+  }
+
+  static saveDocumentTemplates(list: DocumentTemplate[]): void {
+    saveGlobalData('document_templates', list);
   }
 
   static getMessages(): any[] {
@@ -1268,6 +1293,7 @@ export const ZumraSync = {
   saveExpense: (e: Expense) => { markLocalWrite(COLLECTIONS.EXPENSES); return syncItemToFirestore(COLLECTIONS.EXPENSES, e); },
   saveExpenseCategory: (c: ExpenseCategory) => { markLocalWrite(COLLECTIONS.EXPENSE_CATEGORIES); return syncItemToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, c); },
   saveConsolidatedInvoice: (ci: ConsolidatedInvoice) => { markLocalWrite(COLLECTIONS.CONSOLIDATED_INVOICES); return syncItemToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, ci); },
+  saveDocumentTemplate: (dt: DocumentTemplate) => { markLocalWrite(COLLECTIONS.DOCUMENT_TEMPLATES); return syncItemToFirestore(COLLECTIONS.DOCUMENT_TEMPLATES, dt); },
   deleteHotel: (id: string) => { markLocalWrite(COLLECTIONS.HOTELS); return syncDeleteToFirestore(COLLECTIONS.HOTELS, id); },
   deleteAgent: (id: string) => { markLocalWrite(COLLECTIONS.AGENTS); return syncDeleteToFirestore(COLLECTIONS.AGENTS, id); },
   deleteAllotment: (id: string) => { markLocalWrite(COLLECTIONS.ALLOTMENTS); return syncDeleteToFirestore(COLLECTIONS.ALLOTMENTS, id); },
@@ -1310,7 +1336,14 @@ export const ZumraSync = {
     syncCollectionToFirestore(COLLECTIONS.EXPENSES, JSON.parse(localStorage.getItem('zumra_expenses') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, JSON.parse(localStorage.getItem('zumra_expense_categories') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, JSON.parse(localStorage.getItem('zumra_consolidated_invoices') || '[]'));
-  }
+    syncCollectionToFirestore(COLLECTIONS.DOCUMENT_TEMPLATES, JSON.parse(localStorage.getItem('zumra_document_templates') || '[]'));
+  },
+  /** Atomic writeBatch for linked payment writes (transaction + reservation + accounts) */
+  atomicPayment: async (writes: Array<{ collection: string; id: string; data: any }>): Promise<void> => {
+    writes.forEach(w => markLocalWrite(w.collection));
+    if (!isFirebaseConfigured) return;
+    await firestoreAtomicWrite(writes);
+  },
 };
 
 // Seed Data Generator for testing
@@ -1705,18 +1738,18 @@ export function seedTestDataIfEmpty(): void {
   
   // ===== Test Clients =====
   const testClients: Agent[] = [
-    { id: 'test_client_1', agentNumber: 1, name: 'Ahmed Hassan', companyName: 'Al-Noor Travel', country: 'Saudi Arabia', type: 'Customer', phone: '+966501234567', email: 'ahmed@alnoortravel.com', address: 'Riyadh', balance: 0, auditLogs: [] },
-    { id: 'test_client_2', agentNumber: 2, name: 'Mohammed Ali', companyName: 'Golden Gate Tours', country: 'UAE', type: 'Customer', phone: '+971501234567', email: 'mohammed@goldengate.ae', address: 'Dubai', balance: 0, auditLogs: [] },
-    { id: 'test_client_3', agentNumber: 3, name: 'Fatima Zahra', companyName: 'Atlas Voyages', country: 'Morocco', type: 'Customer', phone: '+212601234567', email: 'fatima@atlasvoyages.ma', address: 'Casablanca', balance: 0, auditLogs: [] },
-    { id: 'test_client_4', agentNumber: 4, name: 'Omar Khalid', companyName: 'Desert Star Tourism', country: 'Egypt', type: 'Customer', phone: '+201012345678', email: 'omar@desertstar.eg', address: 'Cairo', balance: 0, auditLogs: [] },
-    { id: 'test_client_5', agentNumber: 5, name: 'Layla Mansour', companyName: 'Nile Express Travel', country: 'Egypt', type: 'Customer', phone: '+201098765432', email: 'layla@nilexpress.eg', address: 'Alexandria', balance: 0, auditLogs: [] },
+    { id: 'test_client_1', agentNumber: 'C-001', name: 'Ahmed Hassan', companyName: 'Al-Noor Travel', country: 'Saudi Arabia', type: 'Customer', phone: '+966501234567', email: 'ahmed@alnoortravel.com', address: 'Riyadh', balance: 0, auditLogs: [] },
+    { id: 'test_client_2', agentNumber: 'C-002', name: 'Mohammed Ali', companyName: 'Golden Gate Tours', country: 'UAE', type: 'Customer', phone: '+971501234567', email: 'mohammed@goldengate.ae', address: 'Dubai', balance: 0, auditLogs: [] },
+    { id: 'test_client_3', agentNumber: 'C-003', name: 'Fatima Zahra', companyName: 'Atlas Voyages', country: 'Morocco', type: 'Customer', phone: '+212601234567', email: 'fatima@atlasvoyages.ma', address: 'Casablanca', balance: 0, auditLogs: [] },
+    { id: 'test_client_4', agentNumber: 'C-004', name: 'Omar Khalid', companyName: 'Desert Star Tourism', country: 'Egypt', type: 'Customer', phone: '+201012345678', email: 'omar@desertstar.eg', address: 'Cairo', balance: 0, auditLogs: [] },
+    { id: 'test_client_5', agentNumber: 'C-005', name: 'Layla Mansour', companyName: 'Nile Express Travel', country: 'Egypt', type: 'Customer', phone: '+201098765432', email: 'layla@nilexpress.eg', address: 'Alexandria', balance: 0, auditLogs: [] },
   ];
   
   // ===== Test Suppliers =====
   const testSuppliers: Agent[] = [
-    { id: 'test_supplier_1', agentNumber: 6, name: 'Hassan Ibrahim', companyName: 'Makkah Hotels Group', country: 'Saudi Arabia', type: 'Supplier', phone: '+966509876543', email: 'hassan@makkahhotels.sa', address: 'Makkah', balance: 0, auditLogs: [] },
-    { id: 'test_supplier_2', agentNumber: 7, name: 'Yusuf Ahmed', companyName: 'Madinah Hospitality', country: 'Saudi Arabia', type: 'Supplier', phone: '+966508765432', email: 'yusuf@madinahhospitality.sa', address: 'Madinah', balance: 0, auditLogs: [] },
-    { id: 'test_supplier_3', agentNumber: 8, name: 'Ali Al-Qahtani', companyName: 'Jeddah Resorts LLC', country: 'Saudi Arabia', type: 'Supplier', phone: '+966507654321', email: 'ali@jeddahresorts.sa', address: 'Jeddah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_1', agentNumber: 'S-001', name: 'Hassan Ibrahim', companyName: 'Makkah Hotels Group', country: 'Saudi Arabia', type: 'Supplier', phone: '+966509876543', email: 'hassan@makkahhotels.sa', address: 'Makkah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_2', agentNumber: 'S-002', name: 'Yusuf Ahmed', companyName: 'Madinah Hospitality', country: 'Saudi Arabia', type: 'Supplier', phone: '+966508765432', email: 'yusuf@madinahhospitality.sa', address: 'Madinah', balance: 0, auditLogs: [] },
+    { id: 'test_supplier_3', agentNumber: 'S-003', name: 'Ali Al-Qahtani', companyName: 'Jeddah Resorts LLC', country: 'Saudi Arabia', type: 'Supplier', phone: '+966507654321', email: 'ali@jeddahresorts.sa', address: 'Jeddah', balance: 0, auditLogs: [] },
   ];
   
   // ===== Test Sales Persons =====
@@ -1921,4 +1954,5 @@ export function seedTestDataIfEmpty(): void {
   ZumraDB.saveTermsAndConditions(testTermsAndConditions);
   ZumraDB.savePaymentGateways(testPaymentGateways);
 }
+
 

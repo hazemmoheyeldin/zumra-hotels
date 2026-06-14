@@ -25,6 +25,8 @@ interface StatementLine {
   docNo: string;
   voucher: string;
   genNo: string;
+  currency?: string;         // Original transaction currency (SAR, EGP, etc.)
+  originalAmount?: number;   // Amount in original currency
 }
 
 interface StatementReportPDFProps {
@@ -132,7 +134,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
           docType: isSupplier ? 'SupplierReservation' : 'ClientReservation',
           docNo: res.id.toString(),
           voucher: isSupplier ? res.supplierVoucher || '' : res.hotelConfirmationNo || '',
-          genNo: `TR${res.id}`
+          genNo: `TR${res.id}`,
+          currency: 'SAR',
+          originalAmount: amount
         });
         // If cancelled, add a reversal credit entry
         if (isCancelled) {
@@ -145,7 +149,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
             docType: isSupplier ? 'SupplierOperation' : 'ClientOperation',
             docNo: res.id.toString(),
             voucher: '',
-            genNo: `TR${res.id}_C`
+            genNo: `TR${res.id}_C`,
+            currency: 'SAR',
+            originalAmount: amount
           });
         }
       }
@@ -176,7 +182,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
             docType: isSupplier ? 'SupplierOperation' : 'ClientOperation',
             docNo: tr.docNo || '1',
             voucher: tr.voucherNo || '',
-            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`
+            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`,
+            currency: tr.originalCurrency || 'SAR',
+            originalAmount: tr.originalAmount || tr.amount
           });
         }
         if (isRefundDebit) {
@@ -189,7 +197,9 @@ export default function StatementReportPDF({ client, reservations, transactions,
             docType: isSupplier ? 'SupplierRefund' : 'ClientRefund',
             docNo: tr.docNo || '1',
             voucher: tr.voucherNo || '',
-            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`
+            genNo: `TR${tr.id.slice(0, 4).toUpperCase()}`,
+            currency: tr.originalCurrency || 'SAR',
+            originalAmount: tr.originalAmount || tr.amount
           });
         }
       }
@@ -279,11 +289,11 @@ export default function StatementReportPDF({ client, reservations, transactions,
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full p-6 animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[95dvh] overflow-hidden animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none" onClick={(e) => e.stopPropagation()}>
         
-        {/* Actions bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4 no-print">
+        {/* Actions bar — flex-shrink-0 */}
+        <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 pt-4 pb-4 mb-0 no-print">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-slate-705 bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800 font-sans">
@@ -326,8 +336,10 @@ export default function StatementReportPDF({ client, reservations, transactions,
           </div>
         </div>
 
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto p-6">
         {/* Printable Paper Area (A4) */}
-        <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+        <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:overflow-visible">
           <StampOverlay
             visible={stampVisible}
             position={stampPosition}
@@ -468,6 +480,53 @@ export default function StatementReportPDF({ client, reservations, transactions,
             </span>
           </div>
 
+          {/* Dual-Currency Outstanding Summary */}
+          {(() => {
+            // Group outstanding by original currency
+            const currencyTotals: Record<string, { owed: number; sarValue: number }> = {};
+            lines.forEach(line => {
+              const curr = line.currency || 'SAR';
+              if (!currencyTotals[curr]) currencyTotals[curr] = { owed: 0, sarValue: 0 };
+              // Net debit (what they owe) = debit - credit
+              const netOwed = line.debit - line.credit;
+              if (curr !== 'SAR') {
+                // For foreign currency, track the original currency amount owed
+                const origOwed = (line.originalAmount || 0) * (line.debit > 0 ? 1 : -1);
+                currencyTotals[curr].owed = safeAdd(currencyTotals[curr].owed, origOwed);
+              } else {
+                currencyTotals[curr].owed = safeAdd(currencyTotals[curr].owed, netOwed);
+              }
+              // SAR value is always the normalized debit-credit
+              currencyTotals[curr].sarValue = safeAdd(currencyTotals[curr].sarValue, netOwed);
+            });
+            const hasMultipleCurrencies = Object.keys(currencyTotals).length > 1;
+            if (!hasMultipleCurrencies) return null;
+            const totalSARValue = Object.values(currencyTotals).reduce((s, c) => safeAdd(s, c.sarValue), 0);
+            return (
+              <div className="border border-slate-200 rounded-lg overflow-hidden mb-4 keep-with-prev no-page-break">
+                <div className="bg-slate-100 px-3 py-2 border-b border-slate-200">
+                  <h3 className="text-[10px] font-extrabold text-slate-700 uppercase">Outstanding by Currency</h3>
+                </div>
+                <div className="p-3 space-y-1.5">
+                  {Object.entries(currencyTotals).sort(([a], [b]) => a.localeCompare(b)).map(([curr, data]) => (
+                    <div key={curr} className="flex justify-between items-center text-[10px]">
+                      <span className="font-bold text-slate-700">Total Owed in {curr}:</span>
+                      <span className={`font-mono font-bold ${data.owed > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {data.owed > 0 ? data.owed.toLocaleString('en-US', { minimumFractionDigits: 2 }) : `(${Math.abs(data.owed).toLocaleString('en-US', { minimumFractionDigits: 2 })})`} {curr}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="border-t border-slate-300 pt-1.5 mt-1.5 flex justify-between items-center text-[11px]">
+                    <span className="font-extrabold text-slate-900 uppercase">Total Account Value (in SAR):</span>
+                    <span className={`font-mono font-extrabold text-sm ${totalSARValue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                      {totalSARValue > 0 ? totalSARValue.toLocaleString('en-US', { minimumFractionDigits: 2 }) : `(${Math.abs(totalSARValue).toLocaleString('en-US', { minimumFractionDigits: 2 })})`} SAR
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Pending Requests Table (Unpaid / Partially Paid) */}
           {(pendingRequests.length > 0 || Math.abs(reconciliationDiff) > 0.01) && (
             <div className="mb-4 no-page-break">
@@ -576,6 +635,7 @@ export default function StatementReportPDF({ client, reservations, transactions,
             </div>
           </div>
 
+        </div>
         </div>
       </div>
     </div>

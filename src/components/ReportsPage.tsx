@@ -9,6 +9,7 @@ import ArrivalReportPDF from './ArrivalReportPDF';
 import CancellationReportPDF from './CancellationReportPDF';
 import StatementReportPDF from './StatementReportPDF';
 import { getReservationTotals, getAgentActualBalance, exportToCSV, exportToExcel, loadCommissions } from '../lib/storage';
+import { getOutstanding, verifyDoubleEntry, getAccountRealBalance, getTotalAccountsReceivable, getTotalAccountsPayable, getTotalConfirmedRevenue, getServiceSellTotal, getServiceBuyTotal } from '../lib/finance';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 
@@ -28,9 +29,9 @@ interface ReportsPageProps {
   onSaveReservation?: (res: Reservation) => void;
 }
 
-type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'financialAudit' | 'commission' | 'seasonAnalytics' | 'supplierPayments' | 'cancellationAnalysis' | 'supplierScorecard' | 'accountingExport' | 'clientLifetimeValue';
+type ReportTab = 'arrival' | 'cancellation' | 'statement' | 'supplierStatement' | 'reminders' | 'balanceSheet' | 'incomeStatement' | 'collection' | 'tax' | 'reconciliation' | 'financialAudit' | 'commission' | 'seasonAnalytics' | 'supplierPayments' | 'cancellationAnalysis' | 'supplierScorecard' | 'accountingExport' | 'clientLifetimeValue' | 'salesPipeline';
 
-export default function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate, onSaveReservation }: ReportsPageProps) {
+function ReportsPage({ reservations, agents, hotels, transactions, accounts = [], otherServices = [], taxSettings = [], expenses = [], expenseCategories = [], salesPersons = [], initialTab, onNavigate, onSaveReservation }: ReportsPageProps) {
   const { t, lang } = useLang();
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>(initialTab || 'arrival');
 
@@ -416,6 +417,14 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             >
               👑 Client Lifetime Value
             </button>
+            <button
+              onClick={() => setActiveReportTab('salesPipeline')}
+              className={`pb-2.5 px-3 font-semibold text-xs border-b-2 transition whitespace-nowrap ${
+                activeReportTab === 'salesPipeline' ? 'border-amber-600 text-amber-800' : 'border-transparent text-slate-450 hover:text-slate-700'
+              }`}
+            >
+              🎯 Sales Pipeline
+            </button>
           </div>
         </div>
 
@@ -498,7 +507,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             <div className="overflow-x-auto text-[11px]">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 font-semibold text-slate-500">
+                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10">
                     <th className="py-2.5 px-2">Rsv ID</th>
                     <th className="py-2.5 px-2">Hotel</th>
                     <th className="py-2.5 px-2">Guest Name</th>
@@ -514,7 +523,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     const h = hotels.find(hotel => hotel.id === res.hotelId);
                     const { totalSell } = getReservationTotals(res);
                     return (
-                      <tr key={res.id} className="hover:bg-slate-50/20">
+                      <tr key={res.id} className="hover:bg-slate-50 transition-colors cursor-pointer">
                         <td className="py-2.5 px-2 font-mono font-bold text-slate-900">RSV-{res.id}</td>
                         <td className="py-2.5 px-2 font-semibold text-slate-900">{h?.name}</td>
                         <td className="py-2.5 px-2 uppercase font-medium">{res.guestName}</td>
@@ -556,7 +565,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             <div className="overflow-x-auto text-[11px]">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 font-semibold text-slate-500 font-mono">
+                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10 font-mono">
                     <th className="py-2.5 px-2">RSV ID</th>
                     <th className="py-2.5 px-2">Hotel Stay</th>
                     <th className="py-2.5 px-2 text-left">Guest Name</th>
@@ -571,7 +580,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     const h = hotels.find(hotel => hotel.id === res.hotelId);
                     const { totalSell } = getReservationTotals(res);
                     return (
-                      <tr key={res.id} className="hover:bg-slate-50/20 text-rose-950">
+                      <tr key={res.id} className="hover:bg-slate-50 transition-colors cursor-pointer text-rose-950">
                         <td className="py-2.5 px-2 font-bold font-mono">RSV-{res.id}</td>
                         <td className="py-2.5 px-2 font-medium">{h?.name}</td>
                         <td className="py-2.5 px-2 uppercase">{res.guestName}</td>
@@ -688,7 +697,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
             <div className="overflow-x-auto text-[11px]">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-150 font-semibold text-slate-500">
+                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10">
                     <th className="py-2.5 px-3">RSV ID</th>
                     <th className="py-2.5 px-3">Supplier Agent</th>
                     <th className="py-2.5 px-3">Lead Guest</th>
@@ -719,7 +728,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     }
 
                     return (
-                      <tr key={res.id} className={`hover:bg-slate-50/20 text-xs ${isCritical ? 'bg-amber-50/10' : ''}`}>
+                      <tr key={res.id} className={`hover:bg-slate-50 transition-colors cursor-pointer text-xs ${isCritical ? 'bg-amber-50/10' : ''}`}>
                         <td className="py-3 px-3 font-mono font-bold text-slate-900">RSV-{res.id}</td>
                         <td className="py-3 px-3 font-medium">
                           <div className="font-bold text-slate-800">{supp?.name || 'Hotel Direct'}</div>
@@ -771,31 +780,22 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
 
         {/* ==================== BALANCE SHEET ==================== */}
         {activeReportTab === 'balanceSheet' && (() => {
-          // Assets
-          const bankBalances = accounts.filter(a => a.type === 'Bank').reduce((s, a) => s + a.balance, 0);
-          const cashOnHand = accounts.filter(a => a.type === 'Cash').reduce((s, a) => s + a.balance, 0);
+          // Assets — use real computed balance from transactions
+          const bankBalances = accounts.filter(a => a.type === 'Bank').reduce((s, a) => s + getAccountRealBalance(a, transactions), 0);
+          const cashOnHand = accounts.filter(a => a.type === 'Cash').reduce((s, a) => s + getAccountRealBalance(a, transactions), 0);
+
+          // Accrual-basis Accounts Receivable: Confirmed bookings/services outstanding from clients
+          const totalAR = getTotalAccountsReceivable(reservations, otherServices, transactions);
+          const totalAssets = bankBalances + cashOnHand + totalAR;
+
+          // Accrual-basis Liabilities
+          const totalAP = getTotalAccountsPayable(reservations, otherServices, transactions);
           const clients = agents.filter(a => a.type === 'Customer' || a.type === 'Both');
-          const suppliers = agents.filter(a => a.type === 'Supplier' || a.type === 'Both');
-          const accountsReceivable = clients.reduce((s, a) => s + Math.max(0, getAgentActualBalance(a, reservations, transactions)), 0);
-          const totalAssets = bankBalances + cashOnHand + accountsReceivable;
-
-          // Liabilities
-          const accountsPayable = suppliers.reduce((s, a) => s + Math.max(0, getAgentActualBalance(a, reservations, transactions)), 0);
           const clientCredits = clients.reduce((s, a) => s + (a.walletBalance || 0), 0);
-          const totalLiabilities = accountsPayable + clientCredits;
+          const totalLiabilities = totalAP + clientCredits;
 
-          // Equity
-          let totalRevenue = 0, totalCost = 0, totalCommissions = 0;
-          reservations.filter(r => r.status !== 'Cancelled').forEach(r => {
-            const t = getReservationTotals(r);
-            totalRevenue += t.totalSell;
-            totalCost += t.totalBuy;
-            totalCommissions += t.totalCommission;
-          });
-          otherServices.filter(s => s.status !== 'Cancelled').forEach(s => {
-            totalRevenue += s.sellPrice * s.quantity;
-            totalCost += s.buyPrice * s.quantity;
-          });
+          // Equity — Accrual-basis: Confirmed bookings + Confirmed/Completed services only
+          const { revenue: totalRevenue, cost: totalCost, commissions: totalCommissions } = getTotalConfirmedRevenue(reservations, otherServices);
           const retainedEarnings = totalRevenue - totalCost - totalCommissions;
           const totalExpensesAmount = expenses.reduce((s, e) => s + e.amount, 0);
           const totalEquity = retainedEarnings - totalExpensesAmount;
@@ -810,7 +810,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between"><span>Bank Accounts</span><span className="font-mono font-bold">{bankBalances.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
                     <div className="flex justify-between"><span>Cash on Hand</span><span className="font-mono font-bold">{cashOnHand.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
-                    <div className="flex justify-between"><span>Accounts Receivable</span><span className="font-mono font-bold">{accountsReceivable.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
+                    <div className="flex justify-between"><span>Accounts Receivable</span><span className="font-mono font-bold">{totalAR.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
                     <div className="flex justify-between border-t border-emerald-300 pt-2 font-bold text-sm">
                       <span>Total Assets</span><span className="font-mono">{totalAssets.toLocaleString('en-US', {minimumFractionDigits:2})} SAR</span>
                     </div>
@@ -820,7 +820,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                 <div className="border border-rose-200 rounded-xl p-4 bg-rose-50/30">
                   <h4 className="font-bold text-rose-800 text-sm mb-3 uppercase">Liabilities</h4>
                   <div className="space-y-2 text-xs">
-                    <div className="flex justify-between"><span>Accounts Payable</span><span className="font-mono font-bold">{accountsPayable.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
+                    <div className="flex justify-between"><span>Accounts Payable</span><span className="font-mono font-bold">{totalAP.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
                     <div className="flex justify-between"><span>Client Credits (Wallet)</span><span className="font-mono font-bold">{clientCredits.toLocaleString('en-US', {minimumFractionDigits:2})}</span></div>
                     <div className="flex justify-between border-t border-rose-300 pt-2 font-bold text-sm">
                       <span>Total Liabilities</span><span className="font-mono">{totalLiabilities.toLocaleString('en-US', {minimumFractionDigits:2})} SAR</span>
@@ -857,14 +857,19 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
 
         {/* ==================== INCOME STATEMENT ==================== */}
         {activeReportTab === 'incomeStatement' && (() => {
-          const periodReservations = reservations.filter(r => r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
-          const periodServices = otherServices.filter(s => s.status !== 'Cancelled' && s.date >= fromDate && s.date <= toDate);
+          // Accrual basis: Confirmed reservations in period (regardless of payment)
+          const periodReservations = reservations.filter(r => r.status === 'Confirmed' && r.checkIn >= fromDate && r.checkIn <= toDate);
+          // Accrual basis: Confirmed + Completed other services in period (not Tentative/Cancelled)
+          const periodServices = otherServices.filter(s => (s.status === 'Confirmed' || s.status === 'Completed') && s.date >= fromDate && s.date <= toDate);
           const cancelledRes = reservations.filter(r => r.status === 'Cancelled' && r.createdAt >= fromDate && r.createdAt <= toDate);
 
           let resSell = 0, resBuy = 0, resCommissions = 0;
           periodReservations.forEach(r => { const t = getReservationTotals(r); resSell += t.totalSell; resBuy += t.totalBuy; resCommissions += t.totalCommission; });
           let svcSell = 0, svcBuy = 0;
-          periodServices.forEach(s => { svcSell += s.sellPrice * s.quantity; svcBuy += s.buyPrice * s.quantity; });
+          periodServices.forEach(s => {
+            svcSell += getServiceSellTotal(s);
+            svcBuy += getServiceBuyTotal(s);
+          });
 
           const totalRevenue = resSell + svcSell;
           const totalCOGS = resBuy + svcBuy;
@@ -922,46 +927,75 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         {/* ==================== MONEY UNDER COLLECTION ==================== */}
         {activeReportTab === 'collection' && (() => {
           const collectionData = (() => {
-            return reservations.filter(r => r.status !== 'Cancelled').map(r => {
-              const { totalSell } = getReservationTotals(r);
-              const outstanding = totalSell - (r.amountPaidByClient || 0);
-              const client = agents.find(a => a.id === r.clientId);
-              const hotel = hotels.find(h => h.id === r.hotelId);
-              // Aging based on check-in date
-              const checkInDate = new Date(r.checkIn);
-              const today = new Date();
-              const daysSinceCheckIn = Math.max(0, Math.ceil((today.getTime() - checkInDate.getTime()) / (1000*60*60*24)));
-              let bucket = 'Current';
-              if (daysSinceCheckIn > 60) bucket = '60d+';
-              else if (daysSinceCheckIn > 30) bucket = '30d';
-              else if (daysSinceCheckIn > 14) bucket = '14d';
-              else if (daysSinceCheckIn > 7) bucket = '7d';
-              return { res: r, outstanding, client, hotel, bucket, daysSinceCheckIn };
-            }).filter(d => d.outstanding > 0);
+            // Guard: ensure reservations is an array
+            if (!Array.isArray(reservations) || reservations.length === 0) return [];
+            // Accrual basis: Confirmed reservations only (Tentative excluded)
+            return reservations.filter(r => r && r.status === 'Confirmed').map(r => {
+              try {
+                const { totalSell } = getReservationTotals(r);
+                const outstanding = getOutstanding(r, transactions, 'Client');
+                const client = agents.find(a => a.id === r.clientId);
+                const hotel = hotels.find(h => h.id === r.hotelId);
+                // Aging based on check-in date
+                const checkInDate = r.checkIn ? new Date(r.checkIn) : new Date();
+                const today = new Date();
+                const daysSinceCheckIn = Math.max(0, Math.ceil((today.getTime() - checkInDate.getTime()) / (1000*60*60*24)));
+                let bucket = 'Current';
+                if (daysSinceCheckIn > 60) bucket = '60d+';
+                else if (daysSinceCheckIn > 30) bucket = '30d';
+                else if (daysSinceCheckIn > 14) bucket = '14d';
+                else if (daysSinceCheckIn > 7) bucket = '7d';
+                return { res: r, outstanding, client, hotel, bucket, daysSinceCheckIn, source: 'reservation' as const };
+              } catch (err) {
+                console.warn('[Collection Report] Error processing reservation:', r?.id, err);
+                return null;
+              }
+            }).filter((d): d is NonNullable<typeof d> => d !== null && d.outstanding > 0);
           })();
 
-          const filteredColl = collectionData.filter(d => {
+          // Add unpaid other services to collection report (Confirmed + Completed only)
+          const unpaidServicesData = (otherServices || []).filter(s => s.status === 'Confirmed' || s.status === 'Completed').map(s => {
+            const totalSell = getServiceSellTotal(s);
+            const paid = s.amountPaidByClient || 0;
+            const outstanding = Math.max(0, totalSell - paid);
+            if (outstanding <= 0) return null;
+            const client = agents.find(a => a.id === s.clientId);
+            const svcDate = s.date ? new Date(s.date) : new Date();
+            const today = new Date();
+            const daysSince = Math.max(0, Math.ceil((today.getTime() - svcDate.getTime()) / (1000*60*60*24)));
+            let bucket = 'Current';
+            if (daysSince > 60) bucket = '60d+';
+            else if (daysSince > 30) bucket = '30d';
+            else if (daysSince > 14) bucket = '14d';
+            else if (daysSince > 7) bucket = '7d';
+            return { res: { id: s.id, guestName: `${s.serviceType}: ${s.description}`, checkIn: s.date, status: s.status } as any, outstanding, client, hotel: null, bucket, daysSinceCheckIn: daysSince, source: 'service' as const };
+          }).filter((d): d is NonNullable<typeof d> => d !== null);
+
+          const allCollectionData = [...collectionData, ...unpaidServicesData];
+
+          const filteredColl = allCollectionData.filter(d => {
             if (collMinAmount > 0 && d.outstanding < collMinAmount) return false;
             if (collClientFilter && d.client?.id !== collClientFilter) return false;
             if (collSearch) {
               const q = collSearch.toLowerCase();
               return (
                 String(d.res.id).includes(q) ||
-                d.res.guestName.toLowerCase().includes(q) ||
-                (d.client?.name.toLowerCase().includes(q)) ||
-                (d.hotel?.name.toLowerCase().includes(q))
+                (d.res.guestName?.toLowerCase?.() || '').includes(q) ||
+                (d.client?.name?.toLowerCase?.() || '').includes(q) ||
+                (d.hotel?.name?.toLowerCase?.() || '').includes(q)
               );
             }
             return true;
           });
 
           const buckets: Record<string, number> = { 'Current': 0, '7d': 0, '14d': 0, '30d': 0, '60d+': 0 };
-          collectionData.forEach(d => { buckets[d.bucket] = (buckets[d.bucket] || 0) + d.outstanding; });
-          const totalOutstanding = collectionData.reduce((s, d) => s + d.outstanding, 0);
+          allCollectionData.forEach(d => { buckets[d.bucket] = (buckets[d.bucket] || 0) + d.outstanding; });
+          const totalOutstanding = allCollectionData.reduce((s, d) => s + d.outstanding, 0);
 
           const handleCollExport = () => {
             const rows = filteredColl.map(d => ({
-              'Booking': `RSV-${d.res.id}`,
+              'Ref': d.source === 'service' ? `SVC-${d.res.id}` : `RSV-${d.res.id}`,
+              'Type': d.source === 'service' ? 'Other Service' : d.res.status,
               'Guest': d.res.guestName,
               'Client': d.client?.name || '',
               'Hotel': d.hotel?.name || '',
@@ -983,7 +1017,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               {/* Aging buckets */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
                 <div className="bg-white border rounded-lg p-3 text-center">
-                  <p className="text-[10px] text-gray-500 font-bold uppercase">Total Outstanding</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">Total Outstanding</p>
                   <p className="text-lg font-bold text-slate-900">{totalOutstanding.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
                 </div>
                 {Object.entries(buckets).map(([bucket, amount]) => (
@@ -994,7 +1028,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     bucket === '30d' ? 'bg-red-50 border-red-200' :
                     'bg-red-100 border-red-300'
                   }`}>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase">{bucket}</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">{bucket}</p>
                     <p className="text-sm font-bold font-mono">{amount.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
                   </div>
                 ))}
@@ -1012,23 +1046,30 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px] text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b font-semibold text-slate-500">
-                      <th className="py-2.5 px-3">Booking</th>
-                      <th className="py-2.5 px-3">Guest</th>
+                    <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10">
+                      <th className="py-2.5 px-3">Ref</th>
+                      <th className="py-2.5 px-3">Type</th>
+                      <th className="py-2.5 px-3">Guest / Description</th>
                       <th className="py-2.5 px-3">Client</th>
                       <th className="py-2.5 px-3">Hotel</th>
-                      <th className="py-2.5 px-3">Check-in</th>
+                      <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3 text-right">Outstanding</th>
                       <th className="py-2.5 px-3 text-center">Aging</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {filteredColl.length === 0 ? (
-                      <tr><td colSpan={7} className="py-8 text-center text-slate-400 italic">No outstanding amounts</td></tr>
+                      <tr><td colSpan={8} className="py-8 text-center text-slate-400 italic">No outstanding amounts</td></tr>
                     ) : (
-                      filteredColl.map(d => (
-                        <tr key={d.res.id} className="hover:bg-slate-50/50">
-                          <td className="py-2.5 px-3 font-mono font-bold text-slate-900">RSV-{d.res.id}</td>
+                      filteredColl.map((d, idx) => (
+                        <tr key={`${d.source}_${d.res.id}_${idx}`} className="hover:bg-slate-50 transition-colors cursor-pointer">
+                          <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{d.source === 'service' ? `SVC-${d.res.id}` : `RSV-${d.res.id}`}</td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                              d.source === 'service' ? 'bg-purple-50 text-purple-700' :
+                              d.res.status === 'Tentative' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                            }`}>{d.source === 'service' ? 'Service' : d.res.status}</span>
+                          </td>
                           <td className="py-2.5 px-3 uppercase font-medium">{d.res.guestName}</td>
                           <td className="py-2.5 px-3 font-medium">{d.client?.name || '-'}</td>
                           <td className="py-2.5 px-3">{d.hotel?.name || '-'}</td>
@@ -1056,19 +1097,31 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         {/* ==================== TAX REPORT ==================== */}
         {activeReportTab === 'tax' && (() => {
           const defaultRate = taxSettings.find(ts => ts.active)?.rate ?? 15;
-          const periodRes = reservations.filter(r => r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
-          const periodSvc = otherServices.filter(s => s.status !== 'Cancelled' && s.date >= fromDate && s.date <= toDate);
+          const periodRes = reservations.filter(r => r && r.status !== 'Cancelled' && r.checkIn >= fromDate && r.checkIn <= toDate);
+          // Guard: ensure otherServices is an array and filter safely
+          const periodSvc = (otherServices || []).filter(s => s && s.status !== 'Cancelled' && s.date && s.date >= fromDate && s.date <= toDate);
 
           let outputVatRes = 0, inputVatRes = 0;
           periodRes.forEach(r => {
-            const t = getReservationTotals(r);
-            outputVatRes += t.totalSell * defaultRate / 100;
-            inputVatRes += t.totalBuy * defaultRate / 100;
+            try {
+              const t = getReservationTotals(r);
+              outputVatRes += t.totalSell * defaultRate / 100;
+              inputVatRes += t.totalBuy * defaultRate / 100;
+            } catch (err) {
+              console.warn('[Tax Report] Error processing reservation:', r?.id, err);
+            }
           });
           let outputVatSvc = 0, inputVatSvc = 0;
           periodSvc.forEach(s => {
-            outputVatSvc += s.sellPrice * s.quantity * s.taxRate / 100;
-            inputVatSvc += s.buyPrice * s.quantity * s.taxRate / 100;
+            try {
+              const sellTotal = (s.sellPrice || 0) * (s.quantity || 1);
+              const buyTotal = (s.buyPrice || 0) * (s.quantity || 1);
+              const taxRate = s.taxRate || defaultRate;
+              outputVatSvc += sellTotal * taxRate / 100;
+              inputVatSvc += buyTotal * taxRate / 100;
+            } catch (err) {
+              console.warn('[Tax Report] Error processing service:', s?.id, err);
+            }
           });
 
           const totalOutputVat = outputVatRes + outputVatSvc;
@@ -1078,20 +1131,29 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           const handleTaxExport = () => {
             const rows = [
               ...periodRes.map(r => {
-                const t = getReservationTotals(r);
-                return {
-                  Type: 'Reservation', Ref: `RSV-${r.id}`, Date: r.checkIn,
-                  'Sell': t.totalSell.toFixed(2), 'Buy': t.totalBuy.toFixed(2),
-                  'Output VAT': (t.totalSell * defaultRate / 100).toFixed(2),
-                  'Input VAT': (t.totalBuy * defaultRate / 100).toFixed(2),
-                };
-              }),
-              ...periodSvc.map(s => ({
-                Type: 'Service', Ref: s.invoiceNo || s.id, Date: s.date,
-                'Sell': (s.sellPrice * s.quantity).toFixed(2), 'Buy': (s.buyPrice * s.quantity).toFixed(2),
-                'Output VAT': (s.sellPrice * s.quantity * s.taxRate / 100).toFixed(2),
-                'Input VAT': (s.buyPrice * s.quantity * s.taxRate / 100).toFixed(2),
-              })),
+                try {
+                  const t = getReservationTotals(r);
+                  return {
+                    Type: 'Reservation', Ref: `RSV-${r.id}`, Date: r.checkIn,
+                    'Sell': t.totalSell.toFixed(2), 'Buy': t.totalBuy.toFixed(2),
+                    'Output VAT': (t.totalSell * defaultRate / 100).toFixed(2),
+                    'Input VAT': (t.totalBuy * defaultRate / 100).toFixed(2),
+                  };
+                } catch { return null; }
+              }).filter(Boolean),
+              ...periodSvc.map(s => {
+                try {
+                  const sellTotal = (s.sellPrice || 0) * (s.quantity || 1);
+                  const buyTotal = (s.buyPrice || 0) * (s.quantity || 1);
+                  const taxRate = s.taxRate || defaultRate;
+                  return {
+                    Type: 'Service', Ref: s.invoiceNo || s.id, Date: s.date,
+                    'Sell': sellTotal.toFixed(2), 'Buy': buyTotal.toFixed(2),
+                    'Output VAT': (sellTotal * taxRate / 100).toFixed(2),
+                    'Input VAT': (buyTotal * taxRate / 100).toFixed(2),
+                  };
+                } catch { return null; }
+              }).filter(Boolean),
             ];
             exportToCSV('tax_report.csv', rows);
           };
@@ -1130,7 +1192,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px] text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b font-semibold text-slate-500">
+                    <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10">
                       <th className="py-2.5 px-3">Ref</th>
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Sell</th>
@@ -1146,7 +1208,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                       const oVat = t.totalSell * defaultRate / 100;
                       const iVat = t.totalBuy * defaultRate / 100;
                       return (
-                        <tr key={`r-${r.id}`} className="hover:bg-slate-50/50">
+                        <tr key={`r-${r.id}`} className="hover:bg-slate-50 transition-colors cursor-pointer">
                           <td className="py-2.5 px-3 font-mono font-bold">RSV-{r.id}</td>
                           <td className="py-2.5 px-3 font-mono">{r.checkIn}</td>
                           <td className="py-2.5 px-3 font-mono">{t.totalSell.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
@@ -1163,7 +1225,7 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                       const oVat = sellTotal * s.taxRate / 100;
                       const iVat = buyTotal * s.taxRate / 100;
                       return (
-                        <tr key={`s-${s.id}`} className="hover:bg-slate-50/50">
+                        <tr key={`s-${s.id}`} className="hover:bg-slate-50 transition-colors cursor-pointer">
                           <td className="py-2.5 px-3 font-mono font-bold">{s.invoiceNo || s.id}</td>
                           <td className="py-2.5 px-3 font-mono">{s.date}</td>
                           <td className="py-2.5 px-3 font-mono">{sellTotal.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
@@ -1196,9 +1258,9 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-0 md:p-4" onClick={() => setSelectedReminderRes(null)}>
-            <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 text-xs text-slate-800" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white rounded-none md:rounded-xl shadow-2xl max-w-lg w-full p-4 md:p-6 max-h-[100dvh] md:max-h-[95dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-xs text-slate-800" onClick={(e) => e.stopPropagation()}>
               
-              <div className="border-b border-slate-150 pb-3 flex justify-between items-center mb-4">
+              <div className="flex-shrink-0 border-b border-slate-150 pb-3 flex justify-between items-center mb-4">
                 <h4 className="font-bold text-slate-800 uppercase flex items-center gap-1.5">
                   ✉️ Outgoing Supplier Notification Draft
                 </h4>
@@ -1267,10 +1329,17 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
           return { client, totalSell, bookedAmount, clientPayments, outstanding, bookings: clientRes.length };
         }).filter(r => r.bookings > 0).sort((a, b) => b.outstanding - a.outstanding);
 
+        const verification = verifyDoubleEntry(agents, reservations, transactions);
+
         return (
           <div className="space-y-4">
             <h3 className="font-bold text-slate-800 uppercase text-xs">Client Reconciliation Report</h3>
             <p className="text-xs text-slate-500">Compare system records against client accounts. Outstanding = Total Sell - Client Paid.</p>
+            {/* Double-Entry Verification Banner */}
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold ${verification.passed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'}`}>
+              <span>{verification.passed ? '✅' : '⚠️'}</span>
+              <span>Double-Entry Verification: {verification.passed ? 'PASSED — All agent balances match transaction ledger' : `FAILED — ${verification.mismatches.length} agent(s) with balance discrepancy, Revenue gap: ${verification.revenueDifference.toLocaleString()} SAR`}</span>
+            </div>
             <div className="bg-white border rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b">
@@ -1421,9 +1490,16 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
                     <span className={`font-bold ${(group.totalIn - group.totalOut) >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                       Net: {(group.totalIn - group.totalOut).toLocaleString()}
                     </span>
-                    {group.account && (
-                      <span className="text-slate-600">System Bal: {group.account.balance.toLocaleString()}</span>
-                    )}
+                    {group.account && (() => {
+                      const realBal = getAccountRealBalance(group.account, transactions);
+                      const storedBal = group.account.balance;
+                      const variance = Math.abs(realBal - storedBal);
+                      return (
+                        <span className={`font-bold ${variance > 0.01 ? 'text-amber-600' : 'text-slate-600'}`}>
+                          Real Bal: {realBal.toLocaleString()}{variance > 0.01 ? ` (Δ${variance.toLocaleString()})` : ''}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -2362,6 +2438,144 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
         );
       })()}
 
+      {/* ==================== SALES PIPELINE REPORT ==================== */}
+      {activeReportTab === 'salesPipeline' && (() => {
+        // Isolate Tentative and Pending bookings for sales pipeline tracking
+        const pipelineBookings = reservations.filter(r => 
+          r && (r.status === 'Tentative' || (r.status === 'Confirmed' && r.clientOptionDate && r.clientOptionDate >= new Date().toISOString().split('T')[0]))
+        );
+        
+        const tentativeBookings = pipelineBookings.filter(r => r.status === 'Tentative');
+        const pendingOptionBookings = pipelineBookings.filter(r => r.status === 'Confirmed' && r.clientOptionDate);
+        
+        // Calculate pipeline value
+        const tentativeValue = tentativeBookings.reduce((sum, r) => {
+          try { return sum + getReservationTotals(r).totalSell; } catch { return sum; }
+        }, 0);
+        const pendingValue = pendingOptionBookings.reduce((sum, r) => {
+          try { return sum + getReservationTotals(r).totalSell; } catch { return sum; }
+        }, 0);
+        const totalPipelineValue = tentativeValue + pendingValue;
+        
+        // Group by client
+        const byClient = new Map<string, { client: any; bookings: any[]; value: number }>();
+        pipelineBookings.forEach(r => {
+          try {
+            const client = agents.find(a => a.id === r.clientId);
+            const key = r.clientId || 'unknown';
+            const existing = byClient.get(key) || { client, bookings: [], value: 0 };
+            existing.bookings.push(r);
+            existing.value += getReservationTotals(r).totalSell;
+            byClient.set(key, existing);
+          } catch {}
+        });
+        
+        const handlePipelineExport = () => {
+          const rows = pipelineBookings.map(r => {
+            const client = agents.find(a => a.id === r.clientId);
+            const hotel = hotels.find(h => h.id === r.hotelId);
+            return {
+              'Status': r.status,
+              'Booking': `RSV-${r.id}`,
+              'Guest': r.guestName,
+              'Client': client?.name || '-',
+              'Hotel': hotel?.name || '-',
+              'Check-in': r.checkIn,
+              'Option Expiry': r.clientOptionDate || '-',
+              'Value (SAR)': getReservationTotals(r).totalSell.toFixed(2),
+            };
+          });
+          exportToCSV('sales_pipeline.csv', rows);
+        };
+        
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 uppercase text-xs">📋 Sales Pipeline Report</h3>
+              <button onClick={handlePipelineExport} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-[10px] px-3 py-1.5 rounded-lg transition border border-indigo-200">
+                Export CSV
+              </button>
+            </div>
+            
+            {/* Pipeline KPI Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-amber-700 font-bold uppercase">Total Pipeline</p>
+                <p className="text-xl font-bold text-amber-900 font-mono">{totalPipelineValue.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+                <p className="text-[9px] text-amber-600">{pipelineBookings.length} bookings</p>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-orange-700 font-bold uppercase">Tentative</p>
+                <p className="text-xl font-bold text-orange-900 font-mono">{tentativeValue.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+                <p className="text-[9px] text-orange-600">{tentativeBookings.length} bookings</p>
+              </div>
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-blue-700 font-bold uppercase">Pending Options</p>
+                <p className="text-xl font-bold text-blue-900 font-mono">{pendingValue.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+                <p className="text-[9px] text-blue-600">{pendingOptionBookings.length} bookings</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-purple-700 font-bold uppercase">Active Clients</p>
+                <p className="text-xl font-bold text-purple-900 font-mono">{byClient.size}</p>
+                <p className="text-[9px] text-purple-600">in pipeline</p>
+              </div>
+            </div>
+            
+            {/* Pipeline Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-slate-500 sticky top-0 z-10">
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">Booking</th>
+                    <th className="py-2.5 px-3">Guest</th>
+                    <th className="py-2.5 px-3">Client</th>
+                    <th className="py-2.5 px-3">Hotel</th>
+                    <th className="py-2.5 px-3">Check-in</th>
+                    <th className="py-2.5 px-3">Option Expiry</th>
+                    <th className="py-2.5 px-3 text-right">Value (SAR)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {pipelineBookings.length === 0 ? (
+                    <tr><td colSpan={8} className="py-8 text-center text-slate-400 italic">No bookings in pipeline</td></tr>
+                  ) : (
+                    pipelineBookings.map(r => {
+                      const client = agents.find(a => a.id === r.clientId);
+                      const hotel = hotels.find(h => h.id === r.hotelId);
+                      const { totalSell } = getReservationTotals(r);
+                      const isExpiringSoon = r.clientOptionDate && new Date(r.clientOptionDate) <= new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+                      return (
+                        <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer">
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                              r.status === 'Tentative' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                            }`}>{r.status}</span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold text-slate-900">RSV-{r.id}</td>
+                          <td className="py-2.5 px-3 uppercase font-medium">{r.guestName}</td>
+                          <td className="py-2.5 px-3">{client?.name || '-'}</td>
+                          <td className="py-2.5 px-3">{hotel?.name || '-'}</td>
+                          <td className="py-2.5 px-3 font-mono">{r.checkIn}</td>
+                          <td className="py-2.5 px-3 font-mono">
+                            {r.clientOptionDate ? (
+                              <span className={isExpiringSoon ? 'text-red-600 font-bold' : ''}>
+                                {r.clientOptionDate} {isExpiringSoon && '⚠️'}
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-700">{totalSell.toLocaleString('en-US', {minimumFractionDigits:2})}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Printing arrival overlays standard */}
       {printingArrivalReport && (
         <ArrivalReportPDF
@@ -2415,3 +2629,5 @@ export default function ReportsPage({ reservations, agents, hotels, transactions
     </div>
   );
 }
+
+export default React.memo(ReportsPage);

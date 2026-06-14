@@ -9,8 +9,9 @@ import ReceiptVoucherPDF from './ReceiptVoucherPDF';
 import Tooltip from './Tooltip';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
-import { exportToExcel } from '../lib/storage';
+import { exportToExcel, getNextVoucherNo, getNextDocNo } from '../lib/storage';
 import VirtualTable from './VirtualTable';
+import EmptyState from './EmptyState';
 
 interface TransactionsPageProps {
   transactions: Transaction[];
@@ -20,12 +21,13 @@ interface TransactionsPageProps {
   currentUser: string;
   onSaveTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
+  globalDateRange?: { label: string; from: string; to: string } | null;
 }
 
 import { exportToCSV, getReservationTotals } from '../lib/storage';
 import { round2 } from '../lib/finance';
 
-export default function TransactionsPage({ transactions, agents, accounts, reservations, currentUser, onSaveTransaction, onDeleteTransaction }: TransactionsPageProps) {
+function TransactionsPage({ transactions, agents, accounts, reservations, currentUser, onSaveTransaction, onDeleteTransaction, globalDateRange }: TransactionsPageProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const { t, lang } = useLang();
@@ -47,7 +49,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
   const [agentId, setAgentId] = useState('');
   const [reservationId, setReservationId] = useState('');
   const [amount, setAmount] = useState<number>(0);
-  const [originalCurrency, setOriginalCurrency] = useState<'SAR' | 'EGP'>('SAR');
+  const [originalCurrency, setOriginalCurrency] = useState<'SAR' | 'EGP' | 'USD' | 'EUR'>('SAR');
   const [originalAmount, setOriginalAmount] = useState<number>(0);
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank Transfer'>('Bank Transfer');
@@ -116,14 +118,14 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
 
     const timestampIdx = editingId ? editingId.replace('tr_', '') : Date.now();
     
-    // Sequential numbering for doc and voucher references
-    const docNo = editingId 
-      ? (transactions.find(t => t.id === editingId)?.docNo || `DOC-${String(transactions.length + 1).padStart(3, '0')}`) 
-      : `DOC-${String(transactions.filter(t => t.type === type).length + 1).padStart(3, '0')}`;
+    // Sequential numbering for doc and voucher references (max-scan, deletion-safe)
+    const docNo = editingId
+      ? (transactions.find(t => t.id === editingId)?.docNo || getNextDocNo('DOC', transactions))
+      : getNextDocNo('DOC', transactions);
     const voucherPrefix = paymentMethod === 'Cash' ? 'CASH-REC' : 'BANK-REC';
-    const voucherNo = editingId 
-      ? (transactions.find(t => t.id === editingId)?.voucherNo || `${voucherPrefix}-${String(transactions.filter(t => t.paymentMethod === paymentMethod).length + 1).padStart(3, '0')}`)
-      : `${voucherPrefix}-${String(transactions.filter(t => t.paymentMethod === paymentMethod).length + 1).padStart(3, '0')}`;
+    const voucherNo = editingId
+      ? (transactions.find(t => t.id === editingId)?.voucherNo || getNextVoucherNo(voucherPrefix, transactions))
+      : getNextVoucherNo(voucherPrefix, transactions);
 
     let computedAmount = amount;
     if (originalCurrency === 'EGP') {
@@ -213,11 +215,12 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     const term = searchTerm.toLowerCase();
     const searchMatch = !searchTerm || tr.docNo?.toLowerCase().includes(term) || tr.voucherNo?.toLowerCase().includes(term) || tr.description?.toLowerCase().includes(term) || getAgentLabel(tr.agentId).toLowerCase().includes(term) || tr.reservationId?.includes(term);
     const typeMatch = !filterType || tr.type === filterType;
+    const gdrMatch = !globalDateRange || (tr.date >= globalDateRange.from && tr.date <= globalDateRange.to);
     const dateFromMatch = !filterDateFrom || tr.date >= filterDateFrom;
     const dateToMatch = !filterDateTo || tr.date <= filterDateTo;
     const agentMatch = !filterAgentId || tr.agentId === filterAgentId;
     const methodMatch = !filterMethod || tr.paymentMethod === filterMethod;
-    return searchMatch && typeMatch && dateFromMatch && dateToMatch && agentMatch && methodMatch;
+    return searchMatch && typeMatch && gdrMatch && dateFromMatch && dateToMatch && agentMatch && methodMatch;
   });
 
   // Running balance for filtered transactions
@@ -296,6 +299,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       'Method': tr.paymentMethod,
       'Description': tr.description,
       'Amount (SAR)': tr.amount,
+      'Original Amount': tr.originalAmount ? `${tr.originalAmount} ${tr.originalCurrency}` : '',
+      'Exchange Rate': tr.exchangeRate || '',
       'Voucher': tr.voucherNo || '',
       'Created By': tr.createdBy || ''
     }));
@@ -722,11 +727,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         {/* Mobile Card Layout (virtualized + paginated) */}
         <div className="md:hidden">
           {filteredTransactions.length === 0 ? (
-            <div className="py-16 text-center animate-fade-in">
-              <div className="text-5xl mb-4">💳</div>
-              <p className="text-sm font-bold text-slate-500">{t('trans.noTransactions')}</p>
-              <p className="text-xs text-slate-400 mt-1">{t('trans.createFirst')}</p>
-            </div>
+            <EmptyState icon="💳" title={t('trans.noTransactions')} description={t('trans.createFirst')} />
           ) : (
             <VirtualTable
               items={filteredTransactions}
@@ -787,7 +788,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/50 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+              <tr className="border-b border-slate-100 bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-[10px] sticky top-0 z-10">
                 <th className="py-3 px-3">{t('common.date')}</th>
                 <th className="py-3 px-3">{lang === 'ar' ? 'رقم الحجز / المستند' : 'Reservation / Doc No'}</th>
                 <th className="py-3 px-3 hidden lg:table-cell">{lang === 'ar' ? 'رقم القسيمة' : 'Voucher No'}</th>
@@ -797,6 +798,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                 <th className="py-3 px-3 hidden lg:table-cell">{t('common.description')}</th>
                 <th className="py-3 px-3 text-center hidden lg:table-cell">{t('trans.attachment')}</th>
                 <th className="py-3 px-3 text-right">{t('trans.sumSAR')}</th>
+                <th className="py-3 px-3 text-right hidden md:table-cell">Original Amount</th>
                 <th className="py-3 px-3 text-right">{t('trans.runningBal')}</th>
                 <th className="py-3 px-3 text-right hidden xl:table-cell">Gross Profit</th>
                 <th className="py-3 px-3 text-right hidden xl:table-cell">Net Profit</th>
@@ -806,7 +808,7 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 select-none">
               {pagedTransactions.map((tr, localIdx) => (
-                <tr key={tr.id} className="hover:bg-slate-50/45 text-xs">
+                <tr key={tr.id} className="hover:bg-slate-50 transition-colors cursor-pointer text-xs">
                   <td className="py-3 px-3 font-mono">{tr.date}</td>
                   <td className="py-3 px-3 font-mono font-bold text-indigo-700">
                     {searchTerm ? highlightText(tr.docNo || '—', searchTerm) : (tr.docNo || '—')}
@@ -849,6 +851,13 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
                     'text-red-650'
                   }`}>
                     {tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied' ? '+' : tr.type === 'ClientRefund' ? '↩ ' : tr.type === 'RefundProcessed' ? '↩ ' : '-'} {tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] hidden md:table-cell ${
+                    tr.originalCurrency && tr.originalCurrency !== 'SAR' ? 'text-indigo-700' : 'text-slate-300'
+                  }`}>
+                    {tr.originalCurrency && tr.originalCurrency !== 'SAR' && tr.originalAmount
+                      ? `${tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' || tr.type === 'CreditApplied' ? '+' : '-'}${tr.originalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ${tr.originalCurrency}`
+                      : '—'}
                   </td>
                   <td className={`py-3 px-3 text-right font-mono font-bold text-[10px] ${runningBalances[pagedOffset + localIdx] >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
                     {runningBalances[pagedOffset + localIdx].toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -909,10 +918,8 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
               ))}
               {transactions.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="py-16 text-center animate-fade-in">
-                    <div className="text-5xl mb-4">💳</div>
-                    <p className="text-sm font-bold text-slate-500">{t('trans.noTransactions')}</p>
-                    <p className="text-xs text-slate-400 mt-1">{t('trans.createFirst')}</p>
+                  <td colSpan={12} className="py-16 text-center">
+                    <EmptyState icon="💳" title={t('trans.noTransactions')} description={t('trans.createFirst')} />
                   </td>
                 </tr>
               )}
@@ -958,15 +965,15 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
       {/* Attachment Viewer Modal */}
       {viewingAttachment && (
         <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-0 md:p-4" onClick={() => setViewingAttachment(null)}>
-          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[95dvh] w-full flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
               <div className="flex items-center gap-2">
                 <a href={viewingAttachment.url} download className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg transition">⬇️ Download</a>
                 <button onClick={() => setViewingAttachment(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold w-8 h-8 rounded-lg text-sm flex items-center justify-center transition">✕</button>
               </div>
             </div>
-            <div className="p-4 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-slate-100">
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100">
               {viewingAttachment.url.startsWith('data:image/') ? (
                 <img src={viewingAttachment.url} alt={viewingAttachment.label} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow" />
               ) : viewingAttachment.url.startsWith('data:application/pdf') ? (
@@ -987,3 +994,5 @@ export default function TransactionsPage({ transactions, agents, accounts, reser
     </div>
   );
 }
+
+export default React.memo(TransactionsPage);

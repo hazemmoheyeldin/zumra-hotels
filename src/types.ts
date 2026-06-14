@@ -52,7 +52,7 @@ export interface GlobalAuditEntry {
 
 export interface Agent {
   id: string;
-  agentNumber: number; // For Agent # column (sequential auto-incrementing)
+  agentNumber: string; // Sequential ID: C-001 (Customer), S-001 (Supplier), B-001 (Both)
   name: string;
   companyName: string;
   country: string;
@@ -67,7 +67,7 @@ export interface Agent {
   clientStatus?: 'Active' | 'Suspended' | 'Blacklisted'; // Client status flag
   supplierMarkupRate?: number; // Default commission/markup % charged to this supplier
   portalToken?: string; // Unique random token for secure client portal access
-  contactPersons?: { name: string; phone: string }[]; // Contact persons with phone numbers
+  contactPersons?: { name: string; phone: string; email?: string }[]; // Contact persons with phone numbers
   auditLogs: AuditLogEntry[];
 }
 
@@ -231,9 +231,10 @@ export interface Transaction {
   paymentMethod: 'Cash' | 'Bank Transfer';
   voucherNo: string;      // Receipt voucher code
   createdBy: string;
-  originalCurrency?: 'SAR' | 'EGP';
+  originalCurrency?: 'SAR' | 'EGP' | 'USD' | 'EUR';
   originalAmount?: number;
   exchangeRate?: number;
+  baseAmountSAR?: number;   // Explicit SAR-normalized amount (equals amount)
 }
 
 export interface User {
@@ -247,6 +248,7 @@ export interface User {
   mustChangePassword?: boolean; // Force password change on next login
   profileImage?: string; // base64 encoded profile image
   status?: 'Active' | 'Pending'; // Access control: Pending users cannot log in until activated by admin
+  isActive?: boolean; // Soft-delete flag: false = deactivated (zombie prevention). Defaults to true if undefined.
 }
 
 export interface FollowUp {
@@ -259,6 +261,7 @@ export interface FollowUp {
   createdBy: string;
   priority?: 'High' | 'Medium' | 'Low';
   activityLog?: ActivityLogEntry[];
+  pipelineStage?: 'New Request' | 'In Negotiation' | 'Follow-Up Required' | 'Won' | 'Lost';
 }
 
 export interface ActivityLogEntry {
@@ -286,6 +289,7 @@ export interface ExternalTransferPart {
   legDate?: string;
   receivingBank?: string;
   notes?: string;
+  linkedTransactionId?: string; // Wire to payment — linked transaction ID
 }
 
 export interface ExternalTransfer {
@@ -335,6 +339,7 @@ export interface OtherService {
   id: string;
   serviceType: ServiceType;
   clientId: string;
+  supplierId?: string;
   description: string;
   quantity: number;
   sellPrice: number;
@@ -346,6 +351,13 @@ export interface OtherService {
   notes?: string;
   createdBy: string;
   createdAt: string;
+  // Multi-currency support
+  currency?: 'SAR' | 'EGP' | 'USD' | 'EUR';
+  exchangeRate?: number;        // Rate to convert to SAR (base currency)
+  sellPriceSAR?: number;        // Normalized sell price in SAR
+  buyPriceSAR?: number;         // Normalized buy price in SAR
+  amountPaidByClient?: number;  // Track payment received from client
+  amountPaidToSupplier?: number; // Track payment made to supplier
   // Type-specific fields stored as key-value
   details?: Record<string, string>;
 }
@@ -537,6 +549,16 @@ export interface CommissionEntry {
   paidAt?: string;
   reversedAt?: string;
   note?: string;
+}
+
+// Document Templates for PDF generation
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  type: 'Confirmation' | 'Voucher' | 'Invoice';
+  htmlTemplateString?: string;
+  isDefault?: boolean;
+  createdAt: string;
 }
 
 // Credit / Debit Note tracking

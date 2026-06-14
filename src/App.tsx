@@ -8,10 +8,11 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
+import { invalidateHotelCache } from './lib/cacheInvalidation';
 
 // Lazy-loaded page components with auto-retry on stale chunk failure
 const Dashboard = lazyWithRetry(() => import('./components/Dashboard'));
@@ -38,6 +39,9 @@ const OtherServicesPage = lazyWithRetry(() => import('./components/OtherServices
 const PaymentGatewaysPage = lazyWithRetry(() => import('./components/PaymentGatewaysPage'));
 const ExpensesPage = lazyWithRetry(() => import('./components/ExpensesPage'));
 const GraphsPage = lazyWithRetry(() => import('./components/GraphsPage'));
+const DataImportModal = lazyWithRetry(() => import('./components/DataImportModal'));
+const PermissionsPage = lazyWithRetry(() => import('./components/PermissionsPage'));
+const ShortcutsModal = lazyWithRetry(() => import('./components/ShortcutsModal'));
 
 // Eagerly loaded (needed for login/auth flow — kept lightweight)
 import ZumraLogo from './components/ZumraLogo';
@@ -45,6 +49,7 @@ import LoginPage from './components/LoginPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastContainer, useToast } from './components/Toast';
 import { SessionTimeout } from './lib/security';
+import GlobalDateFilter, { DateRange } from './components/GlobalDateFilter';
 
 // Lazy-loaded (only needed AFTER login — reduces initial bundle size)
 const Tooltip = lazyWithRetry(() => import('./components/Tooltip'));
@@ -240,17 +245,48 @@ const THEMES: AppTheme[] = [
     inputBg: 'bg-[#1a2744] hover:bg-[#1e2f52]', inputText: 'text-slate-200',
     footerBg: 'bg-[#0F0F1A]', footerBorder: 'border-white/[0.08]', isDark: true,
   },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    emoji: '🏢',
+    sidebarBg: 'bg-zinc-950',
+    sidebarBorder: 'border-white/[0.06]',
+    sidebarHover: 'hover:bg-white/[0.08]',
+    sidebarActive: 'bg-blue-500/15 text-blue-400',
+    sidebarText: 'text-zinc-400',
+    brandBg: 'bg-blue-600',
+    brandText: 'text-blue-500',
+    brandLetterColor: 'text-white',
+    btnPrimary: 'bg-slate-900 hover:bg-slate-800 text-white shadow-sm',
+    badgeBg: 'bg-slate-100 text-slate-700',
+    footerText: 'text-slate-400',
+    topBarGradient: 'from-zinc-950 via-slate-800 to-zinc-900',
+    mainBg: 'bg-slate-50',
+    headerBg: 'bg-white',
+    headerBorder: 'border-gray-200',
+    headerText: 'text-slate-900',
+    headerIcon: 'text-slate-500',
+    headerHover: 'hover:bg-gray-100',
+    cardBg: 'bg-white',
+    cardBorder: 'border-gray-200',
+    cardText: 'text-slate-700',
+    inputBg: 'bg-white hover:bg-gray-50',
+    inputText: 'text-slate-700',
+    footerBg: 'bg-white',
+    footerBorder: 'border-gray-200',
+    isDark: false,
+  },
 ];
 
 export default function App() {
   // Navigation Tabs state
   const [activeTab, setActiveTab] = useState<string>('Dashboard');
   const [activeFilters, setActiveFilters] = useState<any>(null);
+  const [globalDateRange, setGlobalDateRange] = useState<DateRange | null>(null);
+  const [showDataImport, setShowDataImport] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Monotonic key that increments on every navigation — forces remount even on same-tab re-click
-  const [tabKey, setTabKey] = useState(0);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarRef = React.useRef<HTMLElement>(null);
   const sidebarCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -304,6 +340,8 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [consolidatedInvoices, setConsolidatedInvoices] = useState<ConsolidatedInvoice[]>([]);
+  // Full reservations snapshot for real-time notifications (unlimited, separate from paginated list)
+  const [allReservationsForAlerts, setAllReservationsForAlerts] = useState<Reservation[]>([]);
   const [showEditApprovalModal, setShowEditApprovalModal] = useState(false);
   // New feature states
   const [blackoutPeriods, setBlackoutPeriods] = useState<BlackoutPeriod[]>([]);
@@ -314,8 +352,13 @@ export default function App() {
   // Split-architecture: paginated windows + on-demand full loads
   const [reservationsCursor, setReservationsCursor] = useState<DocumentSnapshot | null>(null);
   const [hotelsCursor, setHotelsCursor] = useState<DocumentSnapshot | null>(null);
+  const [transactionsCursor, setTransactionsCursor] = useState<DocumentSnapshot | null>(null);
+  const [agentsCursor, setAgentsCursor] = useState<DocumentSnapshot | null>(null);
   const [hasMoreReservations, setHasMoreReservations] = useState(true);
   const [hasMoreHotels, setHasMoreHotels] = useState(true);
+  const [hasMoreTransactions, setHasMoreTransactions] = useState(true);
+  const [hasMoreAgents, setHasMoreAgents] = useState(true);
+  
   const [fullReservations, setFullReservations] = useState<Reservation[] | null>(null);
   const [fullHotels, setFullHotels] = useState<Hotel[] | null>(null);
   const [fullDataLoading, setFullDataLoading] = useState(false);
@@ -354,17 +397,40 @@ export default function App() {
 
   const currentTheme = THEMES.find(t => t.id === activeThemeId) || THEMES[0];
 
-  // Derive simple alerts for headers
+  // Derive simple alerts for headers (GENERAL BOOKING NOTIFICATIONS ONLY)
+  // CRM/Sales follow-ups are shown separately in Dashboard's pendingFollowUps banner
+  // and must NOT appear here to maintain notification segregation
   const getAlerts = () => {
+    // Use the full-collection listener for alerts (all reservations, not just paginated 50)
+    // Falls back to paginated reservations if the full listener hasn't fired yet
+    const source = allReservationsForAlerts.length > 0 ? allReservationsForAlerts : reservations;
+    if (!source || source.length === 0) return [];
     let alerts: {id: string, type: string, message: string, resId: string}[] = [];
     const nowStr = getEgyptTime().toISOString().split('T')[0];
     const nowDate = new Date(nowStr);
-    reservations.forEach(res => {
+    source.forEach(res => {
+      const isCancelled = res.status === 'Cancelled';
+      if (isCancelled) return;
+
       const { totalBuy, totalSell } = getReservationTotals(res);
       const isPastCheckIn = res.checkIn < nowStr;
       
       const clientOwes = totalSell - (res.amountPaidByClient || 0);
       const weOweSupplier = totalBuy - (res.amountPaidToSupplier || 0);
+
+      // Tentative reservations: alert if fully paid by client (remind to confirm status)
+      if (res.status === 'Tentative' && totalSell > 0 && clientOwes <= 0) {
+        alerts.push({
+          id: `tentative_paid_${res.id}`,
+          type: 'Ready to Confirm',
+          message: `RSV-${res.id} (${res.guestName}) is fully paid — change status to Confirmed`,
+          resId: res.id.toString(),
+        });
+        return; // Skip other checks for tentative
+      }
+
+      // Skip Tentative for other alerts — handled above
+      if (res.status === 'Tentative') return;
       
       if (isPastCheckIn && (clientOwes > 0 || weOweSupplier > 0)) {
         alerts.push({
@@ -390,51 +456,98 @@ export default function App() {
       }
 
       // Document expiry alerts (passport & visa)
-      if (res.status !== 'Cancelled') {
-        if (res.passportExpiry) {
-          const pExp = new Date(res.passportExpiry);
-          const daysToExpiry = Math.ceil((pExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysToExpiry <= 90 && daysToExpiry >= 0) {
-            alerts.push({
-              id: `passport_${res.id}`,
-              type: 'Passport Expiring',
-              message: `RSV-${res.id} (${res.guestName}) passport expires in ${daysToExpiry} days (${res.passportExpiry})`,
-              resId: res.id.toString(),
-            });
-          } else if (daysToExpiry < 0) {
-            alerts.push({
-              id: `passport_exp_${res.id}`,
-              type: 'Passport Expired',
-              message: `RSV-${res.id} (${res.guestName}) passport EXPIRED on ${res.passportExpiry}`,
-              resId: res.id.toString(),
-            });
-          }
+      if (res.passportExpiry) {
+        const pExp = new Date(res.passportExpiry);
+        const daysToExpiry = Math.ceil((pExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysToExpiry <= 90 && daysToExpiry >= 0) {
+          alerts.push({
+            id: `passport_${res.id}`,
+            type: 'Passport Expiring',
+            message: `RSV-${res.id} (${res.guestName}) passport expires in ${daysToExpiry} days (${res.passportExpiry})`,
+            resId: res.id.toString(),
+          });
+        } else if (daysToExpiry < 0) {
+          alerts.push({
+            id: `passport_exp_${res.id}`,
+            type: 'Passport Expired',
+            message: `RSV-${res.id} (${res.guestName}) passport EXPIRED on ${res.passportExpiry}`,
+            resId: res.id.toString(),
+          });
         }
-        if (res.visaExpiry) {
-          const vExp = new Date(res.visaExpiry);
-          const daysToExpiry = Math.ceil((vExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysToExpiry <= 60 && daysToExpiry >= 0) {
-            alerts.push({
-              id: `visa_${res.id}`,
-              type: 'Visa Expiring',
-              message: `RSV-${res.id} (${res.guestName}) visa expires in ${daysToExpiry} days (${res.visaExpiry})`,
-              resId: res.id.toString(),
-            });
-          } else if (daysToExpiry < 0) {
-            alerts.push({
-              id: `visa_exp_${res.id}`,
-              type: 'Visa Expired',
-              message: `RSV-${res.id} (${res.guestName}) visa EXPIRED on ${res.visaExpiry}`,
-              resId: res.id.toString(),
-            });
-          }
+      }
+      if (res.visaExpiry) {
+        const vExp = new Date(res.visaExpiry);
+        const daysToExpiry = Math.ceil((vExp.getTime() - nowDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysToExpiry <= 60 && daysToExpiry >= 0) {
+          alerts.push({
+            id: `visa_${res.id}`,
+            type: 'Visa Expiring',
+            message: `RSV-${res.id} (${res.guestName}) visa expires in ${daysToExpiry} days (${res.visaExpiry})`,
+            resId: res.id.toString(),
+          });
+        } else if (daysToExpiry < 0) {
+          alerts.push({
+            id: `visa_exp_${res.id}`,
+            type: 'Visa Expired',
+            message: `RSV-${res.id} (${res.guestName}) visa EXPIRED on ${res.visaExpiry}`,
+            resId: res.id.toString(),
+          });
         }
       }
     });
+
+    // Unpaid Other Services alerts
+    otherServices.forEach(svc => {
+      if (svc.status === 'Cancelled') return;
+      const sellSAR = svc.sellPriceSAR || (svc.sellPrice * (svc.exchangeRate || 1));
+      const totalSell = sellSAR * svc.quantity;
+      const paid = svc.amountPaidByClient || 0;
+      const outstanding = totalSell - paid;
+      if (outstanding > 0) {
+        const client = agents.find(a => a.id === svc.clientId);
+        const clientName = client ? (client.companyName || client.name) : 'Unknown';
+        alerts.push({
+          id: `svc_unpaid_${svc.id}`,
+          type: 'Unpaid Service',
+          message: `${svc.serviceType} for ${clientName} — ${outstanding.toLocaleString()} SAR outstanding`,
+          resId: '',
+        });
+      }
+    });
+
+    // Expiring allotment contracts (within 30 days)
+    const todayAllot = new Date(nowStr);
+    allotments.forEach(a => {
+      if (a.endDate < nowStr) return; // already expired
+      const end = new Date(a.endDate);
+      const daysLeft = Math.ceil((end.getTime() - todayAllot.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysLeft <= 30 && daysLeft >= 0) {
+        const hotel = hotels.find(h => h.id === a.hotelId);
+        alerts.push({
+          id: `allot_exp_${a.id}`,
+          type: 'Allotment Expiring',
+          message: `${hotel?.name || 'Unknown'} allotment expires ${a.endDate} (${daysLeft} days left)`,
+          resId: '',
+        });
+      }
+    });
+
     return alerts;
   };
-  
-  const currentAlerts = getAlerts();
+
+  // Dismissed alerts tracking
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('zumra_dismissed_alerts') || '[]'); } catch { return []; }
+  });
+
+  const dismissAlert = (alertId: string) => {
+    const updated = [...dismissedAlerts, alertId];
+    setDismissedAlerts(updated);
+    localStorage.setItem('zumra_dismissed_alerts', JSON.stringify(updated));
+  };
+
+  const allAlerts = getAlerts();
+  const currentAlerts = allAlerts.filter(a => !dismissedAlerts.includes(a.id));
   const alertCount = currentAlerts.length;
 
   // ═══════════════════════════════════════════════════════════
@@ -476,7 +589,7 @@ export default function App() {
       if (settled) return;
       settled = true;
       unsub();
-      console.log('[Firebase Auth] onAuthStateChanged:', fbUser ? `signed in as ${fbUser.email || fbUser.uid}` : 'not signed in (null)');
+      // Auth state changed
 
       // If Firebase has a signed-in user, try to restore their app session
       if (fbUser) {
@@ -485,8 +598,15 @@ export default function App() {
           try {
             const user = JSON.parse(savedUser);
             if (user && user.username && user.role) {
-              setCurrentUser(user as User);
-              console.log('[Firebase Auth] Session restored for:', user.username);
+              // Zombie prevention: check if user was deactivated since last session
+              if (user.isActive === false) {
+                console.warn('[Firebase Auth] Session restore blocked: user deactivated');
+                localStorage.removeItem('zumra_current_user');
+                fbSignOut().catch(() => {});
+              } else {
+                setCurrentUser(user as User);
+                // Session restored
+              }
             }
           } catch {}
         }
@@ -770,9 +890,11 @@ export default function App() {
             setHasMoreHotels(data.length >= PAGE_SIZE);
           }
         }));
-        attach(() => firestoreSubscribe<Agent>(COLLECTIONS.AGENTS, (data) => {
+        attach(() => firestoreSubscribeWithLimit<Agent>(COLLECTIONS.AGENTS, 'id', 'asc', PAGE_SIZE, (data, lastDoc) => {
           scheduleLocalStorageWrite('zumra_agents', data);
           setAgents(prev => arraysEqual(prev, data) ? prev : data);
+          setAgentsCursor(lastDoc);
+          setHasMoreAgents(data.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
           scheduleLocalStorageWrite('zumra_allotments', data);
@@ -788,9 +910,11 @@ export default function App() {
           scheduleLocalStorageWrite('zumra_accounts', data);
           setAccounts(prev => arraysEqual(prev, data) ? prev : data);
         }));
-        attach(() => firestoreSubscribe<Transaction>(COLLECTIONS.TRANSACTIONS, (data) => {
+        attach(() => firestoreSubscribeWithLimit<Transaction>(COLLECTIONS.TRANSACTIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
           scheduleLocalStorageWrite('zumra_transactions', data);
           setTransactions(prev => arraysEqual(prev, data) ? prev : data);
+          setTransactionsCursor(lastDoc);
+          setHasMoreTransactions(data.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<ExternalTransfer>(COLLECTIONS.EXTERNAL_TRANSFERS, (data) => {
           scheduleLocalStorageWrite('zumra_external_transfers', data);
@@ -803,6 +927,14 @@ export default function App() {
           const merged = Array.from(mergedMap.values());
           scheduleLocalStorageWrite('zumra_users', merged);
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
+          // Real-time zombie check: if current user was deactivated by admin on another tab
+          if (currentUser && merged.find(u => u.id === currentUser.id)?.isActive === false) {
+            console.warn('[Users Listener] Current user was deactivated — forcing logout');
+            localStorage.removeItem('zumra_current_user');
+            setCurrentUser(null as any);
+            if (isFirebaseConfigured) fbSignOut().catch(() => {});
+            toast.warning('Your account has been deactivated by an administrator.');
+          }
         }));
         attach(() => firestoreSubscribe<FollowUp>(COLLECTIONS.FOLLOW_UPS, (data) => {
           scheduleLocalStorageWrite('zumra_follow_ups', data);
@@ -856,9 +988,15 @@ export default function App() {
           scheduleLocalStorageWrite('zumra_messages', data);
           setMessages(prev => arraysEqual(prev, data) ? prev : data);
         }));
+        // Dedicated full-collection reservations listener for real-time notifications
+        // Runs alongside the paginated listener — ensures alerts scan ALL reservations
+        // not just the 50 most recent (late payments, upcoming check-ins, document expiry)
+        attach(() => firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+          setAllReservationsForAlerts(prev => arraysEqual(prev, data) ? prev : data);
+        }));
 
         // Store unsubs in ref for cleanup (populated asynchronously as listeners attach)
-        // Total stagger time: 22 listeners × 50ms = 1.1s for all listeners to be fully attached
+        // Total stagger time: 23 listeners × 50ms = 1.15s for all listeners to be fully attached
         console.log('[Firestore] All', attachIndex, 'listeners queued for staggered attachment');
         setTimeout(() => {
           firestoreListenerUnsubs.current = unsubs;
@@ -895,7 +1033,7 @@ export default function App() {
                 isAuthed = await firebaseSignIn(user.email, fbPwd);
               }
               if (isAuthed) {
-                console.log('[Firebase Auth] Session restored via fast-path');
+                // Session restored (fast-path)
               } else {
                 console.warn(`[Firebase Auth] Could not authenticate ${user.email} — continuing with localStorage data`);
               }
@@ -1001,8 +1139,11 @@ export default function App() {
       window.addEventListener('storage', handleStorage);
 
       return () => {
-        // DO NOT tear down Firestore listeners on user switch — they persist for the session
-        // Only clean up on component unmount (listenersAttachedRef will be garbage collected)
+        // Clean up Firestore listeners on unmount to prevent ghost data loops
+        firestoreListenerUnsubs.current.forEach(unsub => {
+          try { unsub(); } catch (e) { /* ignore */ }
+        });
+        firestoreListenerUnsubs.current = [];
         window.removeEventListener('storage', handleStorage);
       };
     } else {
@@ -1231,6 +1372,8 @@ export default function App() {
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
     ZumraSync.saveAllotment(al);
+    // Write-through: invalidate Redis cache for this hotel's availability/allotment data
+    invalidateHotelCache(al.hotelId);
     toast.success('Allotment saved successfully');
   };
   const handleSaveAllotment = (al: Allotment) => {
@@ -1238,10 +1381,13 @@ export default function App() {
   };
 
   const doDeleteAllotment = (id: string) => {
+    const deletedAllotment = allotments.find(item => item.id === id);
     const updated = allotments.filter(item => item.id !== id);
     setAllotments(updated);
     ZumraDB.saveAllotments(updated);
     ZumraSync.deleteAllotment(id);
+    // Write-through: invalidate Redis cache for this hotel's availability/allotment data
+    if (deletedAllotment) invalidateHotelCache(deletedAllotment.hotelId);
     toast.success('Allotment deleted');
   };
   const handleDeleteAllotment = (id: string) => {
@@ -1289,22 +1435,75 @@ export default function App() {
     }
   };
 
+  const loadMoreTransactions = async () => {
+    if (!transactionsCursor || !hasMoreTransactions) return;
+    try {
+      const result = await firestoreFetchPage<Transaction>(COLLECTIONS.TRANSACTIONS, 'id', 'desc', PAGE_SIZE, transactionsCursor);
+      if (result.data.length > 0) {
+        setTransactions(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const newItems = result.data.filter(t => !existingIds.has(t.id));
+          return [...prev, ...newItems];
+        });
+        if (result.lastDoc) setTransactionsCursor(result.lastDoc);
+        setHasMoreTransactions(result.data.length >= PAGE_SIZE);
+      } else {
+        setHasMoreTransactions(false);
+      }
+    } catch (e) {
+      console.error('[App] loadMoreTransactions error:', e);
+    }
+  };
+
+  const loadMoreAgents = async () => {
+    if (!agentsCursor || !hasMoreAgents) return;
+    try {
+      const result = await firestoreFetchPage<Agent>(COLLECTIONS.AGENTS, 'id', 'asc', PAGE_SIZE, agentsCursor);
+      if (result.data.length > 0) {
+        setAgents(prev => {
+          const existingIds = new Set(prev.map(a => a.id));
+          const newItems = result.data.filter(a => !existingIds.has(a.id));
+          return [...prev, ...newItems];
+        });
+        if (result.lastDoc) setAgentsCursor(result.lastDoc);
+        setHasMoreAgents(result.data.length >= PAGE_SIZE);
+      } else {
+        setHasMoreAgents(false);
+      }
+    } catch (e) {
+      console.error('[App] loadMoreAgents error:', e);
+    }
+  };
+
   // --- Split-architecture: On-demand full loads for Dashboard/Reports ---
   // Ref guards prevent parallel calls (race condition: both calls see fullReservations===null)
   const loadingFullResRef = useRef(false);
   const loadingFullHotelsRef = useRef(false);
+  // Track real-time full-data subscriptions for cleanup
+  const fullResUnsubRef = useRef<(() => void) | null>(null);
+  const fullHotelsUnsubRef = useRef<(() => void) | null>(null);
 
   const loadFullReservations = async () => {
     if (fullReservations || loadingFullResRef.current) return fullReservations;
     loadingFullResRef.current = true;
     setFullDataLoading(true);
     try {
-      const data = await firestoreLoadFull<Reservation>(COLLECTIONS.RESERVATIONS);
-      setFullReservations(data);
-      return data;
+      // Use real-time onSnapshot instead of one-time getDocs
+      // This keeps Dashboard/Reports in sync instantly across all devices
+      if (fullResUnsubRef.current) {
+        try { fullResUnsubRef.current(); } catch {}
+      }
+      fullResUnsubRef.current = firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
+        setFullReservations(prev => arraysEqual(prev, data) ? prev : data);
+        setFullDataLoading(false);
+      });
+      return fullReservations;
+    } catch (e) {
+      console.error('[App] loadFullReservations error:', e);
+      setFullDataLoading(false);
+      return null;
     } finally {
       loadingFullResRef.current = false;
-      setFullDataLoading(false);
     }
   };
 
@@ -1313,18 +1512,38 @@ export default function App() {
     loadingFullHotelsRef.current = true;
     setFullDataLoading(true);
     try {
-      const data = await firestoreLoadFull<Hotel>(COLLECTIONS.HOTELS);
-      setFullHotels(data);
-      return data;
+      // Use real-time onSnapshot instead of one-time getDocs
+      if (fullHotelsUnsubRef.current) {
+        try { fullHotelsUnsubRef.current(); } catch {}
+      }
+      fullHotelsUnsubRef.current = firestoreSubscribe<Hotel>(COLLECTIONS.HOTELS, (data) => {
+        setFullHotels(prev => arraysEqual(prev, data) ? prev : data);
+        setFullDataLoading(false);
+      });
+      return fullHotels;
+    } catch (e) {
+      console.error('[App] loadFullHotels error:', e);
+      setFullDataLoading(false);
+      return null;
     } finally {
       loadingFullHotelsRef.current = false;
-      setFullDataLoading(false);
     }
   };
 
   const clearFullData = () => {
+    // Unsubscribe from real-time full-data listeners when navigating away
+    if (fullResUnsubRef.current) {
+      try { fullResUnsubRef.current(); } catch {}
+      fullResUnsubRef.current = null;
+    }
+    if (fullHotelsUnsubRef.current) {
+      try { fullHotelsUnsubRef.current(); } catch {}
+      fullHotelsUnsubRef.current = null;
+    }
     setFullReservations(null);
     setFullHotels(null);
+    loadingFullResRef.current = false;
+    loadingFullHotelsRef.current = false;
   };
 
   const doSaveReservation = (res: Reservation) => {
@@ -1370,6 +1589,8 @@ export default function App() {
       newAllotments.forEach(al => ZumraSync.saveAllotment(al));
     };
     recalcAllotments();
+    // Write-through: invalidate Redis cache for this reservation's hotel availability
+    if (res.hotelId) invalidateHotelCache(res.hotelId);
 
     // Process cancellation wallet updates and transactions
     if (res.status === 'Cancelled') {
@@ -1474,11 +1695,35 @@ export default function App() {
     );
   };
 
+  // Direct update handler for payment recording - no confirmation dialog needed
+  const handleUpdateReservationDirect = (res: Reservation) => {
+    doSaveReservation(res);
+  };
+
+  // Safety check: does a reservation have any active payments linked to it?
+  const reservationHasPayments = (resId: string): boolean => {
+    return transactions.some(t => t.reservationId === resId);
+  };
+
   const doDeleteReservation = (id: string) => {
+    const resToDelete = reservations.find(r => r.id.toString() === id);
+
+    // Protected Deletion Protocol: block if payments exist
+    if (reservationHasPayments(id)) {
+      toast.error('Action Blocked: Cannot delete a reservation with active payments. Please delete or refund all associated payments first.');
+      return;
+    }
+
     const updated = reservations.filter(item => item.id.toString() !== id);
     setReservations(updated);
     ZumraDB.saveReservations(updated);
     ZumraSync.deleteReservation(id);
+    // Write-through: invalidate Redis cache for this hotel
+    if (resToDelete?.hotelId) invalidateHotelCache(resToDelete.hotelId);
+    // Audit log: record who deleted the booking
+    if (resToDelete) {
+      handleLogAuditSimple('Delete', 'Reservation', id, `User ${currentUser?.name || 'unknown'} deleted unpaid reservation RSV-${id} (Guest: ${resToDelete.guestName}, Client: ${resToDelete.clientId})`);
+    }
     toast.success(`Reservation RSV-${id} deleted`);
   };
   const handleBulkAction = (action: 'confirm' | 'cancel' | 'delete', ids: number[]) => {
@@ -1490,12 +1735,30 @@ export default function App() {
         `Delete ${count} Reservation(s)`,
         `Are you sure you want to permanently delete ${count} reservation(s)? This cannot be undone.`,
         () => {
-          const idSet = new Set(ids.map(id => id.toString()));
+          // Protected Deletion Protocol: filter out reservations with active payments
+          const blockedIds = ids.filter(id => reservationHasPayments(id.toString()));
+          const safeIds = ids.filter(id => !reservationHasPayments(id.toString()));
+          if (blockedIds.length > 0) {
+            toast.error(`Action Blocked: ${blockedIds.length} reservation(s) have active payments and were skipped. Delete or refund payments first.`);
+          }
+          if (safeIds.length === 0) {
+            toast.error('No reservations could be deleted — all have active payments.');
+            return;
+          }
+          const idSet = new Set(safeIds.map(id => id.toString()));
           const updated = reservations.filter(r => !idSet.has(r.id.toString()));
           setReservations(updated);
           ZumraDB.saveReservations(updated);
-          ids.forEach(id => ZumraSync.deleteReservation(id.toString()));
-          toast.success(`${count} reservation(s) deleted`);
+          safeIds.forEach(id => ZumraSync.deleteReservation(id.toString()));
+          // Write-through: invalidate Redis cache for affected hotels
+          const affectedHotels = new Set(safeIds.map(id => reservations.find(r => r.id === id)?.hotelId).filter(Boolean));
+          affectedHotels.forEach(hId => invalidateHotelCache(hId!));
+          // Audit log for bulk delete
+          safeIds.forEach(id => {
+            const r = reservations.find(x => x.id === id);
+            if (r) handleLogAuditSimple('Delete', 'Reservation', id.toString(), `User ${currentUser?.name || 'unknown'} bulk deleted unpaid RSV-${id} (Guest: ${r.guestName})`);
+          });
+          toast.success(`${safeIds.length} reservation(s) deleted${blockedIds.length > 0 ? ` (${blockedIds.length} skipped — had payments)` : ''}`);
         },
         'destructive'
       );
@@ -1513,6 +1776,9 @@ export default function App() {
           setReservations(updated);
           ZumraDB.saveReservations(updated);
           updated.filter(r => idSet.has(r.id)).forEach(r => ZumraSync.saveReservation(r));
+          // Write-through: invalidate Redis cache for affected hotels
+          const confirmHotels = new Set(updated.filter(r => idSet.has(r.id)).map(r => r.hotelId).filter(Boolean));
+          confirmHotels.forEach(hId => invalidateHotelCache(hId!));
           toast.success(`${count} reservation(s) confirmed`);
         }
       );
@@ -1530,6 +1796,9 @@ export default function App() {
           setReservations(updated);
           ZumraDB.saveReservations(updated);
           updated.filter(r => idSet.has(r.id)).forEach(r => ZumraSync.saveReservation(r));
+          // Write-through: invalidate Redis cache for affected hotels
+          const cancelHotels = new Set(updated.filter(r => idSet.has(r.id)).map(r => r.hotelId).filter(Boolean));
+          cancelHotels.forEach(hId => invalidateHotelCache(hId!));
           toast.success(`${count} reservation(s) cancelled`);
         },
         'destructive'
@@ -1539,9 +1808,12 @@ export default function App() {
 
   const handleDeleteReservation = (id: string) => {
     const res = reservations.find(r => r.id.toString() === id);
+    const hasPayments = reservationHasPayments(id);
     showConfirm(
       'Delete Reservation',
-      `Are you sure you want to delete reservation RSV-${id}${res ? ` (${res.guestName})` : ''}? This cannot be undone.`,
+      hasPayments
+        ? `⚠️ This reservation has active payments and CANNOT be deleted. Please delete or refund all associated payments first.`
+        : `Are you sure you want to delete reservation RSV-${id}${res ? ` (${res.guestName})` : ''}? This cannot be undone.`,
       () => doDeleteReservation(id),
       'destructive'
     );
@@ -1685,6 +1957,7 @@ export default function App() {
       else if (tr.type === 'SupplierPayment') modifier = -tr.amount;
       else if (tr.type === 'ClientRefund') modifier = -tr.amount; // Money leaves account
       else if (tr.type === 'SupplierRefund') modifier = tr.amount; // Money enters account
+      else if (tr.type === 'CreditApplied') modifier = -tr.amount; // Credit applied = money leaves account
       newAccounts = newAccounts.map(acc => acc.id === tr.fromAccountId ? { ...acc, balance: acc.balance + modifier } : acc);
     }
     return { newAgents, newAccounts };
@@ -1704,17 +1977,68 @@ export default function App() {
     } else {
       updated = [tr, ...transactions];
     }
+    // --- Optimistic local state updates (instant UI) ---
     setTransactions(updated);
     ZumraDB.saveTransactions(updated);
-    ZumraSync.saveTransaction(tr);
 
     const applied = applyTransactionEffect(tr, currentAgents, currentAccounts);
     setAgents(applied.newAgents);
     ZumraDB.saveAgents(applied.newAgents);
-    applied.newAgents.forEach(a => ZumraSync.saveAgent(a));
     setAccounts(applied.newAccounts);
     ZumraDB.saveAccounts(applied.newAccounts);
-    applied.newAccounts.forEach(a => ZumraSync.saveAccount(a));
+
+    // --- Referential integrity: recompute paid amounts for linked reservations ---
+    let linkedReservation: Reservation | undefined;
+    if (tr.reservationId && (tr.type === 'ClientPayment' || tr.type === 'SupplierPayment' || tr.type === 'ClientRefund' || tr.type === 'SupplierRefund')) {
+      linkedReservation = reservations.find(r => r.id.toString() === tr.reservationId);
+      if (linkedReservation) {
+        const resTransactions = updated.filter(t => t.reservationId === tr.reservationId);
+        let clientPaid = 0;
+        let supplierPaid = 0;
+        resTransactions.forEach(t => {
+          const sar = t.baseAmountSAR || t.amount;
+          if (t.type === 'ClientPayment') clientPaid += sar;
+          else if (t.type === 'SupplierPayment') supplierPaid += sar;
+          else if (t.type === 'ClientRefund') clientPaid -= sar;
+          else if (t.type === 'SupplierRefund') supplierPaid -= sar;
+        });
+        clientPaid = Math.max(0, Math.round(clientPaid * 100) / 100);
+        supplierPaid = Math.max(0, Math.round(supplierPaid * 100) / 100);
+        if (clientPaid !== (linkedReservation.amountPaidByClient || 0) || supplierPaid !== (linkedReservation.amountPaidToSupplier || 0)) {
+          linkedReservation = { ...linkedReservation, amountPaidByClient: clientPaid, amountPaidToSupplier: supplierPaid };
+          doSaveReservation(linkedReservation);
+        } else {
+          linkedReservation = undefined; // No change needed
+        }
+      }
+    }
+
+    // --- Atomic writeBatch for linked payments (CRITICAL for ledger consistency) ---
+    const isLinkedPayment = !!(tr.reservationId && ['ClientPayment', 'SupplierPayment', 'ClientRefund', 'SupplierRefund'].includes(tr.type));
+    if (isLinkedPayment) {
+      const writes: Array<{ collection: string; id: string; data: any }> = [
+        { collection: COLLECTIONS.TRANSACTIONS, id: String(tr.id), data: tr },
+      ];
+      if (linkedReservation) {
+        writes.push({ collection: COLLECTIONS.RESERVATIONS, id: String(linkedReservation.id), data: linkedReservation });
+      }
+      applied.newAccounts.forEach(a => {
+        writes.push({ collection: COLLECTIONS.ACCOUNTS, id: a.id, data: a });
+      });
+      applied.newAgents.forEach(a => {
+        writes.push({ collection: COLLECTIONS.AGENTS, id: a.id, data: a });
+      });
+      ZumraSync.atomicPayment(writes).catch(err => {
+        console.error('[Atomic Payment] Batch commit failed:', err);
+        toast.error('Transaction Failed: Network or server error. No data was saved. Please try again.');
+      });
+    } else {
+      // Non-linked transaction: individual writes are acceptable
+      ZumraSync.saveTransaction(tr);
+      applied.newAgents.forEach(a => ZumraSync.saveAgent(a));
+      applied.newAccounts.forEach(a => ZumraSync.saveAccount(a));
+    }
+
     toast.success(`Transaction ${tr.voucherNo || tr.id} saved (${tr.amount.toLocaleString()} SAR)`);
   };
   const handleSaveTransaction = (tr: Transaction) => {
@@ -1733,11 +2057,14 @@ export default function App() {
   const doDeleteTransaction = (id: string) => {
     const existing = transactions.find(t => t.id === id);
     if (!existing) return;
+
+    // Step 1: Remove transaction record from collection
     const updated = transactions.filter(item => item.id !== id);
     setTransactions(updated);
     ZumraDB.saveTransactions(updated);
     ZumraSync.deleteTransaction(id);
 
+    // Step 2: Treasury Reversal — deduct from the exact Bank/Cash Safe where it was deposited
     const reversed = reverseTransactionEffect(existing, agents, accounts);
     setAgents(reversed.newAgents);
     ZumraDB.saveAgents(reversed.newAgents);
@@ -1745,7 +2072,42 @@ export default function App() {
     setAccounts(reversed.newAccounts);
     ZumraDB.saveAccounts(reversed.newAccounts);
     reversed.newAccounts.forEach(a => ZumraSync.saveAccount(a));
-    toast.success(`Transaction ${existing.voucherNo || id} deleted`);
+
+    // Step 3: Reservation Reversal — recompute paidAmount from remaining transactions
+    if (existing.reservationId && (existing.type === 'ClientPayment' || existing.type === 'SupplierPayment' || existing.type === 'ClientRefund' || existing.type === 'SupplierRefund')) {
+      const linkedRes = reservations.find(r => r.id.toString() === existing.reservationId);
+      if (linkedRes) {
+        const resTransactions = updated.filter(t => t.reservationId === existing.reservationId);
+        let clientPaid = 0;
+        let supplierPaid = 0;
+        resTransactions.forEach(t => {
+          const sar = t.baseAmountSAR || t.amount;
+          if (t.type === 'ClientPayment') clientPaid += sar;
+          else if (t.type === 'SupplierPayment') supplierPaid += sar;
+          else if (t.type === 'ClientRefund') clientPaid -= sar;
+          else if (t.type === 'SupplierRefund') supplierPaid -= sar;
+        });
+        clientPaid = Math.max(0, Math.round(clientPaid * 100) / 100);
+        supplierPaid = Math.max(0, Math.round(supplierPaid * 100) / 100);
+        if (clientPaid !== (linkedRes.amountPaidByClient || 0) || supplierPaid !== (linkedRes.amountPaidToSupplier || 0)) {
+          const resUpdated = { ...linkedRes, amountPaidByClient: clientPaid, amountPaidToSupplier: supplierPaid };
+          doSaveReservation(resUpdated);
+        }
+      }
+    }
+
+    // Step 4: Audit Log — record User ID, Timestamp, Amount, and Booking ID of deleted payment
+    const sarAmount = existing.baseAmountSAR || existing.amount;
+    const origLabel = existing.originalAmount
+      ? `${existing.originalAmount} ${existing.originalCurrency || 'SAR'} (≈${sarAmount} SAR)`
+      : `${sarAmount} SAR`;
+    handleLogAuditSimple(
+      'Delete',
+      'Transaction',
+      existing.id,
+      `Deleted payment ${existing.voucherNo || existing.id} | Amount: ${origLabel} | Type: ${existing.type} | Booking: ${existing.reservationId ? 'RSV-' + existing.reservationId : 'N/A'} | Account: ${existing.fromAccountId || 'N/A'}`
+    );
+    toast.success(`Transaction ${existing.voucherNo || id} deleted — treasury reversed`);
   };
   const handleDeleteTransaction = (id: string) => {
     const tr = transactions.find(t => t.id === id);
@@ -1829,7 +2191,8 @@ export default function App() {
         description: `Expense: ${exp.name}${exp.description ? ' - ' + exp.description : ''}`,
         paymentMethod: 'Bank Transfer',
         voucherNo: exp.receiptNo || `EXP-${exp.expenseNumber || exp.id}`,
-        createdBy: exp.createdBy
+        createdBy: exp.createdBy,
+        baseAmountSAR: exp.amount
       };
       const updatedTrs = [expTr, ...transactions];
       setTransactions(updatedTrs);
@@ -1879,37 +2242,7 @@ export default function App() {
     handleLogAuditSimple('Create', 'ConsolidatedInvoice', ci.id, `Created consolidated invoice ${ci.invoiceNo}`);
   };
 
-  // Reset all financial data (Destructive)
-  const resetFinancialData = async () => {
-    // 1. Clear transactions
-    setTransactions([]);
-    ZumraDB.saveTransactions([]);
-    // 2. Reset account balances to 0
-    const resetAccounts = accounts.map(a => ({ ...a, balance: 0 }));
-    setAccounts(resetAccounts);
-    ZumraDB.saveAccounts(resetAccounts);
-    // 3. Reset agent balances to 0
-    const resetAgents = agents.map(a => ({ ...a, balance: 0 }));
-    setAgents(resetAgents);
-    ZumraDB.saveAgents(resetAgents);
-    // 4. Clear reservation payment tracking
-    const resetReservations = reservations.map(r => ({
-      ...r,
-      amountPaidByClient: 0,
-      amountPaidToSupplier: 0,
-    }));
-    setReservations(resetReservations);
-    ZumraDB.saveReservations(resetReservations);
-    // 5. Sync deletions to Firestore (delete each transaction)
-    try {
-      for (const tr of transactions) {
-        await ZumraSync.deleteTransaction(tr.id);
-      }
-    } catch (e) {
-      console.error('Firestore transaction cleanup failed:', e);
-    }
-    handleLogAuditSimple('Delete', 'Transaction', 'ALL', 'RESET: All financial data cleared - transactions deleted, balances zeroed');
-  };
+
 
   // Fund transfers between cash blocks
   const handleModifyBalances = (fromId: string, toId: string, amount: number) => {
@@ -1934,7 +2267,8 @@ export default function App() {
       description: `Internal balanced allocation transfer from ${accounts.find(a => a.id === fromId)?.name} to ${accounts.find(a => a.id === toId)?.name}`,
       paymentMethod: 'Bank Transfer',
       voucherNo: getNextVoucherNo('XFER', transactions),
-      createdBy: currentUser?.name || 'Admin System'
+      createdBy: currentUser?.name || 'Admin System',
+      baseAmountSAR: amount
     };
 
     const updatedTr = [newTr, ...transactions];
@@ -2029,30 +2363,43 @@ export default function App() {
     const targetUser = users.find(i => i.id === userId);
     // Guard: prevent deleting self
     if (currentUser && userId === currentUser.id) {
-      toast.error('You cannot delete your own account.');
+      toast.error('You cannot deactivate your own account.');
       return;
     }
     // Guard: prevent deleting the primary admin account
     if (targetUser?.email === 'hazem8383@gmail.com') {
-      toast.error('The primary admin account cannot be deleted.');
+      toast.error('The primary admin account cannot be deactivated.');
       return;
     }
-    // Guard: prevent deleting last admin
-    const adminCount = users.filter(u => u.role === 'Admin').length;
-    if (targetUser?.role === 'Admin' && adminCount <= 1) {
-      toast.error('Cannot delete the last admin. Promote another user to Admin first.');
+    // Guard: prevent deactivating last admin
+    const activeAdmins = users.filter(u => u.role === 'Admin' && u.isActive !== false);
+    if (targetUser?.role === 'Admin' && activeAdmins.length <= 1) {
+      toast.error('Cannot deactivate the last active admin. Promote another user first.');
       return;
     }
-    // Delete from Firestore FIRST to prevent real-time listener from restoring the user
-    await ZumraSync.deleteUser(userId);
-    const updated = users.filter(u => u.id !== userId);
+    // SOFT DELETE: Set isActive = false (do NOT deleteDoc — prevents zombie resurrection)
+    const deactivatedUser = { ...targetUser!, isActive: false };
+    await ZumraSync.saveUser(deactivatedUser);
+    const updated = users.map(u => u.id === userId ? { ...u, isActive: false } : u);
     setUsers(updated);
     ZumraDB.saveUsers(updated);
-    toast.success(`User "${targetUser?.name || userId}" deleted`);
+    // Sign out the deactivated user if they are currently logged in on another tab
+    toast.success(`User "${targetUser?.name || userId}" has been deactivated. They can no longer log in.`);
   };
   const handleDeleteUser = (userId: string) => {
     const u = users.find(i => i.id === userId);
-    showConfirm('Delete User', `Are you sure you want to delete user "${u?.name || userId}"? This cannot be undone.`, () => doDeleteUser(userId), 'destructive');
+    showConfirm('Deactivate User', `Are you sure you want to deactivate user "${u?.name || userId}"?\n\nThey will be immediately blocked from logging in.\nYou can reactivate them later if needed.`, () => doDeleteUser(userId), 'destructive');
+  };
+
+  const handleReactivateUser = async (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    const reactivatedUser = { ...targetUser, isActive: true };
+    await ZumraSync.saveUser(reactivatedUser);
+    const updated = users.map(u => u.id === userId ? { ...u, isActive: true } : u);
+    setUsers(updated);
+    ZumraDB.saveUsers(updated);
+    toast.success(`User "${targetUser.name}" has been reactivated. They can now log in again.`);
   };
 
   const handleLogAudit = (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>): void => {
@@ -2081,14 +2428,17 @@ export default function App() {
 
   // ===== Centralized Navigation with Browser History =====
   // Pushes state to browser history so back/forward buttons work.
-  // Always increments tabKey to force remount even on same-tab re-click.
+  // NOTE: We no longer force remount on navigation - components handle their own state.
   const navigateTo = (tab: string, filters?: any) => {
     setActiveFilters(filters ?? null);
     setActiveTab(tab);
-    setTabKey(k => k + 1);
     window.history.pushState({ tab, filters: filters ?? null }, '', `#${encodeURIComponent(tab)}`);
     // Scroll to top on navigation
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Also scroll content area to top
+    if (contentAreaRef.current) {
+      contentAreaRef.current.scrollTop = 0;
+    }
   };
 
   // Restore tab from URL hash on initial load
@@ -2106,13 +2456,18 @@ export default function App() {
       if (e.state?.tab) {
         setActiveFilters(e.state.filters ?? null);
         setActiveTab(e.state.tab);
-        setTabKey(k => k + 1);
+        // Scroll content area to top
+        if (contentAreaRef.current) {
+          contentAreaRef.current.scrollTop = 0;
+        }
       } else {
         // Fallback: read from hash
         const hash = window.location.hash.replace('#', '');
         if (hash) {
           setActiveTab(decodeURIComponent(hash));
-          setTabKey(k => k + 1);
+          if (contentAreaRef.current) {
+            contentAreaRef.current.scrollTop = 0;
+          }
         }
       }
     };
@@ -2120,15 +2475,12 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Scroll content area to top whenever active tab changes
+  // Scroll content area to top on initial load
   useEffect(() => {
-    // Use requestAnimationFrame to ensure DOM has remounted (key={tabKey})
-    requestAnimationFrame(() => {
-      if (contentAreaRef.current) {
-        contentAreaRef.current.scrollTop = 0;
-      }
-    });
-  }, [activeTab]);
+    if (contentAreaRef.current) {
+      contentAreaRef.current.scrollTop = 0;
+    }
+  }, []);
 
   const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2196,8 +2548,10 @@ export default function App() {
             followUps={followUps}
             allotments={allotments}
             transactions={transactions}
+            expenses={expenses}
             currentUser={currentUser}
             onNavigate={handleNavigate}
+            globalDateRange={globalDateRange}
             onQuickReservation={() => {
               navigateTo('Reservations', { showNewForm: true });
             }}
@@ -2247,10 +2601,12 @@ export default function App() {
             reservations={reservations}
             agents={agents}
             hotels={hotels}
+            fullHotels={fullHotels}
             users={users}
             currentUser={currentUser.name}
             initialFilters={activeFilters}
             onSaveReservation={handleSaveReservation}
+            onUpdateReservationDirect={handleUpdateReservationDirect}
             onDeleteReservation={handleDeleteReservation}
             onBulkAction={handleBulkAction}
             accounts={accounts}
@@ -2334,6 +2690,7 @@ export default function App() {
             currentUser={currentUser.name}
             onSaveTransaction={handleSaveTransaction}
             onDeleteTransaction={handleDeleteTransaction}
+            globalDateRange={globalDateRange}
           />
           </ErrorBoundary>
         );
@@ -2344,6 +2701,7 @@ export default function App() {
             externalTransfers={externalTransfers}
             onSaveTransfer={handleSaveExternalTransfer}
             onDeleteTransfer={handleDeleteExternalTransfer}
+            transactions={transactions}
           />
           </ErrorBoundary>
         );
@@ -2352,6 +2710,7 @@ export default function App() {
           <ErrorBoundary fallbackLabel="Banks & Safes page failed to load.">
           <AccountsPage
             accounts={accounts}
+            transactions={transactions}
             onSaveAccount={handleSaveAccount}
             onDeleteAccount={handleDeleteAccount}
             onModifyBalances={handleModifyBalances}
@@ -2400,6 +2759,7 @@ export default function App() {
             currentUser={currentUser.name}
             onSaveFollowUp={handleSaveFollowUp}
             onDeleteFollowUp={handleDeleteFollowUp}
+            onNavigate={handleNavigate}
           />
           </ErrorBoundary>
         );
@@ -2422,6 +2782,7 @@ export default function App() {
             onSetCurrentUser={handleSetCurrentUser}
             onAddUser={handleAddUser}
             onDeleteUser={handleDeleteUser}
+            onReactivateUser={handleReactivateUser}
             onToast={(type, msg) => { if (type === 'error') toast.error(msg); else if (type === 'warning') toast.warning(msg); else toast.success(msg); }}
           />
           </ErrorBoundary>
@@ -2438,6 +2799,7 @@ export default function App() {
       case 'General Data':
         return (
           <ErrorBoundary fallbackLabel="General Data page failed to load.">
+          <>
           <GeneralDataPage
             salesPersons={salesPersons}
             setSalesPersons={setSalesPersons}
@@ -2447,8 +2809,9 @@ export default function App() {
             setTermsAndConditions={setTermsAndConditions}
             hotels={hotels}
             onLogAudit={handleLogAuditSimple}
-            onResetFinancialData={resetFinancialData}
+            
           />
+          </>
           </ErrorBoundary>
         );
       case 'Other Services':
@@ -2502,6 +2865,14 @@ export default function App() {
           <ErrorBoundary fallbackLabel="Client Portal settings failed to load.">
           <ClientPortalSettings
             onLogAudit={handleLogAuditSimple}
+          />
+          </ErrorBoundary>
+        );
+      case 'Permissions':
+        return (
+          <ErrorBoundary fallbackLabel="Permissions page failed to load.">
+          <PermissionsPage
+            currentUser={currentUser}
           />
           </ErrorBoundary>
         );
@@ -2628,18 +2999,23 @@ export default function App() {
   }, [currentUser]);
 
   const navItems = [
+    // Overview
     { name: 'Dashboard', icon: '📊', group: 'Overview', key: 'dashboard', tip: 'Overview of bookings, revenue & occupancy' },
-    { name: 'Calendar', icon: '🗓️', group: 'Overview', key: 'calendar', tip: 'Visual calendar of all reservations' },
     { name: 'Analytics', icon: '📉', group: 'Overview', key: 'analytics', tip: 'Performance charts & trends' },
-        { name: 'Graphs', icon: '📊', group: 'Overview', key: 'graphs', tip: 'Cash flow, revenue & booking graphs' },
-    { name: 'Reservations', icon: '📅', group: 'Operations', key: 'reservations', tip: 'Manage all bookings & reservations' },
-    { name: 'Sales', icon: '🚀', group: 'Operations', key: 'sales', tip: 'Sales pipeline & tracking' },
-    { name: 'Production', icon: '📈', group: 'Operations', key: 'production', tip: 'Room production & availability' },
-    { name: 'Hotels', icon: '🏢', group: 'Operations', key: 'hotels', tip: 'Hotel properties & room types' },
-    { name: 'Agents', icon: '👥', group: 'Operations', key: 'agents', tip: 'Clients, suppliers & salespersons' },
-    { name: 'Guests', icon: '🧳', group: 'Operations', key: 'guests', tip: 'Guest directory & history' },
-    { name: 'Allotments', icon: '📦', group: 'Operations', key: 'allotments', tip: 'Room allotments & block bookings' },
-    { name: 'Other Services', icon: '🌐', group: 'Operations', key: 'otherServices', tip: 'Extra services & add-ons' },
+    { name: 'Graphs', icon: '📈', group: 'Overview', key: 'graphs', tip: 'Cash flow, revenue & booking graphs' },
+    // Bookings
+    { name: 'Reservations', icon: '📅', group: 'Bookings', key: 'reservations', tip: 'Manage all bookings & reservations' },
+    { name: 'Calendar', icon: '🗓️', group: 'Bookings', key: 'calendar', tip: 'Visual calendar of all reservations' },
+    { name: 'Allotments', icon: '📦', group: 'Bookings', key: 'allotments', tip: 'Room allotments & block bookings' },
+    { name: 'Other Services', icon: '🌐', group: 'Bookings', key: 'otherServices', tip: 'Extra services & add-ons' },
+    // CRM
+    { name: 'Sales', icon: '🚀', group: 'CRM', key: 'sales', tip: 'Sales pipeline & tracking' },
+    { name: 'Production', icon: '📈', group: 'CRM', key: 'production', tip: 'Room production & availability' },
+    { name: 'Guests', icon: '🧳', group: 'CRM', key: 'guests', tip: 'Guest directory & history' },
+    // Property
+    { name: 'Hotels', icon: '🏢', group: 'Property', key: 'hotels', tip: 'Hotel properties & room types' },
+    { name: 'Agents', icon: '👥', group: 'Property', key: 'agents', tip: 'Clients, suppliers & salespersons' },
+    // Finance
     { name: 'Transactions', icon: '💰', group: 'Finance', key: 'transactions', tip: 'All financial transactions & payments' },
     { name: 'External Transfers', icon: '💸', group: 'Finance', key: 'externalTransfers', tip: 'External bank transfers & wires' },
     { name: 'Banks & Safes', icon: '🏦', group: 'Finance', key: 'banksSafes', tip: 'Bank accounts & safe boxes' },
@@ -2647,10 +3023,12 @@ export default function App() {
     { name: 'Ledger', icon: '📒', group: 'Finance', key: 'ledger', tip: 'Financial ledger — source of truth for revenue & commissions' },
     { name: 'Expenses', icon: '📤', group: 'Finance', key: 'expenses', tip: 'Track & manage expenses' },
     { name: 'Payment Gateways', icon: '💳', group: 'Finance', key: 'paymentGateways', tip: 'Online payment gateway settings' },
+    // Settings
     { name: 'Audit Log', icon: '🔍', group: 'Settings', key: 'auditLog', tip: 'System activity & change log' },
     { name: 'Users', icon: '🔑', group: 'Settings', key: 'users', tip: 'Manage user accounts & permissions' },
     { name: 'General Data', icon: '📝', group: 'Settings', key: 'generalData', tip: 'System settings & configuration' },
     { name: 'Client Portal', icon: '🚪', group: 'Settings', key: 'clientPortal', tip: 'Client-facing portal settings' },
+    { name: 'Permissions', icon: '🔐', group: 'Settings', key: 'permissions', tip: 'Role-based page access control' },
   ];
 
   // Auth loading screen - prevents flash of login page during session verification
@@ -2696,6 +3074,18 @@ export default function App() {
       // Look up client by secure portal token, not by ID
       const matchedAgent = agents.find(a => a.portalToken === portalTokenParam);
       const clientId = matchedAgent?.id || '';
+      // If portal token is invalid and agents are loaded, show error
+      if (!matchedAgent && agents.length > 0) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+            <div className="text-center max-w-md px-6">
+              <div className="text-6xl mb-4">🔗</div>
+              <h2 className="text-xl font-bold text-slate-700 mb-2">Invalid Portal Link</h2>
+              <p className="text-sm text-slate-500">The portal link you used doesn't match any client record. Please contact your travel agent for a valid link.</p>
+            </div>
+          </div>
+        );
+      }
       return <ClientPortal reservations={reservations} agents={agents} hotels={hotels} clientId={clientId} onUpdateAgreementStatus={matchedAgent ? handleUpdateAgreementStatus : undefined} />;
     }
     // Lightweight user update: only updates local state + localStorage.
@@ -2723,7 +3113,7 @@ export default function App() {
       return ['Dashboard', 'Calendar', 'Analytics', 'Graphs', 'Reservations', 'Hotels', 'Agents', 'Transactions', 'External Transfers', 'Banks & Safes', 'Reports', 'Payment Gateways', 'Other Services', 'Expenses'].includes(item.name);
     }
     if (currentUser.role === 'ReservationsManager') {
-      return ['Dashboard', 'Calendar', 'Graphs', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data', 'Expenses'].includes(item.name);
+      return ['Dashboard', 'Calendar', 'Graphs', 'Reservations', 'Hotels', 'Agents', 'Allotments', 'Other Services', 'Reports', 'General Data', 'Expenses', 'Permissions'].includes(item.name);
     }
     return true; // Admin gets everything
   });
@@ -2930,9 +3320,17 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <h2 className={`text-[13px] md:text-[15px] font-bold ${currentTheme.headerText} flex items-center gap-2 truncate`}>
-              {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
-            </h2>
+            <div className="flex items-center gap-1.5 text-[13px] md:text-[15px]">
+              <button
+                onClick={() => navigateTo('Dashboard')}
+                className="font-medium text-slate-400 hover:text-amber-500 hidden sm:inline transition-colors cursor-pointer"
+                title="Go to Dashboard"
+              >Home</button>
+              <svg className="w-3 h-3 text-slate-300 hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <h2 className={`font-bold ${currentTheme.headerText} truncate`}>
+                {t(`nav.${permittedNavItems.find(n => n.name === activeTab)?.key || activeTab.toLowerCase()}` as TranslationKey, { tab: activeTab })}
+              </h2>
+            </div>
           </div>
 
           {/* Center: Global Booking Search */}
@@ -2967,8 +3365,10 @@ export default function App() {
                           setGlobalSearchOpen(false);
                           setGlobalSearchQuery('');
                           setActiveTab('Reservations');
-                          setTabKey(k => k + 1);
                           setActiveFilters({ viewReservationId: r.id });
+                          if (contentAreaRef.current) {
+                            contentAreaRef.current.scrollTop = 0;
+                          }
                         }}
                         className="w-full text-left px-3 py-2.5 hover:bg-slate-50 border-b border-slate-100 last:border-0 transition flex items-center gap-3"
                       >
@@ -2989,6 +3389,24 @@ export default function App() {
 
           {/* Right: actions — responsive flex with wrap on mobile */}
           <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
+            {/* Quick New Booking icon — hidden on Dashboard (already has one there) */}
+            {activeTab !== 'Dashboard' && (
+              <button
+                onClick={() => navigateTo('Reservations', { showNewForm: true })}
+                className={`p-1.5 ${currentTheme.headerHover} rounded-lg transition`}
+                title="New Booking"
+              >
+                <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              </button>
+            )}
+            {/* Data Import icon */}
+            <button
+              onClick={() => setShowDataImport(true)}
+              className={`p-1.5 ${currentTheme.headerHover} rounded-lg transition`}
+              title="Import Data"
+            >
+              <svg className={`w-4 h-4 ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+            </button>
             {/* Edit Approvals - visible for Admin/ReservationsManager */}
             {(currentUser.role === 'Admin' || currentUser.role === 'ReservationsManager') && (
               <button
@@ -3037,7 +3455,9 @@ export default function App() {
             >
               <svg className={`w-[18px] h-[18px] ${currentTheme.headerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>
               {(() => {
-                const unread = messages.filter((m: any) => m.receiverId === currentUser?.id && !m.read).length;
+                // Guard: only show badge if messages array has data and currentUser exists
+                if (!messages || messages.length === 0 || !currentUser?.id) return null;
+                const unread = messages.filter((m: any) => m.receiverId === currentUser.id && !m.read).length;
                 return unread > 0 ? (
                   <span className="absolute top-1 right-1 bg-blue-500 text-white text-[8px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
                     {unread > 9 ? '9+' : unread}
@@ -3071,16 +3491,29 @@ export default function App() {
                     {alertCount > 0 ? (
                       <div className="flex flex-col">
                         {currentAlerts.map(alert => (
-                          <div 
+                          <div
                             key={alert.id}
-                            className={`p-3 text-xs ${currentTheme.headerHover} border-b ${currentTheme.cardBorder} cursor-pointer transition flex flex-col gap-0.5`}
-                            onClick={() => {
-                              navigateTo('Reservations', { viewReservationId: alert.resId });
-                              setIsAlertsOpen(false);
-                            }}
+                            className={`p-3 text-xs ${currentTheme.headerHover} border-b ${currentTheme.cardBorder} transition flex gap-2`}
                           >
-                            <span className="font-semibold text-amber-600">{alert.type}</span>
-                            <span className={`${currentTheme.cardText} opacity-80`}>{alert.message}</span>
+                            <button
+                              className="flex-1 flex flex-col gap-0.5 text-left"
+                              onClick={() => {
+                                if (alert.resId) {
+                                  navigateTo('Reservations', { viewReservationId: alert.resId });
+                                }
+                                setIsAlertsOpen(false);
+                              }}
+                            >
+                              <span className="font-semibold text-amber-600">{alert.type}</span>
+                              <span className={`${currentTheme.cardText} opacity-80`}>{alert.message}</span>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); dismissAlert(alert.id); }}
+                              className="text-slate-300 hover:text-rose-500 self-start flex-shrink-0 text-sm transition"
+                              title="Dismiss"
+                            >
+                              &times;
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -3094,6 +3527,9 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Global Date Range Filter */}
+            <GlobalDateFilter value={globalDateRange} onChange={setGlobalDateRange} />
 
             {/* Separator */}
             <div className={`w-px h-6 ${isDarkSidebar ? 'bg-white/10' : 'bg-slate-200'} mx-1 hidden md:block`}></div>
@@ -3216,7 +3652,7 @@ export default function App() {
         </header>
 
         {/* Scrollable central content area */}
-        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-4 md:p-6 print:p-0 print:m-0 page-enter page-container" key={tabKey}>
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 p-4 md:p-6 print:p-0 print:m-0 page-enter page-container">
           {/* Pending Refund Alerts Banner */}
           {(() => {
             const pendingRefunds = agents.flatMap(a => (a.pendingRefunds || []).filter(r => r.status === 'Pending'));
@@ -3262,6 +3698,7 @@ export default function App() {
                             paymentMethod: 'Bank Transfer',
                             voucherNo: getNextVoucherNo('REF', transactions),
                             createdBy: currentUser.name,
+                            baseAmountSAR: rf.amount,
                           };
                           const allTx = [...transactions, newTr];
                           setTransactions(allTx);
@@ -3340,39 +3777,56 @@ export default function App() {
         />
       )}
 
+      {/* Data Import Modal */}
+      {showDataImport && (
+        <DataImportModal
+          onClose={() => setShowDataImport(false)}
+          onImport={async (entityType, rows) => {
+            let count = 0;
+            if (entityType === 'Hotels') {
+              const newHotels = rows.map((r, i) => ({
+                id: `H_imp_${Date.now()}_${i}`,
+                name: r.name || '',
+                city: r.city || '',
+                stars: Number(r.stars) || 3,
+                address: r.address || '',
+                contact: r.contact || '',
+                roomTypes: (r.roomTypes || '').split(',').map(s => s.trim()).filter(Boolean),
+                views: (r.views || '').split(',').map(s => s.trim()).filter(Boolean),
+                mealPlans: (r.mealPlans || '').split(',').map(s => s.trim()).filter(Boolean),
+              }));
+              const all = [...hotels, ...newHotels];
+              setHotels(all);
+              ZumraDB.saveHotels(all);
+              count = newHotels.length;
+            } else if (entityType === 'Agents') {
+              const newAgents = rows.map((r, i) => ({
+                id: `agent_imp_${Date.now()}_${i}`,
+                agentNumber: `IMP-${String(i + 1).padStart(3, '0')}`,
+                name: r.name || '',
+                companyName: r.companyName || '',
+                country: r.country || '',
+                type: (r.type as any) || 'Customer',
+                phone: r.phone || '',
+                email: r.email || '',
+                address: r.address || '',
+                balance: Number(r.balance) || 0,
+                auditLogs: [],
+              }));
+              const all = [...agents, ...newAgents];
+              setAgents(all);
+              ZumraDB.saveAgents(all);
+              count = newAgents.length;
+            }
+            handleLogAuditSimple('Import', entityType, 'bulk', `Imported ${count} ${entityType}`);
+            return count;
+          }}
+        />
+      )}
+
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowShortcuts(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">⌨️ Keyboard Shortcuts</h2>
-              <button onClick={() => setShowShortcuts(false)} className="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  ['Ctrl + K', 'Global Search'],
-                  ['N', 'New Reservation'],
-                  ['Shift + ?', 'Show shortcuts'],
-                  ['Esc', 'Close modals'],
-                  ['Ctrl + 1', 'Dashboard'],
-                  ['Ctrl + 2', 'Reservations'],
-                  ['Ctrl + 3', 'Hotels'],
-                  ['Ctrl + 4', 'Agents'],
-                  ['Ctrl + 5', 'Transactions'],
-                  ['Ctrl + B', 'Reports'],
-                  ['Ctrl + J', 'Sales'],
-                  ['Ctrl + .', 'Toggle sidebar'],
-                ].map(([key, desc]) => (
-                  <React.Fragment key={key}>
-                    <kbd className="px-2 py-1 bg-gray-100 border rounded text-xs font-mono text-gray-700 text-right">{key}</kbd>
-                    <span className="text-gray-600 flex items-center">{desc}</span>
-                  </React.Fragment>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <ShortcutsModal onClose={() => setShowShortcuts(false)} />
       )}
 
       {/* Confirmation Dialog */}

@@ -3,20 +3,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Account } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Account, Transaction } from '../types';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
+import { computeAccountCurrencyBalances } from '../lib/finance';
 
 interface AccountsPageProps {
   accounts: Account[];
+  transactions: Transaction[];
   onSaveAccount: (account: Account) => void;
   onDeleteAccount: (id: string) => void;
   onModifyBalances: (fromId: string, toId: string, amount: number) => void;
 }
 
-export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount, onModifyBalances }: AccountsPageProps) {
+function AccountsPage({ accounts, transactions, onSaveAccount, onDeleteAccount, onModifyBalances }: AccountsPageProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expandedAccountId, setExpandedAccountId] = useState<string | null>(null);
   const { t, lang } = useLang();
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('SAR');
@@ -109,13 +112,17 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     showToast('Account transfer settled successfully!', 'success');
   };
 
-  // Compute KPIs
-  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0);
+  // Compute KPIs using actual maintained balance (updated by every transaction & transfer)
+  const totalBalance = accounts.reduce((s, a) => s + (a.balance || 0), 0);
   const bankAccounts = accounts.filter(a => a.type === 'Bank');
   const cashAccounts = accounts.filter(a => a.type === 'Cash');
-  const bankBalance = bankAccounts.reduce((s, a) => s + a.balance, 0);
-  const cashBalance = cashAccounts.reduce((s, a) => s + a.balance, 0);
+  const bankBalance = bankAccounts.reduce((s, a) => s + (a.balance || 0), 0);
+  const cashBalance = cashAccounts.reduce((s, a) => s + (a.balance || 0), 0);
   const filteredAccounts = filterType ? accounts.filter(a => a.type === filterType) : accounts;
+
+  // Non-SAR currency note for KPIs
+  const nonSARAccounts = accounts.filter(a => a.currency && a.currency !== 'SAR');
+  const nonSARSummary = nonSARAccounts.map(a => `${(a.balance || 0).toLocaleString()} ${a.currency}`).join(', ');
 
   return (
     <div className="space-y-5 text-xs">
@@ -125,16 +132,19 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">{t('acc.totalBalance')}</div>
           <div className="text-xl font-black text-slate-900">{totalBalance.toLocaleString()} SAR</div>
+          {nonSARAccounts.length > 0 && <div className="text-[9px] text-slate-400 mt-0.5 font-mono">incl. {nonSARSummary}</div>}
         </div>
         <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-indigo-600 mb-1">{t('acc.bankAccounts')}</div>
           <div className="text-xl font-black text-indigo-800">{bankAccounts.length}</div>
           <div className="text-[9px] text-indigo-500 font-mono mt-0.5">{bankBalance.toLocaleString()} SAR</div>
+          {bankAccounts.some(a => a.currency && a.currency !== 'SAR') && <div className="text-[9px] text-indigo-400 font-mono">{bankAccounts.filter(a => a.currency !== 'SAR').map(a => `${(a.balance || 0).toLocaleString()} ${a.currency}`).join(', ')}</div>}
         </div>
         <div className="bg-amber-50 rounded-xl border border-amber-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-amber-600 mb-1">{t('acc.cashSafes')}</div>
           <div className="text-xl font-black text-amber-800">{cashAccounts.length}</div>
           <div className="text-[9px] text-amber-500 font-mono mt-0.5">{cashBalance.toLocaleString()} SAR</div>
+          {cashAccounts.some(a => a.currency && a.currency !== 'SAR') && <div className="text-[9px] text-amber-400 font-mono">{cashAccounts.filter(a => a.currency !== 'SAR').map(a => `${(a.balance || 0).toLocaleString()} ${a.currency}`).join(', ')}</div>}
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-4 shadow-sm card-hover-lift">
           <div className="text-[10px] uppercase font-bold text-emerald-600 mb-1">{t('acc.totalAccounts')}</div>
@@ -291,7 +301,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 >
                   <option value="">-- Origin Source --</option>
                   {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} (SAR {a.balance.toLocaleString()})</option>
+                    <option key={a.id} value={a.id}>{a.name} ({a.currency || 'SAR'} {(a.balance || 0).toLocaleString()})</option>
                   ))}
                 </select>
               </div>
@@ -304,7 +314,7 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 >
                   <option value="">-- Target Destination --</option>
                   {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name} (SAR {a.balance.toLocaleString()})</option>
+                    <option key={a.id} value={a.id}>{a.name} ({a.currency || 'SAR'} {(a.balance || 0).toLocaleString()})</option>
                   ))}
                 </select>
               </div>
@@ -383,9 +393,65 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
                 </div>
                 <h3 className="font-bold text-slate-800 text-xs mt-3 uppercase">{acc.name}</h3>
               </div>
-              <div className="mt-6 flex justify-between items-baseline">
-                <span className="text-slate-400 text-[9px] uppercase">{t('acc.ledgerBalance')}</span>
-                <span className="font-mono text-lg font-bold text-slate-900">{acc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR</span>
+              <div className="mt-6 space-y-1.5">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-slate-400 text-[9px] uppercase">{t('acc.ledgerBalance')} (SAR)</span>
+                  <span className={`font-mono text-lg font-bold ${(acc.balance || 0) >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>{(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR</span>
+                </div>
+                {/* Original currency balance (computed from transaction history) */}
+                {(() => {
+                  const currBals = computeAccountCurrencyBalances(acc.id, transactions);
+                  const entries = Object.entries(currBals).filter(([, v]) => Math.abs(v) > 0.01);
+                  if (entries.length === 0) return null;
+                  return entries.map(([curr, bal]) => (
+                    <div key={curr} className="flex justify-between items-baseline">
+                      <span className="text-slate-400 text-[9px] uppercase">{curr} Wallet</span>
+                      <span className={`font-mono text-sm font-bold ${bal >= 0 ? 'text-slate-700' : 'text-rose-600'}`}>{bal.toLocaleString('en-US', { minimumFractionDigits: 2 })} {curr}</span>
+                    </div>
+                  ));
+                })()}
+              </div>
+              {/* Expandable transaction history */}
+              <div className="mt-3 border-t border-slate-200 pt-2">
+                <button
+                  onClick={() => setExpandedAccountId(expandedAccountId === acc.id ? null : acc.id)}
+                  className="text-[9px] font-bold uppercase text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
+                >
+                  {expandedAccountId === acc.id ? '▼ Hide History' : '▶ Transaction History'}
+                </button>
+                {expandedAccountId === acc.id && (() => {
+                  const accTrs = transactions.filter(tr => tr.fromAccountId === acc.id).slice(0, 10);
+                  if (accTrs.length === 0) return <div className="mt-2 text-[10px] text-slate-400 italic">No transactions yet</div>;
+                  return (
+                    <div className="mt-2 space-y-1">
+                      {accTrs.map(tr => (
+                        <div key={tr.id} className="flex justify-between items-center text-[10px] bg-white rounded px-2 py-1 border border-slate-100">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`font-bold ${tr.type === 'ClientPayment' ? 'text-emerald-600' : tr.type === 'SupplierPayment' ? 'text-rose-600' : 'text-slate-600'}`}>
+                              {tr.type === 'ClientPayment' ? '↑' : tr.type === 'SupplierPayment' ? '↓' : '•'}
+                            </span>
+                            <span className="text-slate-500 truncate">{tr.date}</span>
+                            <span className="text-slate-700 truncate max-w-[100px]" title={tr.description}>{tr.description?.slice(0, 25) || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`font-mono font-bold ${tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {tr.type === 'ClientPayment' || tr.type === 'SupplierRefund' ? '+' : '-'}{(tr.baseAmountSAR || tr.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </span>
+                            {tr.originalCurrency && tr.originalCurrency !== 'SAR' && (
+                              <span className="text-[9px] text-slate-400">{tr.originalAmount?.toLocaleString()} {tr.originalCurrency}</span>
+                            )}
+                            <span className="text-[8px] text-slate-400">SAR</span>
+                          </div>
+                        </div>
+                      ))}
+                      {transactions.filter(tr => tr.fromAccountId === acc.id).length > 10 && (
+                        <div className="text-[9px] text-slate-400 text-center pt-1">
+                          Showing 10 of {transactions.filter(tr => tr.fromAccountId === acc.id).length} transactions
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -396,3 +462,5 @@ export default function AccountsPage({ accounts, onSaveAccount, onDeleteAccount,
     </div>
   );
 }
+
+export default React.memo(AccountsPage);

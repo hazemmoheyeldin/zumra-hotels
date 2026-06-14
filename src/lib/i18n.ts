@@ -27,6 +27,9 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.paymentGateways': { en: 'Payment Gateways', ar: 'بوابات الدفع' },
   'nav.users': { en: 'Users', ar: 'المستخدمين' },
   'nav.overview': { en: 'Overview', ar: 'نظرة عامة' },
+  'nav.bookings': { en: 'Bookings', ar: 'الحجوزات' },
+  'nav.crm': { en: 'CRM', ar: 'إدارة العملاء' },
+  'nav.property': { en: 'Property', ar: 'الممتلكات' },
   'nav.operations': { en: 'Operations', ar: 'العمليات' },
   'nav.finance': { en: 'Finance', ar: 'المالية' },
   'nav.settings': { en: 'Settings', ar: 'الإعدادات' },
@@ -37,6 +40,7 @@ export const translations: Record<string, TranslationEntry> = {
   'nav.auditLog': { en: 'Audit Log', ar: 'سجل التدقيق' },
   'nav.generalData': { en: 'General Data', ar: 'البيانات العامة' },
     'nav.clientPortal': { en: 'Client Portal', ar: 'بوابة العميل' },
+  'nav.permissions': { en: 'Permissions', ar: 'الصلاحيات' },
 
   // ===== COMMON =====
   'common.save': { en: 'Save', ar: 'حفظ' },

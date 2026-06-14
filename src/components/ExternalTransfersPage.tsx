@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ExternalTransfer, ExternalTransferPart } from '../types';
+import { ExternalTransfer, ExternalTransferPart, Transaction } from '../types';
 import { useLang } from '../lib/LanguageContext';
 import { showToast } from './Toast';
 
@@ -7,9 +7,10 @@ interface ExternalTransfersPageProps {
   externalTransfers: ExternalTransfer[];
   onSaveTransfer: (et: ExternalTransfer) => void;
   onDeleteTransfer: (id: string) => void;
+  transactions?: Transaction[];
 }
 
-export default function ExternalTransfersPage({ externalTransfers, onSaveTransfer, onDeleteTransfer }: ExternalTransfersPageProps) {
+export default function ExternalTransfersPage({ externalTransfers, onSaveTransfer, onDeleteTransfer, transactions = [] }: ExternalTransfersPageProps) {
   const { t, lang } = useLang();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,6 +31,45 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterSupplier, setFilterSupplier] = useState('');
   const [viewingAttachment, setViewingAttachment] = useState<{url: string, label: string} | null>(null);
+  const [linkingPart, setLinkingPart] = useState<{transferId: string, partIdx: number} | null>(null);
+
+  // All already-linked transaction IDs across all transfers
+  const linkedTxIds = useMemo(() => {
+    const ids = new Set<string>();
+    externalTransfers.forEach(et => et.parts.forEach(p => { if (p.linkedTransactionId) ids.add(p.linkedTransactionId); }));
+    return ids;
+  }, [externalTransfers]);
+
+  // Find candidate transactions for linking
+  const getMatchingTransactions = (part: ExternalTransferPart, etDate: string) => {
+    return transactions
+      .filter(tr => !linkedTxIds.has(tr.id) && tr.type === 'SupplierPayment' && Math.abs(tr.amount - part.amount) < 1)
+      .sort((a, b) => {
+        const da = Math.abs(new Date(a.date).getTime() - new Date(etDate).getTime());
+        const db = Math.abs(new Date(b.date).getTime() - new Date(etDate).getTime());
+        return da - db;
+      })
+      .slice(0, 10);
+  };
+
+  const handleLinkTransaction = (transferId: string, partIdx: number, txId: string) => {
+    const et = externalTransfers.find(t => t.id === transferId);
+    if (!et) return;
+    const newParts = [...et.parts];
+    newParts[partIdx] = { ...newParts[partIdx], linkedTransactionId: txId };
+    onSaveTransfer({ ...et, parts: newParts });
+    setLinkingPart(null);
+    showToast('Payment linked successfully', 'success');
+  };
+
+  const handleUnlinkTransaction = (transferId: string, partIdx: number) => {
+    const et = externalTransfers.find(t => t.id === transferId);
+    if (!et) return;
+    const newParts = [...et.parts];
+    newParts[partIdx] = { ...newParts[partIdx], linkedTransactionId: undefined };
+    onSaveTransfer({ ...et, parts: newParts });
+    showToast('Payment unlinked', 'warning');
+  };
 
   const resetForm = () => {
     setDate(new Date().toISOString().split('T')[0]);
@@ -45,7 +85,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
   };
 
   const handleAddPart = () => {
-    setParts([...parts, { amount: 0, fxRate: 12.75 }]);
+    setParts([...parts, { amount: 0, fxRate: 0 }]);
   };
 
   const handleUpdatePart = (index: number, field: keyof ExternalTransferPart, value: any) => {
@@ -253,7 +293,7 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                       </div>
                       <div>
                         <label className="text-[10px] text-slate-500 font-bold">FX Rate</label>
-                        <input type="number" step="0.01" value={p.fxRate || ''} onChange={e => handleUpdatePart(idx, 'fxRate', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" />
+                        <input type="number" step="0.01" value={p.fxRate || ''} onChange={e => handleUpdatePart(idx, 'fxRate', Number(e.target.value))} className="w-full px-2 py-1 border rounded text-xs" placeholder="Enter FX rate" />
                       </div>
                       <div>
                         <label className="text-[10px] text-slate-500 font-bold">Date</label>
@@ -349,11 +389,40 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
                     {[0,1,2,3,4].map(i => (
                       <td key={i} className={`py-2 px-2 text-center bg-blue-50/20 ${et.parts[i] ? 'bg-yellow-200 font-bold' : ''}`}>
                         {et.parts[i] ? (
-                          <div className="flex flex-col items-center">
+                          <div className="flex flex-col items-center gap-0.5">
                             <span>{et.parts[i].amount.toLocaleString()}</span>
+                            {et.parts[i].linkedTransactionId ? (
+                              <span className="text-[8px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded cursor-pointer" title="Unlink payment" onClick={() => handleUnlinkTransaction(et.id, i)}>✓ Linked</span>
+                            ) : (
+                              <button
+                                onClick={() => setLinkingPart(linkingPart?.partIdx === i && linkingPart?.transferId === et.id ? null : { transferId: et.id, partIdx: i })}
+                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-1 rounded"
+                                title="Wire to payment"
+                              >🔗 Link</button>
+                            )}
                             {et.parts[i].attachmentDataUrl && (
                                <button onClick={() => setViewingAttachment({ url: et.parts[i].attachmentDataUrl!, label: `Transfer ${i + 1} - ${et.bookingRef}` })} className="text-[9px] text-blue-600 underline cursor-pointer">View</button>
                             )}
+                            {/* Linking dropdown */}
+                            {linkingPart?.transferId === et.id && linkingPart?.partIdx === i && (() => {
+                              const matches = getMatchingTransactions(et.parts[i], et.date);
+                              return matches.length > 0 ? (
+                                <div className="absolute z-50 bg-white border border-slate-200 rounded-lg shadow-xl p-1 w-56 -mt-2 ml-12">
+                                  <div className="text-[8px] font-bold text-slate-400 uppercase px-2 py-1">Match transactions</div>
+                                  {matches.map(tr => (
+                                    <button key={tr.id} onClick={() => handleLinkTransaction(et.id, i, tr.id)} className="w-full text-left px-2 py-1 text-[9px] hover:bg-indigo-50 rounded">
+                                      {tr.docNo} · {tr.date} · {tr.amount.toLocaleString()} SAR
+                                    </button>
+                                  ))}
+                                  <button onClick={() => setLinkingPart(null)} className="w-full text-center text-[8px] text-slate-400 hover:text-slate-600 py-1">Cancel</button>
+                                </div>
+                              ) : (
+                                <div className="absolute z-50 bg-white border border-slate-200 rounded-lg shadow-xl p-2 w-48 -mt-2 ml-12 text-[9px] text-slate-500 text-center">
+                                  No matching transactions found
+                                  <button onClick={() => setLinkingPart(null)} className="block w-full text-center text-slate-400 mt-1">Close</button>
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : ''}
                       </td>
@@ -407,15 +476,15 @@ export default function ExternalTransfersPage({ externalTransfers, onSaveTransfe
       {/* Attachment Viewer Modal */}
       {viewingAttachment && (
         <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-0 md:p-4" onClick={() => setViewingAttachment(null)}>
-          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[90vh] w-full overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
+          <div className="bg-white rounded-none md:rounded-2xl shadow-2xl max-w-4xl max-h-[100dvh] md:max-h-[95dvh] w-full flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50">
               <h3 className="text-sm font-bold text-slate-800 truncate">{viewingAttachment.label}</h3>
               <div className="flex items-center gap-2">
                 <a href={viewingAttachment.url} download className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-lg transition">⬇️ Download</a>
                 <button onClick={() => setViewingAttachment(null)} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold w-8 h-8 rounded-lg text-sm flex items-center justify-center transition">✕</button>
               </div>
             </div>
-            <div className="p-4 overflow-auto max-h-[calc(90vh-60px)] flex items-center justify-center bg-slate-100">
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-100">
               {viewingAttachment.url.startsWith('data:image/') ? (
                 <img src={viewingAttachment.url} alt={viewingAttachment.label} className="max-w-full max-h-[80vh] object-contain rounded-lg shadow" />
               ) : viewingAttachment.url.startsWith('data:application/pdf') ? (

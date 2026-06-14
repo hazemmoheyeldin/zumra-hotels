@@ -33,9 +33,9 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
     return a ? a.name : 'N/A';
   };
 
-  const getAgentNum = (id: string): number => {
+  const getAgentNum = (id: string): string => {
     const a = agents.find(agent => agent.id === id);
-    return a ? a.agentNumber : 0;
+    return a ? a.agentNumber : '—';
   };
 
   const getHotelName = (id: string): string => {
@@ -74,11 +74,11 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-[95%] w-full p-6 animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 print:bg-white print:static print:inset-auto print:flex-none print:p-0" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-[95%] w-full flex flex-col max-h-[95dvh] overflow-hidden animate-in fade-in zoom-in-95 my-4 print:shadow-none print:m-0 print:p-0 print:w-full print:max-w-none" onClick={(e) => e.stopPropagation()}>
         
-        {/* Actions bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 mb-4 font-sans no-print">
+        {/* Actions bar — flex-shrink-0 */}
+        <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 pt-4 pb-4 mb-0 font-sans no-print">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
             <h2 className="text-lg font-bold text-slate-800">
@@ -111,8 +111,10 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
           </div>
         </div>
 
+        {/* Scrollable Content Body */}
+        <div className="flex-1 overflow-y-auto p-6">
         {/* Printable Paper Area (Landscape) */}
-        <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner max-h-[75vh] overflow-x-auto overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:max-h-full print:overflow-visible">
+        <div id="print-area" className="relative bg-white p-4 md:p-6 pb-8 border border-slate-200 text-slate-800 font-sans shadow-inner overflow-x-auto overflow-y-auto print:p-0 print:pb-0 print:border-none print:shadow-none print:overflow-visible">
           
           {/* Document Header */}
           <MasterPDFHeader />
@@ -224,6 +226,7 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
             </div>
           </div>
 
+        </div>
         </div>
       </div>
     </div>

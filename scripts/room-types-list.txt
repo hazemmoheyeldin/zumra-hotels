@@ -1,0 +1,688 @@
+1  1 B.R. suite 5 PAX
+Ambassador Suite 3 Bed rooms
+Ambassador Suite 4 Pax C.V
+Ambassador Suite 4 Pax H.V
+Amiri Suite 2 Bedroom C.V
+Amiri Suite 2 Pax C.V
+Amiri Suite 2 Pax H.V
+Amiri Suite 3 Bedroom C.V
+Amiri Suite 3 Bedroom H.V
+Amiri Suite 3 Pax C.V
+Amiri Suite 3 Pax H.V
+Amiri Suite 4 Pax C.V
+Amiri Suite 4 Pax H.V
+Amiri Suite 4 Pax K.V
+Amiri Suite 4 Pax Partial H.V
+Amiri Suite 5 Pax C.V
+Amiri Suite 5 Pax H.V
+Amiri Suite 5 Pax K.V
+Amiri Suite 5 Pax Partial H.V
+Amiri Suite 6 Pax C.V
+Amiri Suite 6 Pax H.V
+Amiri Suite 6 Pax K.V
+Amiri Suite 6 Pax Partial H.V
+Amiri Suite 7 Pax C.V
+Amiri Suite 8 Pax C.V
+Amiri Suite C.V
+Apartment Quad (One Bedroom ) C.V
+Apartment Three Bedrooms 8 PAX
+Apartment Two bedroom 4 PAX
+Apartment Two bedrooms 6 Pax C.V
+Apartment one bedroom 3 PAX
+Average 3.9
+Bedroom Suite (6 Pax)
+Busines suite 2 bedroom HV
+Business Suite 2 Pax C.V
+Business Suite 2 Pax H.V
+Business Suite 3 Pax C.V
+Business Suite 3 Pax H.V
+Business suite city view 1 Extra Bed
+Classic Back Side View DBL
+Classic Back Side View QUAD
+Classic Back Side View TPL
+Club 2 Bedroom Suite C.V
+Club 3 Bedroom Suite C.V
+Club One Bedroom Suite C.V
+DBL Club Kaaba
+DBL GV
+DBL PV
+DBL Premier Kaaba View
+DBL non view
+DELUX DOUBLE C.V
+DELUX TWIN C.V
+DQUN
+Delux suite
+Deluxe 2 Pax Partial Sea View
+Deluxe 2 Pax Sea View
+Deluxe Double H.V
+Deluxe Double Nile Room
+Deluxe Double Partial K.V
+Deluxe Double Suite partial H.V
+Deluxe Junior Suite 2 PAX C.V
+Deluxe Junior Suite 3 PAX C.V
+Deluxe Junior Suite 4 PAX C.V
+Deluxe King Room
+Deluxe King Suite
+Deluxe One Bedroom Suite Partial Kaaba View
+Deluxe Presidential Suite Partial Kaaba View
+Deluxe Quad H.V
+Deluxe Room City View
+Deluxe Room Haram View
+Deluxe Room Partial Haram View
+Deluxe Single H.V
+Deluxe Suite 1 Bed Room C.V
+Deluxe Suite 8 Pax C.V
+Deluxe Suite 8 Pax H.V
+Deluxe Suite CV
+Deluxe Suite Quad C.V
+Deluxe Triple H.V
+Deluxe quint c.v
+Diplomatic Doule H.V
+Diplomatic Quad H.V
+Diplomatic Room 2 pax C.V
+Diplomatic Room 3 pax C.V
+Diplomatic Room 4 pax C.V
+Diplomatic Suite 1 Bedroom C.V
+Diplomatic Suite 1 PaxC.V.
+Diplomatic Suite 2 Bedroom C.V 4Pax
+Diplomatic Suite 2 Bedroom H.V 4Pax
+Diplomatic Suite 3 pax HV
+Diplomatic Suite 4 pax CV
+Diplomatic Suite 5 Pax C.V
+Diplomatic Suite 5 Pax H.V
+Diplomatic Suite H.V
+Diplomatic Triple H.V
+Diplomatic suite kabba view
+Double C.V Gold
+Double CV
+Double Classic C.V
+Double Classic Deluxe View
+Double Classic H.V
+Double Classic P.H.V
+Double Club C.V
+Double Club H.V
+Double Club K.V
+Double Deluxe C.V
+Double Deluxe H.V
+Double H.V
+Double K.V
+Double K.V Gold
+Double King
+Double King Bed
+Double Non View
+Double Partial City View
+Double Partial Haram View
+Double Partial Kaaba View
+Double Premier H.V
+Double Premier K.V
+Double Premium C.V
+Double Prestige Suite Partial Haram View
+Double RU
+Double Side H.V
+Double Studio Partial Haram view
+Double Superior C.V
+Double Superior H.V
+Double far C.V
+Double twin
+Double.Sea View
+Duplex Suite C.V
+EXECUTIVE BUSINESS SUITES (2 PAX) C.V
+Executive 6 Pax H.V
+Executive Double
+Executive Suite
+Executive Suite  2Pax C.V
+Executive Suite 02 Pax
+Executive Suite 02 Pax H.V
+Executive Suite 02 Pax Partial H.V
+Executive Suite 03 Pax
+Executive Suite 03 Pax H.V
+Executive Suite 03 Pax Partial H.V
+Executive Suite 04 Pax C.V
+Executive Suite 04 Pax H.V
+Executive Suite 04 Pax Partial H.V
+Executive Suite 04 Pax Partial K.V
+Executive Suite 04 Pax Partial Sea View
+Executive Suite 04 Pax Patio.V
+Executive Suite 04 Pax Sea View
+Executive Suite 05 Pax C.V
+Executive Suite 05 Pax H.V&#x9;
+Executive Suite 06 Pax C.V
+Executive Suite 2 Bedrooms 4 Pax H.V
+Executive Suite 7pax
+Executive Suite 8 Pax C.V
+Executive Suite DBL
+Executive Suite H.V
+Executive Suite Two Bedroom 4 Pax CV
+Executive Suite Two Bedroom CV
+Executive Triple
+Executive suite 6 Pax
+Family Room 3 pax c.v
+Family Room 7 pax
+Family Room C.V 4 Pax
+Family Room GV
+Family Room H.V 4 Pax
+Family Room PV
+Family Street View Suite
+Family Suite 3 Pax
+Family Suite 4 Pax C.V
+Family Suite 4 Pax H.V
+Family Suite 4 Pax K.V
+Family Suite 5 Pax C.V
+Family Suite 5 Pax H.V
+Family Suite 5 Pax K.V
+Family Suite 6 Pax C.V
+Family Suite 6 Pax H.V
+Family Suite 6 Pax K.V
+Family Suite 6 Pax Patio.V
+Family Suite 7 Pax
+Family Suite 8 Pax
+Family garden/pool view
+Family suite 02 rooms (4 Pax) C.V
+Family suite 03 rooms C.V
+Family suite 2 pax
+Family suite 2 pax K.V
+Famly Suite 2 Room 6 Pax
+GARDEN 2 PAX C.V
+Grand SUITE City View
+Group Accommodation
+Hexa 06 Pax C.V
+Hexa 06 Pax H.V
+Hexa 06 Pax K.V
+J.Suite
+Junior Double C.V
+Junior Road View Suite
+Junior Suite 1 Bedroom
+Junior Suite 2 Pax
+Junior Suite 2 bedrooms C.V 4Pax
+Junior Suite 6 Beds C.V
+Junior Suite 6 Pax C.V
+Junior Suite 6 Pax H.V
+Junior Suite 8 Pax C.V
+Junior Suite Bedroom 02 pax
+Junior Suite C.V
+Junior Suite City View
+Junior Suite DBL C.V
+Junior Suite DBL H.V
+Junior Suite DBL Haram partial
+Junior Suite DBL K.V
+Junior Suite DBL Partial K.V
+Junior Suite Double Partial H.V
+Junior Suite Haram 2 pax
+Junior Suite Haram View
+Junior Suite Haram View 1 pax
+Junior Suite King Bed C.V
+Junior Suite King Bed H.V
+Junior Suite King Bed K.V
+Junior Suite King Bed Partial H.V
+Junior Suite Quad C.V
+Junior Suite Quad H.V
+Junior Suite Quad Haram partial
+Junior Suite Quad K.V
+Junior Suite Quad Partial H.V
+Junior Suite Quin C.V
+Junior Suite Single C.V
+Junior Suite Single H.V
+Junior Suite TRPL C.V
+Junior Suite TRPL H.V
+Junior Suite TRPL K.V
+Junior Suite Triple Haram partial
+Junior Suite single K.V
+Junior Triple C.V
+Junior suite
+Junior suite 1 (4 PAX) C.V
+Junior suite 2 (4 PAX) C.V
+Junior suite 5 beds C.V
+Junior suite 7 Pax C.V
+Junior suite DQUN H.V
+Junior suite DTWN C.V
+Junior suite DTWN H.V
+Junior suite Quin HV
+King Deluxe Room Haram
+King Room
+Large Double C.V
+Large Double H.V
+Large Double K.V
+Large Quad CV
+Large Quad H.V
+Large Quad K.V
+Large Quint C.V
+Large Quint H.V
+Large Quint K.V
+Large Single C.V
+Large Single H.V
+Large Single K.V
+Large Triple C.V
+Large Triple H.V
+Large Triple K.V
+Majestic Suite 8 Pax C.V
+Majestic Suite five Rooms
+Ocean room partial seaview
+One Bedroom 4 Pax C.V&#x9;
+One Bedroom 5 Pax C.V
+One Bedroom Apartment (3 PAX) C.V
+One Bedroom Apartment 2 Pax C.V
+One Bedroom Apartment 5 Pax C.V
+One Bedroom Deluxe Double Suite HV
+One Bedroom Deluxe Quad Suite HV
+One Bedroom Deluxe Suite  C.V  ( Pax: 04)
+One Bedroom Deluxe Suite City View
+One Bedroom Deluxe Suite Haram View
+One Bedroom Deluxe Suite Partial Haram View
+One Bedroom Deluxe Trible Suite HV
+One Bedroom Suite
+One Bedroom Suite 2 Pax Partial H.V
+One Bedroom Suite 5 Pax Spacious Partial H.V
+One Bedroom Suite DBL C.V
+One Bedroom Suite DBL H.V
+One Bedroom Suite Quad C.V
+One Bedroom Suite Quad H.V
+One Bedroom Suite TRPL C.V
+One Bedroom Suite TRPL H.V
+One bed room apt
+PREMIUM Apartment (8 PAX) C.V
+PREMIUM Junior suite 1 (4 PAX) C.V
+PREMIUM Junior suite 2 (4 PAX) C.V
+PREMIUM Senior Suite 2 (6 PAX) C.V
+PREMIUM Senior Suite 3 (6 PAX) C.V
+PREMIUM Suite 2 Pax C.V
+PREMIUM Suites (6 PAX) C.V
+PREMIUM TRP ROOM C.V
+Panoramic One Bedroom Suite 1 PAX C.V
+Panoramic One Bedroom Suite 1 PAX K.V
+Panoramic One Bedroom Suite 2 Pax K.V
+Panoramic One Bedroom Suite 3 Pax K.V
+Panoramic haram view suite
+Penta Suite Partial H.V
+Premier Quad Room
+Premier Room Triple Bed Kaaba View
+Premier Room Twin Bed Kaaba View
+Premium
+Premium Suite 04 Pax Partial Sea View
+Premium Suite 04 Pax Sea View
+Premium Tripple &#x2B; Extra bed (4 pax)
+Presidential Suit 3 Pax C.V
+Presidential Suit 4 Bedroom H.V
+Presidential Suit 4 Pax Partial k.V
+Presidential Suit 5 Pax C.V
+Presidential Suit 5 Pax Partial kaaba view
+Presidential Suit 6 Pax C.V
+Presidential Suit 6 Pax H.V
+Presidential Suit C.V
+Presidential Suit Double C.V
+Presidential Suit Double H.V
+Presidential Suit H.V
+Presidential Suit K.V
+Presidential Suite 2 Bed Rooms (5 PAX) Partial H.V
+Presidential Suite 2 Bed Rooms (5 PAX) Partial K.V
+Presidential Suite 2 Bed Rooms (6 PAX) Partial H.V
+Presidential Suite 2 Bed Rooms (6 PAX) Partial K.V
+Presidential Suite 2 Bed Rooms (7 PAX) Partial K.V
+Presidential Suite 2 Bed Rooms (8 PAX) Partial H.V
+Presidential Suite 4 BD Room
+Presidential Suite 4 Pax Partial kaaba view
+Presidential Suite 7 PAX Partial H.V
+Presidential Suite 7 Pax C.V
+Presidential Suite 8 PAX Partial H.V
+Presidential Suite 8 Pax C.V
+Presidential Suite Partial haram view
+Presidential Suite Partial haram view 4 Pax
+Presidential Two Bedrooms Suite 4 Pax C.V
+Presidential Two Bedrooms Suite H.V
+Presidential suite 2 Pax C.V
+Presidential suite 2 Pax H.V
+Presidential suite 2 bedrooms 3 Pax C.V
+Presidential suite 2 bedrooms 3 Pax H.V
+Presidential suite 2 bedrooms 3 Pax K.V
+Presidential suite 2 bedrooms 4 Pax C.V
+Presidential suite 2 bedrooms 4 Pax H.V
+Presidential suite 2 bedrooms 4 Pax K.V
+Presidential suite 3 bedrooms 6 pax
+Presidential suite 3 pax H.V
+Presidential suite 4 pax C.V
+Presidential suite 4 pax H.V
+Presidential suite 4 pax K.V
+Presidential suite 5 Pax partial H.V
+Presidential suite 5 pax C.V
+Presidential suite 5 pax H.V
+Presidential suite 5 pax K.V
+Presidential suite 6 pax C.V
+Presidential suite 6 pax H.V
+Presidential suite 6 pax K.V
+Presidential suite 6 pax Partial H.V
+Presidential suite king bed K.V
+Prestige Suite 2 Pax C.V
+Prestige Suite 3 Pax C.V
+Prestige Suite 4 Pax C.V
+Prestige Suite partial haram view
+Princess Suite Double C.V
+Princess Suite Double H.V
+Princess Suite Trible C.V
+Princess Suite Trible H.V
+Princess Suite quad C.V
+Princess Suite quad H.V&#x9;
+Princess Suite quad K.V
+Princess Suite single C.V
+Princess Suite single H.V
+Quad CV
+Quad Classic C.V
+Quad Classic Deluxe View
+Quad Classic H.V
+Quad Classic P.H.V
+Quad Club C.V
+Quad Club H.V
+Quad Club K.V
+Quad Deluxe C.V
+Quad Deluxe H.V
+Quad Far C.V
+Quad GV
+Quad H. V
+Quad K. V
+Quad Non View
+Quad Non.View
+Quad PV
+Quad Partial City View
+Quad Partial Haram View
+Quad Partial Kaaba View
+Quad Premier K.V
+Quad Premium C.V
+Quad RU
+Quad Room
+Quad Side View
+Quad Superior C.V
+Quad Superior H.V
+Quad-G
+Queen 2 Pax C.V
+Quin Classic C.V
+Quin K.V
+Quin Partial City View
+Quin Partial Haram View
+Quin Partial Kaaba View
+Quin RU
+Quin Superior C.V
+Quin. H.V
+Quint C.V
+Quint CV
+Quint H.V
+Quint K.V
+Quint Non View
+Residential Suite 2 Pax C.V
+Residential Suite 2 pax Partial K.V
+Residential Suite 3 pax C.V
+Residential Suite 3 pax K.V
+Residential Suite 4 pax K.V
+Residential Suite Twin K.V
+Residential suite 3 pax H.V
+Residential suite 4 pax H.V
+Residential suite cv
+Residential suite king bed K.V
+Room 6 Bed C.V
+Room 6 Pax
+Room 7 Bed C.V
+Room 7 Pax C.V
+Room 7 Pax H.V
+Room 7 Pax K.V
+Room 8 Bed C.V
+Room 8 Pax C.V
+Room 8 Pax H.V
+Room 8 Pax K.V
+Room 9 Pax
+Royal Suit 04 Pax
+Royal Suit 06 Pax
+Royal Suit 07 Pax
+Royal Suite
+Royal Suite 08 PAX
+Royal Suite 10 Bed Room
+Royal Suite 10 Pax
+Royal Suite 11 Pax
+Royal Suite 12 Pax
+Royal Suite 2 Pax C.V
+Royal Suite 2 Pax H.V
+Royal Suite 2 Pax K.V
+Royal Suite 2 Room 4 Pax K.V
+Royal Suite 2 Room H.V
+Royal Suite 2 Rooms 4 Pax C.V
+Royal Suite 3 Bed Room
+Royal Suite 3 Pax
+Royal Suite 4 bedrooms - 4 Pax H.V
+Royal Suite 4 bedrooms - 8 Pax H.V
+Royal Suite 4pax H.V
+Royal Suite 5 Pax C.V
+Royal Suite 9 Pax
+Royal Suite Signature 4 Pax K.V
+Royal Two Bedrooms Suite Partial Kaaba View
+Royal Two Bedrooms Suite Partial Kaaba View 5 Pax
+Royal suite
+Royal suite  6 Pax H.V
+Royal suite Deluxe 5 Pax C.V
+SGL Premier Kaaba View
+Senior Suite 2 (6 PAX) C.V
+Senior Suite 3 (6 PAX) C.V
+Signature 2 Pax C.V
+Signature 2 Pax H.V
+Signature 2 Pax K.V
+Signature 2 Pax Premier K.V
+Signature 3 Pax C.V
+Signature One Bedroom 3 Pax K.V
+Signature Suite (2 Pax) C.V
+Signature Suite (2 Pax) Partial H.V
+Signature Suite (3 Pax) C.V
+Signature Suite (3 Pax) Partial H.V
+Signature Suite (3 Pax) Partial K.V
+Signature Suite (4 Pax) Partial H.V
+Signature Suite (4 Pax) Partial K.V
+Signature Suite 1 Pax K.V
+Signature Suite 2 Pax K.V
+Signature Suite 2 Pax Partial K.V
+Signature Suite 3 Pax K.V
+Signature Suite 4 Pax C.V
+Signature Suite 4 Pax H.V
+Signature Suite 4 Pax K.V
+Signature Suite 6 Pax C.V
+Signature one bed room suit H.V
+Single CV
+Single Classic C.V
+Single Classic Deluxe View
+Single Classic H.V
+Single Classic P.H.V
+Single DBL
+Single Deluxe C.V
+Single Deluxe H.V
+Single Far C.V
+Single H.V
+Single K.V
+Single Non View
+Single Partial City View
+Single Partial Haram View
+Single Partial Kaaba View
+Single RU
+Single Side View
+Single Studio Partial Haram view
+Single Superior C.V
+Single Superior H.V
+Single.sea view
+Small Double C.V
+Small Double H.V
+Small Double K.V
+Small Quad C.V
+Small Quad H.V
+Small Quad K.V
+Small Single C.V
+Small Single H.V
+Small Single K.V
+Small Triple C.V
+Small Triple H.V
+Small Triple K.V
+Spacious Two Bedroom 6 Pax
+Spacious Two Bedroom Suite 5 Pax Partial haram
+Srandard Street View DBL
+Srandard Street View QUAD
+Srandard Street View TPL
+Standard City View  TPL
+Standard City View DBL
+Standard City View QUAD
+Standard Garden View DBL
+Standard Garden View QUAD
+Standard Road View DBL
+Standard Road View TPL
+Standard Room Double Occupancy
+Studio
+Studio 2 Pax Partial H.V
+Studio 4 PAX Partial K.V
+Studio 5 Pax K.V
+Studio 5 Pax Partial K.V
+Studio Silver 4 Pax C.V
+Studio bronze 4 Pax C.V
+Studio twin Haram view
+Studio twin city
+Suite 1 Bedroom C.V
+Suite 1 Bedroom H.V
+Suite 1 King
+Suite 10 Pax
+Suite 14 Pax
+Suite 19 pax C.V
+Suite 2 Bedroom C.V 4Pax
+Suite 2 Bedroom C.V 6 Pax
+Suite 2 Bedroom H.V 2Pax
+Suite 2 Bedroom H.V 4Pax
+Suite 2 Bedroom K.V 2Pax
+Suite 2 Bedroom K.V 4Pax
+Suite 2 Bedroom Partial K.V 4Pax
+Suite 2 Pax C.V
+Suite 2 Rooms 5 Pax C.V
+Suite 2 Rooms 5 Pax H.V
+Suite 2 Rooms 5 Pax K.V
+Suite 2 Rooms 6 Pax C.V
+Suite 2 Rooms 6 Pax H.V
+Suite 2 Rooms 6 Pax K.V
+Suite 3 Bed Room 6 Pax
+Suite 3 Bed Room 6 Pax (C.V)
+Suite 3 Bed Room 9 Pax
+Suite 3 Bedroom H.V
+Suite 3 Bedroom K.V
+Suite 3 Rooms
+Suite 3 rooms and a hall
+Suite 4 Bed Room C.V&#x9;
+Suite 4 Bed Room H.V
+Suite 4 Bed Room K.V
+Suite 4 Pax C.V
+Suite 4 Room
+Suite 4 bed rooms
+Suite 5 Pax K.V
+Suite 5 bedroom
+Suite 5 pax C.V
+Suite 6 Bedroom
+Suite 6 pax C.V
+Suite 7 Bedroom
+Suite 7 Pax
+Suite 8 Pax C.V
+Suite 9 Pax C.V
+Suite Family Two Connecting room-4 Pax C.V
+Suite Family Two Connecting room-6 Pax C.V
+Suite King Bed C.V
+Suite King Bed H.V
+Suite King Bed K.V
+Suite King Bed Partial H.V
+Suite Standard 2 Pax C.V
+Suite Two Bed Room 4 pax C.V
+Suite Two Rooms 8 Pax
+Suite Two Rooms C.V 6 pax
+Suite Two Rooms and a Hall 4 Pax
+Suite(13 Beds &#x2B; 2 bathrooms) 13 Pax C.V
+Suite(15 Beds &#x2B; 2 bathrooms) 15 Pax C.V
+Suite(16 Beds &#x2B; 2 bathrooms) 16 Pax C.V
+Suite(17 Beds &#x2B; 2 bathrooms) 17 Pax C.V
+Suite(18 Beds &#x2B; 2 bathrooms) 18 Pax C.V
+Suite(2 Rooms &#x2B; one bathroom) 4 Pax
+Suite(2 Rooms &#x2B; one bathroom) 5 Pax
+Suite(2 Rooms &#x2B; one bathroom) 6 Pax
+Suite(20 Beds &#x2B; 2 bathrooms) 20 Pax C.V
+Sultan Suite P.V
+Superior Double C.V
+Superior King Haram View
+Superior Quad C.V
+Superior Single C.V
+Superior Suite 6 Pax C.V
+Superior Triple C.V
+Superior room King Bed 2 Pax C.V
+TRIPLE PARTIAL HARAM VIEW
+TRP Club Room C.V
+TRPL GV
+TRPL PV
+Three Bed Room Suite 10 Pax
+Three Bedroom Apartment C.V
+Three Bedroom Residence
+Trible Far C.V
+Trible Far Partial Kaaba View
+Triple CV
+Triple Classic C.V
+Triple Classic Deluxe View
+Triple Classic H.V
+Triple Classic P.H.V
+Triple Deluxe C.V
+Triple Deluxe H.V
+Triple Non View
+Triple Occupancy
+Triple Partial City View
+Triple Partial Haram View
+Triple Partial Kaaba View
+Triple Premier K.V
+Triple Prestige Suite Partial Haram View
+Triple RU
+Triple Room
+Triple Side View
+Triple Superior C.V
+Triple Superior H.V
+Triple. H.V
+Triple. K.V
+Triple.sea view
+Twin Bed
+Twin Room
+Twins Double Occupancy
+Two Bed Rooms Suite K.V
+Two Bedroom Apartment (4 PAX ) H.V
+Two Bedroom Apartment (4 PAX) C.V
+Two Bedroom Residence
+Two Bedroom Suite 4 Pax - Partial H.V
+Two Bedroom Suite 4 Pax C.V
+Two Bedroom Suite 5 Pax C.V
+Two Bedroom Suite HARAM
+Two Bedroom suite
+Two bed room Suite 7 Pax
+Two bedroom Suite 5 pax Partial H.V
+UP
+VILLA 3 ROOMS 14 BED C.V
+VILLA 3 ROOMS 14 BED H.V
+VILLA 3 ROOMS 14 BED K.V
+VILLA 3 ROOMS 18 BED C.V
+VILLA 3 ROOMS 18 BED H.V
+VILLA 3 ROOMS 18 BED K.V
+VILLA 4 ROMMS 20 BED C.V
+VILLA 4 ROMMS 20 BED H.V
+VILLA 4 ROMMS 20 BED K.V
+VILLA 5 ROOMS 30 BED
+VIP Suite 4 Pax H.V
+Villa Large
+Villa Medium
+Villa Small
+Vip suite 4 pax CV
+imperial Suite K.V
+presidential suite 4 pax Far C.V
+presidential suite 5 pax Far C.V
+presidential suite 6 pax Far C.V
+presidential suite 6 pax partial K.V
+presidential suite 7 pax Far C.V
+presidential suite 8 pax Far C.V
+signature one bed room suit c.v
+signature room twin K.V
+single Prestige Suite Partial Haram View
+studio Double C.V
+studio Double H.V
+studio Double K.V
+studio Quad C.V
+studio Quad H.V
+studio Quad K.V
+studio Triple C.V
+studio Triple H.V
+studio Triple K.V
+superior apartment with  2bedrooms king&#x2B;king
+superior apartment with  2bedrooms king&#x2B;twins
