@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
-import { firestoreLoadAll, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist } from '../lib/firebase';
+import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, auth } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -303,6 +303,45 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         }
         validateLogin(defaultUser, DEFAULT_USERS);
         return;
+      }
+
+      // ═══ AUTO-PROVISION: user not found anywhere, but Firebase Auth may accept them ═══
+      // If Firestore users collection was wiped or user was added via Firebase Console,
+      // auto-create their Firestore document so they aren't locked out.
+      try {
+        const email = userLower.includes('@') ? userLower : null;
+        if (email) {
+          // Try to sign in with the email + password they entered
+          let authed = await firebaseSignIn(email, password);
+          if (!authed) {
+            const created = await firebaseCreateUser(email, password);
+            if (created) authed = true;
+          }
+          if (authed && auth?.currentUser) {
+            const uid = auth.currentUser.uid;
+            const usernameFromEmail = email.split('@')[0];
+            const autoUser: User = {
+              id: uid,
+              username: usernameFromEmail,
+              name: usernameFromEmail.charAt(0).toUpperCase() + usernameFromEmail.slice(1),
+              email: email,
+              password: password,
+              role: 'Reservationist',
+              isActive: true,
+              status: 'Active',
+              mustChangePassword: true,
+            };
+            // Write to Firestore users collection (public-write for authenticated users)
+            await firestoreSave(COLLECTIONS.USERS, uid, autoUser).catch(() => {});
+            addToStaffWhitelist(email);
+            console.log(`[Login] Auto-provisioned user ${usernameFromEmail} (${uid})`);
+            setLoading(false);
+            onLoginSuccess(autoUser);
+            return;
+          }
+        }
+      } catch (autoErr) {
+        console.warn('[Login] Auto-provision failed:', autoErr);
       }
     }
 
