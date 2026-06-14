@@ -180,7 +180,7 @@ export default function AnalyticsDashboard({ reservations, transactions, agents,
       totalCost += totals.totalBuy;
       totalCommission += totals.totalCommission;
       totalNights += r.nights;
-      totalRooms += r.rooms.reduce((sum, rm) => sum + rm.qty, 0);
+      totalRooms += (r.rooms || []).reduce((sum, rm) => sum + rm.qty, 0);
     });
     const totalPayments = filteredData.transactions
       .filter(t => t.type === 'ClientPayment')

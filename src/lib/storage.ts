@@ -711,7 +711,7 @@ export function getReservationTotals(res: Reservation) {
   let totalSell = 0;
   let totalBuy = 0;
 
-  res.rooms.forEach((room) => {
+  (res.rooms || []).forEach((room) => {
     // Multi-night rates support either flat number or dictionary
     let roomSellNights = 0;
     let roomBuyNights = 0;
@@ -1625,7 +1625,7 @@ export function recordCommissionEntries(
   const now = new Date().toISOString();
 
   if (reservation.salesPersonId && salesPersonRate && salesPersonRate > 0) {
-    const totalRooms = reservation.rooms.reduce((s, rm) => s + rm.qty, 0);
+    const totalRooms = (reservation.rooms || []).reduce((s, rm) => s + rm.qty, 0);
     const amount = calculateSalesPersonCommission(salesPersonRate, totalRooms, reservation.nights);
     entries.push({
       id: `comm_sp_${reservation.id}_${Date.now()}`,
@@ -1700,7 +1700,7 @@ export function checkAllotmentCapacity(
       r.checkIn < checkOut && r.checkOut > checkIn
     )
     .reduce((sum, r) => {
-      const matchingRooms = r.rooms.filter(rm => rm.roomType === roomType);
+      const matchingRooms = (r.rooms || []).filter((rm: any) => rm.roomType === roomType);
       return sum + matchingRooms.reduce((s, rm) => s + rm.qty, 0);
     }, 0);
   

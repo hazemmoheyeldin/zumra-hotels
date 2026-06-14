@@ -22,9 +22,9 @@ export default function DailyOpsSheetPDF({ reservations, agents, hotels, todaySt
 
   const getAgentName = (id: string): string => agents.find(a => a.id === id)?.name || 'N/A';
   const getHotelName = (id: string): string => hotels.find(h => h.id === id)?.name || 'N/A';
-  const getRoomsSummary = (res: Reservation): string => res.rooms.map(rm => `${rm.qty}x ${rm.roomType} ${rm.mealPlan}`).join(', ');
-  const getTotalRooms = (res: Reservation): number => res.rooms.reduce((acc, rm) => acc + rm.qty, 0);
-  const getTotalPax = (res: Reservation): number => res.rooms.reduce((acc, rm) => acc + (rm.qty * (rm.pax || 2)), 0);
+  const getRoomsSummary = (res: Reservation): string => (res.rooms || []).map(rm => `${rm.qty}x ${rm.roomType} ${rm.mealPlan}`).join(', ');
+  const getTotalRooms = (res: Reservation): number => (res.rooms || []).reduce((acc, rm) => acc + rm.qty, 0);
+  const getTotalPax = (res: Reservation): number => (res.rooms || []).reduce((acc, rm) => acc + (rm.qty * (rm.pax || 2)), 0);
 
   // Arrivals: checkIn === today, status Confirmed
   const arrivals = reservations.filter(r =>

@@ -265,7 +265,7 @@ function ReservationsPage({
 
         const initialRoomDetails: {name: string, confNo: string}[] = [];
         let roomIndex = 0;
-        activeRes.rooms.forEach((rm) => {
+        (activeRes.rooms || []).forEach((rm) => {
           for (let i = 0; i < rm.qty; i++) {
             const existing = parsedRoomDetails[roomIndex] || { name: '', confNo: '' };
             initialRoomDetails.push({
@@ -700,7 +700,7 @@ function ReservationsPage({
     setNonRefundable(res.nonRefundable || false);
     
     // Copy and map room objects
-    setRooms(res.rooms.map(rm => {
+    setRooms((res.rooms || []).map(rm => {
       let isWk = false;
       let wkBuy = undefined;
       let wkSell = undefined;
@@ -933,7 +933,7 @@ function ReservationsPage({
         if (oldRes.hotelId !== hotelId) amendments.push(mkEntry('Hotel', hotels.find(h => h.id === oldRes.hotelId)?.name || oldRes.hotelId, hotels.find(h => h.id === hotelId)?.name || hotelId));
         if (oldRes.amountPaidByClient !== amountPaidByClient) amendments.push(mkEntry('Client Paid', String(oldRes.amountPaidByClient), String(amountPaidByClient)));
         if (oldRes.amountPaidToSupplier !== amountPaidToSupplier) amendments.push(mkEntry('Supplier Paid', String(oldRes.amountPaidToSupplier), String(amountPaidToSupplier)));
-        const oldTotalRooms = oldRes.rooms.reduce((s, r) => s + r.qty, 0);
+        const oldTotalRooms = (oldRes.rooms || []).reduce((s, r) => s + r.qty, 0);
         const newTotalRooms = rooms.reduce((s, r) => s + r.qty, 0);
         if (oldTotalRooms !== newTotalRooms) amendments.push(mkEntry('Total Rooms', String(oldTotalRooms), String(newTotalRooms)));
         if (amendments.length > 0) {
@@ -1509,7 +1509,7 @@ function ReservationsPage({
       const s = agents.find(as => as.id === res.supplierId);
       const totals = getReservationTotals(res);
       // One row per room line with full booking context
-      res.rooms.forEach((rm, rmIdx) => {
+      (res.rooms || []).forEach((rm, rmIdx) => {
         const buyRate = typeof rm.buyRate === 'number' ? rm.buyRate : 0;
         const sellRate = typeof rm.nightlyRates === 'number' ? rm.nightlyRates : 0;
         rows.push({
@@ -1575,7 +1575,7 @@ function ReservationsPage({
         'Check In': res.checkIn,
         'Check Out': res.checkOut,
         'Nights': res.nights,
-        'Rooms': res.rooms.map(r => `${r.qty}x ${r.roomType} ${r.mealPlan}`).join(', '),
+        'Rooms': (res.rooms || []).map(r => `${r.qty}x ${r.roomType} ${r.mealPlan}`).join(', '),
         'Confirmation #': res.hotelConfirmationNo || '',
         'Agreement #': res.agreementNo || '',
         'Total Sell (SAR)': totals.totalSell,
@@ -3346,7 +3346,7 @@ function ReservationsPage({
                             if (!phone) { toast.warning('Client has no phone number'); return; }
                             const h = hotelMap.get(res.hotelId);
                             const { totalSell } = getReservationTotals(res);
-                            const roomSummary = res.rooms.map(rm => `${rm.qty}x ${rm.roomType}`).join(', ');
+                            const roomSummary = (res.rooms || []).map(rm => `${rm.qty}x ${rm.roomType}`).join(', ');
                             const msg = encodeURIComponent(
                               `*Zumra Hotels - Booking RSV-${res.id}*\n` +
                               `Guest: ${res.guestName}\n` +
@@ -3570,7 +3570,7 @@ function ReservationsPage({
                         </div>
                         <div className="mt-2 bg-indigo-50 rounded-lg p-2.5 border border-indigo-200">
                           <div className="text-[9px] uppercase font-bold text-indigo-400 mb-1">{t('res.rooms')}</div>
-                          {resObj.rooms.map((rm, i) => (
+                          {(resObj.rooms || []).map((rm, i) => (
                             <div key={i} className="text-[10px] font-medium text-indigo-800">{rm.qty}x {rm.roomType} ({rm.view} / {rm.mealPlan})</div>
                           ))}
                         </div>

@@ -234,7 +234,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                     <tr className="bg-white">
                       <td className="w-1/4 py-2.5 px-3 font-black font-sans bg-slate-50 border-r border-slate-200 uppercase tracking-wider text-[10px] text-slate-700">{t('cpdf.typeOfRooms')}</td>
                       <td className="py-2.5 px-3 text-slate-900 font-semibold leading-relaxed space-y-1">
-                        {reservation.rooms.map((room) => (
+                        {(reservation.rooms || []).map((room) => (
                           <div key={room.id} className="text-xs mb-1 last:mb-0">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-slate-500 min-w-[12px]">{room.qty}</span>
@@ -354,7 +354,7 @@ export default function ConfirmationPDF({ reservation, client, hotel, type, onCl
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-800 text-[10px]">
-                    {reservation.rooms.map((room, idx) => {
+                    {(reservation.rooms || []).map((room, idx) => {
                       const pax = getPaxForRoomType(room.roomType);
                       const n = reservation.nights;
 

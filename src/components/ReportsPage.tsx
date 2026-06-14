@@ -531,7 +531,7 @@ function ReportsPage({ reservations, agents, hotels, transactions, accounts = []
                         <td className="py-2.5 px-2 font-mono">{res.checkIn}</td>
                         <td className="py-2.5 px-2 font-mono">{res.checkOut}</td>
                         <td className="py-2.5 px-2 max-w-xs truncate text-[10px] text-slate-500">
-                          {res.rooms.map(rm => `${rm.qty} ${rm.roomType} (${rm.mealPlan})`).join(' + ')}
+                          {(res.rooms || []).map(rm => `${rm.qty} ${rm.roomType} (${rm.mealPlan})`).join(' + ')}
                         </td>
                         <td className="py-2.5 px-2 text-right font-mono font-bold text-emerald-800">
                           {totalSell.toLocaleString('en-US', { minimumFractionDigits: 2 })} SAR
@@ -1639,7 +1639,7 @@ function ReportsPage({ reservations, agents, hotels, transactions, accounts = []
                       'Sales Person': d.sp.name, 'RSV#': r.id, 'Guest': r.guestName, 'Hotel': hotels.find(h => h.id === r.hotelId)?.name || '',
                       'Check-In': r.checkIn, 'Check-Out': r.checkOut, 'Nights': r.nights,
                       'Sell Total': totals.totalSell, 'Commission (SAR/room/night)': d.sp.commission,
-                      'Total Rooms': r.rooms.reduce((s: number, rm: any) => s + rm.qty, 0),
+                      'Total Rooms': (r.rooms || []).reduce((s: number, rm: any) => s + rm.qty, 0),
                       'Commission Amount': r.salesPersonCommissionAmount || 0,
                       'Commission Paid': r.commissionPaidToSalesPerson ? 'Yes' : 'No',
                       'Commission Paid Date': r.commissionPaidDate || '',

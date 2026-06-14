@@ -44,11 +44,11 @@ export default function ArrivalReportPDF({ reservations, agents, hotels, fromDat
   };
 
   const getPaxCount = (res: Reservation): number => {
-    return res.rooms.reduce((acc, rm) => acc + (rm.qty * (rm.pax || 2)), 0);
+    return (res.rooms || []).reduce((acc, rm) => acc + (rm.qty * (rm.pax || 2)), 0);
   };
 
   const getRoomsSummary = (res: Reservation): string => {
-    return res.rooms.map(rm => `${rm.qty} ${rm.roomType} ${rm.mealPlan}`).join(' & ');
+    return (res.rooms || []).map(rm => `${rm.qty} ${rm.roomType} ${rm.mealPlan}`).join(' & ');
   };
 
   const handlePrint = async () => {

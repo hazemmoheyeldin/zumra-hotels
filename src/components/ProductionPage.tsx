@@ -71,7 +71,7 @@ export default function ProductionPage({ reservations, agents, hotels }: Product
       }
 
       const { totalSell, totalBuy } = getReservationTotals(res);
-      const nights = res.rooms.reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
+      const nights = (res.rooms || []).reduce((sum, rm) => sum + (rm.qty * res.nights), 0);
 
       stats[agentId].bookings += 1;
       stats[agentId].roomNights += nights;

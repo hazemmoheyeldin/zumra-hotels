@@ -165,7 +165,7 @@ export default function InvoicePDF({ reservation, client, hotel, transactions, o
                 </tr>
               </thead>
               <tbody>
-                {reservation.rooms.map((room, idx) => {
+                {(reservation.rooms || []).map((room, idx) => {
                   const pax = getPaxForRoomType(room.roomType);
                   const mealLabel = abbreviateMealPlan(room.mealPlan) || room.mealPlan;
                   const nights = reservation.nights;

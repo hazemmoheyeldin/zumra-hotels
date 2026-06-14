@@ -99,7 +99,7 @@ export default function BookingTemplatesModal({
                 const hotel = hotels.find(h => h.id === tmpl.hotelId);
                 const client = agents.find(a => a.id === tmpl.clientId);
                 const supplier = agents.find(a => a.id === tmpl.supplierId);
-                const roomSummary = tmpl.rooms.map(r => `${r.qty}x ${r.roomType}`).join(', ');
+                const roomSummary = (tmpl.rooms || []).map(r => `${r.qty}x ${r.roomType}`).join(', ');
 
                 return (
                   <div

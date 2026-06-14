@@ -67,11 +67,23 @@ const PageLoader = () => (
   </div>
 );
 
+// Normalize Firestore documents to ensure required array fields are never null.
+// Firestore can store missing fields as null, causing .length/.reduce crashes downstream.
+function normalizeReservation(r: any): Reservation {
+  if (!r.rooms || !Array.isArray(r.rooms)) r.rooms = [];
+  return r as Reservation;
+}
+function normalizeAllotment(a: any): Allotment {
+  if (a.ratePeriods && !Array.isArray(a.ratePeriods)) a.ratePeriods = [];
+  return a as Allotment;
+}
+
 // Efficient shallow comparison: checks IDs + length instead of object references.
 // Firestore onSnapshot creates new objects on every emission, so reference comparison
 // would ALWAYS return false, causing unnecessary state updates and re-renders.
-function arraysEqual(a: any[], b: any[]): boolean {
+function arraysEqual(a: any[] | null | undefined, b: any[] | null | undefined): boolean {
   if (a === b) return true;
+  if (!a || !b) return (!a && !b);
   if (a.length !== b.length) return false;
   if (a.length === 0) return true;
   // Quick ID-based comparison (Firestore docs always have 'id' field)
@@ -899,12 +911,12 @@ export default function App() {
           setHasMoreAgents(safe.length >= PAGE_SIZE);
         }));
         attach(() => firestoreSubscribe<Allotment>(COLLECTIONS.ALLOTMENTS, (data) => {
-          const safe = data || [];
+          const safe = (data || []).map(normalizeAllotment);
           scheduleLocalStorageWrite('zumra_allotments', safe);
           setAllotments(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
         attach(() => firestoreSubscribeWithLimit<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, (data, lastDoc) => {
-          const safe = data || [];
+          const safe = (data || []).map(normalizeReservation);
           scheduleLocalStorageWrite('zumra_reservations', safe);
           setReservations(prev => arraysEqual(prev, safe) ? prev : safe);
           setReservationsCursor(lastDoc);
@@ -1013,7 +1025,7 @@ export default function App() {
         // Runs alongside the paginated listener — ensures alerts scan ALL reservations
         // not just the 50 most recent (late payments, upcoming check-ins, document expiry)
         attach(() => firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-          const safe = data || [];
+          const safe = (data || []).map(normalizeReservation);
           setAllReservationsForAlerts(prev => arraysEqual(prev, safe) ? prev : safe);
         }));
 
@@ -1421,14 +1433,15 @@ export default function App() {
     if (!reservationsCursor || !hasMoreReservations) return;
     try {
       const result = await firestoreFetchPage<Reservation>(COLLECTIONS.RESERVATIONS, 'id', 'desc', PAGE_SIZE, reservationsCursor);
-      if (result.data.length > 0) {
+      const normalized = result.data.map(normalizeReservation);
+      if (normalized.length > 0) {
         setReservations(prev => {
           const existingIds = new Set(prev.map(r => r.id));
-          const newItems = result.data.filter(r => !existingIds.has(r.id));
+          const newItems = normalized.filter(r => !existingIds.has(r.id));
           return [...prev, ...newItems];
         });
         if (result.lastDoc) setReservationsCursor(result.lastDoc);
-        setHasMoreReservations(result.data.length >= PAGE_SIZE);
+        setHasMoreReservations(normalized.length >= PAGE_SIZE);
       } else {
         setHasMoreReservations(false);
       }
@@ -1516,7 +1529,8 @@ export default function App() {
         try { fullResUnsubRef.current(); } catch {}
       }
       fullResUnsubRef.current = firestoreSubscribe<Reservation>(COLLECTIONS.RESERVATIONS, (data) => {
-        setFullReservations(prev => arraysEqual(prev, data) ? prev : data);
+        const safe = (data || []).map(normalizeReservation);
+        setFullReservations(prev => arraysEqual(prev, safe) ? prev : safe);
         setFullDataLoading(false);
       });
       return fullReservations;
@@ -1589,7 +1603,7 @@ export default function App() {
         activeReservations.forEach(r => {
           if (r.hotelId !== al.hotelId) return;
           if (r.supplierId && r.supplierId !== al.supplierId) return;
-          r.rooms.forEach(rm => {
+          (r.rooms || []).forEach(rm => {
             if (rm.roomType !== al.roomType) return;
             // Generate dates for this reservation
             const checkIn = new Date(r.checkIn);
@@ -1882,7 +1896,7 @@ export default function App() {
       const client = agents.find(a => a.id === r.clientId);
       if (!client?.email || !hotel) return;
       
-      const roomTypes = r.rooms.map(rm => rm.roomType).join(', ');
+      const roomTypes = (r.rooms || []).map(rm => rm.roomType).join(', ');
       const { sendPreArrivalReminder } = await import('./lib/email');
       const result = await sendPreArrivalReminder(
         client.email,

@@ -151,7 +151,7 @@ function Dashboard({ reservations, agents, hotels, users, followUps, allotments,
     for (const res of filteredReservations) {
       if (res.status === 'Cancelled' || res.status === 'Tentative') continue; // Only Confirmed in stats
       const { totalSell, totalBuy } = getReservationTotals(res);
-      const nights = res.rooms.reduce((s, rm) => s + (rm.qty * res.nights), 0);
+      const nights = (res.rooms || []).reduce((s, rm) => s + (rm.qty * res.nights), 0);
       // Supplier
       const sup = agentMap.get(res.supplierId);
       const supKey = res.supplierId || 'DIRECT';
@@ -209,7 +209,7 @@ function Dashboard({ reservations, agents, hotels, users, followUps, allotments,
   }, [allotments, hotels, todayStr]);
 
   const occupancyRate = useMemo(() => {
-    const totalInHouseRooms = inHouseList.reduce((sum, res) => sum + res.rooms.reduce((s, rm) => s + rm.qty, 0), 0);
+    const totalInHouseRooms = inHouseList.reduce((sum, res) => sum + (res.rooms || []).reduce((s, rm) => s + rm.qty, 0), 0);
     return Math.min(100, Math.round((totalInHouseRooms / totalAvailableRooms) * 100));
   }, [inHouseList, totalAvailableRooms]);
 
@@ -254,7 +254,7 @@ function Dashboard({ reservations, agents, hotels, users, followUps, allotments,
 
   const missingRoomingList = useMemo(() => reservations.filter(res => {
     if (res.status === 'Cancelled') return false;
-    const totalRooms = res.rooms.reduce((sum, rm) => sum + rm.qty, 0);
+    const totalRooms = (res.rooms || []).reduce((sum, rm) => sum + rm.qty, 0);
     const isGroup = totalRooms > 3 || res.guestName.toLowerCase().includes('group');
     if (!isGroup) return false;
     if (res.roomingList && res.roomingList.length > 0) return false;
@@ -327,7 +327,7 @@ function Dashboard({ reservations, agents, hotels, users, followUps, allotments,
       reservations.forEach(r => {
         if (r.status === 'Cancelled') return;
         if (r.checkIn <= ds && r.checkOut > ds) {
-          count += r.rooms.reduce((s, rm) => s + rm.qty, 0);
+          count += (r.rooms || []).reduce((s, rm) => s + rm.qty, 0);
           hotelSet.add(hotelMap.get(r.hotelId)?.name || '');
         }
       });
@@ -857,7 +857,7 @@ function Dashboard({ reservations, agents, hotels, users, followUps, allotments,
             </div>
             <div className="text-xs text-slate-500">
               <div className="font-bold text-slate-700">{t('dash.groupsInHouse', { count: inHouseList.length })}</div>
-              <div className="mt-1">{t('dash.roomsOccupied', { count: inHouseList.reduce((s, r) => s + r.rooms.reduce((a, rm) => a + rm.qty, 0), 0) })}</div>
+              <div className="mt-1">{t('dash.roomsOccupied', { count: inHouseList.reduce((s, r) => s + (r.rooms || []).reduce((a, rm) => a + rm.qty, 0), 0) })}</div>
               <div className="mt-1 text-[10px] text-slate-400">{totalAvailableRooms} rooms available</div>
             </div>
           </div>

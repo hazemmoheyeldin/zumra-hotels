@@ -248,7 +248,7 @@ export default function ZumraCustomConfirmation({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-slate-800 text-[10px]">
-                  {reservation.rooms.map((room, idx) => {
+                  {(reservation.rooms || []).map((room, idx) => {
                     const pax = getPaxForRoomType(room.roomType);
                     const n = reservation.nights;
 

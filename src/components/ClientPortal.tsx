@@ -246,7 +246,7 @@ export default function ClientPortal({ reservations, agents, hotels, clientId, o
                         <div>
                           <div className="text-[10px] uppercase text-slate-400 font-bold">Rooms</div>
                           <div className="font-medium text-slate-700">
-                            {res.rooms.map((rm, i) => (
+                            {(res.rooms || []).map((rm, i) => (
                               <div key={i}>{rm.qty}x {rm.roomType} ({rm.mealPlan})</div>
                             ))}
                           </div>

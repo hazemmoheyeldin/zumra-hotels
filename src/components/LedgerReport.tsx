@@ -87,7 +87,7 @@ export default function LedgerReport({ reservations, transactions, agents, hotel
           date: r.createdAt.split(' ')[0],
           refId: `RSV-${r.id}`,
           refType: 'reservation',
-          description: `Sales Commission — ${spName} (${r.rooms.reduce((s, rm) => s + rm.qty, 0)} rooms × ${r.nights} nights)`,
+          description: `Sales Commission — ${spName} (${(r.rooms || []).reduce((s, rm) => s + rm.qty, 0)} rooms × ${r.nights} nights)`,
           debit: totals.totalCommission,
           credit: 0,
           netProfitImpact: -totals.totalCommission,
