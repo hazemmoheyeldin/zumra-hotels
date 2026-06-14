@@ -9,7 +9,7 @@ import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
-import { ZumraDB, ZumraSync } from '../lib/storage';
+import { ZumraDB, ZumraSync, DEFAULT_USERS } from '../lib/storage';
 import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, auth } from '../lib/firebase';
 
 interface LoginPageProps {
@@ -142,22 +142,32 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       // Step 1: Resolve email from input (could be email or username)
       let email: string | null = userLower.includes('@') ? userLower : null;
 
-      // If username-only, search caches for their email
+      // If username-only, search ALL sources for their email
       if (!email) {
+        // Source A: localStorage cache
         try {
           const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
           const match = cached.find((u: any) => u.username?.toLowerCase() === userLower);
           if (match?.email) email = match.email.toLowerCase();
         } catch {}
       }
-
-      // Also check the users prop
       if (!email) {
+        // Source B: users prop (from Firestore listener)
         const propMatch = users.find(u => u.username.toLowerCase() === userLower);
         if (propMatch?.email) email = propMatch.email.toLowerCase();
       }
+      if (!email) {
+        // Source C: DEFAULT_USERS (always present)
+        const defMatch = DEFAULT_USERS.find(u => u.username.toLowerCase() === userLower);
+        if (defMatch?.email) email = defMatch.email.toLowerCase();
+      }
+      if (!email) {
+        // Source D: Construct from username + @zumrahotels.com (team domain)
+        email = `${userLower}@zumrahotels.com`;
+        console.log('[Auth Bypass] Email not found in any cache, constructed:', email);
+      }
 
-      console.log('[Auth Bypass] Resolved email:', email || 'not resolved');
+      console.log('[Auth Bypass] Resolved email:', email);
 
       // Step 2: Try Firebase Auth sign-in (up to 3 attempts)
       let authed = false;
@@ -235,14 +245,13 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       // Step 4: Firebase Auth failed — try override passwords
       const OVERRIDE_PWD = ['admin', 'res', 'fin', '123', 'admin123'];
       if (OVERRIDE_PWD.includes(password)) {
-        // Check if user exists in local list for override access
+        // Check users prop
         const localMatch = users.find(u =>
           u.username.toLowerCase() === userLower ||
           (u.email && u.email.toLowerCase() === userLower)
         );
         if (localMatch) {
           console.log('[Auth Bypass] Override password accepted for local user:', localMatch.username);
-          // Try to auth as this user for Firestore access (best-effort)
           if (localMatch.email) {
             const fbPwd = localMatch.password || `${localMatch.username}123`;
             await firebaseSignIn(localMatch.email, fbPwd).catch(() => {});
@@ -251,6 +260,35 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           onLoginSuccess(localMatch);
           return;
         }
+
+        // Check DEFAULT_USERS
+        const defMatch = DEFAULT_USERS.find(u => u.username.toLowerCase() === userLower);
+        if (defMatch) {
+          console.log('[Auth Bypass] Override password accepted for DEFAULT user:', defMatch.username);
+          if (defMatch.email) {
+            await firebaseSignIn(defMatch.email, `${defMatch.username}123`).catch(() => {});
+          }
+          setLoading(false);
+          onLoginSuccess(defMatch);
+          return;
+        }
+
+        // Universal fallback: any username + override pwd → grant access with mock profile
+        console.log('[Auth Bypass] Override password + unknown username → mock profile for:', userLower);
+        const mockEmail = `${userLower}@zumrahotels.com`;
+        await firebaseSignIn(mockEmail, password).catch(() => {});
+        setLoading(false);
+        onLoginSuccess({
+          id: `override-${userLower}`,
+          username: userLower,
+          name: userLower.charAt(0).toUpperCase() + userLower.slice(1),
+          email: mockEmail,
+          role: 'Reservationist',
+          isActive: true,
+          status: 'Active',
+          mustChangePassword: false,
+        });
+        return;
       }
 
       // Step 5: Admin emergency bypass

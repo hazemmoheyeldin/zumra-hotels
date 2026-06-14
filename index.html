@@ -20,6 +20,23 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // FORCE: Unregister ALL service workers on every page load.
+      // This ensures users always get the latest code, not stale cached versions.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(reg) {
+            console.log('[SW] Force-unregistering old SW, scope:', reg.scope);
+            reg.unregister();
+          });
+          if (regs.length > 0) {
+            caches.keys().then(function(keys) {
+              keys.forEach(function(k) { caches.delete(k); });
+            });
+          }
+        });
+      }
+    </script>
+    <script>
       // Stale chunk detection: if a dynamic import fails, auto-reload
       window.addEventListener('unhandledrejection', function(event) {
         var msg = (event.reason && event.reason.message) || String(event.reason);
