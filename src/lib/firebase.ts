@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, initializeFirestore, memoryLocalCache, clearIndexedDbPersistence } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -114,6 +114,13 @@ if (isFirebaseConfigured) {
     db = initializeFirestore(app, {
       localCache: memoryLocalCache(),
     });
+
+    // ★ CRITICAL: Purge any stale IndexedDB cache from older versions
+    // that had enableMultiTabIndexedDbPersistence enabled.
+    // This ensures browsers with corrupt offline data get a clean slate.
+    clearIndexedDbPersistence(db).then(() => {
+      console.log('[Firestore] Stale IndexedDB cache purged');
+    }).catch(() => {}); // Ignore errors (may fail if no old DB exists)
     
     // Check if using emulators (skip persistence for emulators)
     const useEmulator = import.meta.env.VITE_USE_EMULATOR === 'true' || 

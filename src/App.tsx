@@ -617,22 +617,32 @@ export default function App() {
 
     // ★ Helper: wipe ALL local cache (prevents orphaned sessions)
     const purgeAllCache = () => {
+      // Clear localStorage (all zumra_* keys)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('zumra_')) keysToRemove.push(key);
       }
       keysToRemove.forEach(k => localStorage.removeItem(k));
-      console.log('[Auth] Purged', keysToRemove.length, 'zumra_* cache keys');
+      // Clear sessionStorage
+      sessionStorage.clear();
+      console.log('[Auth] Purged', keysToRemove.length, 'zumra_* cache keys + sessionStorage');
     };
 
-    // ★ Helper: force boot — clear state, purge cache, sign out
+    // ★ Helper: force boot — clear state, purge cache, sign out, redirect to login
     const forceBoot = (reason: string) => {
       console.warn(`[Auth] FORCE BOOT: ${reason}`);
+      // Clear ALL React state FIRST (ensures UI immediately shows login screen)
       setCurrentUser(null as any);
       setUsers([]);
+      setMessages([]);
+      setReservations([]);
+      setAgents([]);
+      setAccounts([]);
+      setTransactions([]);
       purgeAllCache();
       dataLoadedRef.current = false;
+      // Sign out from Firebase Auth (triggers fbUser=null → second emission)
       fbSignOut().catch(() => {});
     };
 
@@ -647,11 +657,13 @@ export default function App() {
 
       // ─── No auth user (signed out / deleted / token revoked) ───
       if (!fbUser) {
-        if (currentUser) {
-          console.warn('[Auth] Session ended (fbUser=null) — clearing all local state');
-          forceBoot('fbUser is null — session terminated');
-          toast.warning('Your session has ended. Please sign in again.');
-        }
+        // ALWAYS clear state when auth becomes null — no closure-stale check.
+        // setCurrentUser(null) is idempotent so calling it multiple times is harmless.
+        console.warn('[Auth] fbUser is null — clearing all state and cache');
+        setCurrentUser(null as any);
+        setUsers([]);
+        purgeAllCache();
+        dataLoadedRef.current = false;
         return;
       }
 
