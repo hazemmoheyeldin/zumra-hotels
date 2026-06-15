@@ -658,15 +658,46 @@ export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> 
 }
 
 /**
+ * Check if a value is a Firebase native type that must NOT be sanitized.
+ * Timestamp, GeoPoint, DocumentReference, and FieldValue sentinels
+ * (serverTimestamp(), deleteField(), arrayUnion(), etc.) are opaque SDK
+ * internals — stripping or converting them breaks Firestore writes.
+ */
+function isFirebaseNativeType(value: any): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const ctorName = value.constructor?.name;
+  return (
+    ctorName === 'Timestamp' ||
+    ctorName === 'GeoPoint' ||
+    ctorName === 'DocumentReference' ||
+    ctorName === 'FieldValue' ||
+    // FieldValue sentinels may also appear with _methodName or internal markers
+    typeof value._methodName === 'string' ||
+    // FieldValue sentinel check for modular Firebase SDK
+    (value.constructor?.name === 'ServerTimestampFieldValueImpl') ||
+    (value.constructor?.name === 'DeleteFieldValueImpl') ||
+    (value.constructor?.name === 'ArrayUnionFieldValueImpl') ||
+    (value.constructor?.name === 'ArrayRemoveFieldValueImpl') ||
+    (value.constructor?.name === 'NumericIncrementFieldValueImpl')
+  );
+}
+
+/**
  * Sanitize a data object for Firestore writes — strips undefined/null values
  * that cause "internal assertion" errors in the Firestore SDK.
+ * Firebase native types (Timestamp, FieldValue sentinels, GeoPoint, etc.)
+ * are passed through untouched.
  */
 function sanitizeForFirestore(data: any): Record<string, any> {
   if (!data || typeof data !== 'object') return data;
+  // Top-level Firebase sentinel — pass through entirely (e.g. FieldValue.serverTimestamp())
+  if (isFirebaseNativeType(data)) return data;
   const clean: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue; // skip undefined/null
     if (typeof value === 'function') continue; // skip functions
+    // Firebase native types — pass through untouched (Timestamp, GeoPoint, FieldValue sentinels)
+    if (isFirebaseNativeType(value)) { clean[key] = value; continue; }
     if (value instanceof Date) { clean[key] = value.toISOString(); continue; } // convert Date
     clean[key] = value;
   }
