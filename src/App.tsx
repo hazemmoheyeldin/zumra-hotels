@@ -749,56 +749,45 @@ export default function App() {
     dataLoadedRef.current = true;
     const user = currentUser; // capture for closures
 
-    // 1. Load all collections from localStorage into state
-    setHotels(ZumraDB.getHotels());
-    setAgents(ZumraDB.getAgents());
-    setAllotments(ZumraDB.getAllotments());
-    setReservations(ZumraDB.getReservations());
-    setAccounts(ZumraDB.getAccounts());
-    setTransactions(ZumraDB.getTransactions());
-    setExternalTransfers(ZumraDB.getExternalTransfers());
-    setFollowUps(ZumraDB.getFollowUps());
-    setAuditLog(ZumraDB.getAuditLog());
-    // Load new collections
-    setSalesPersons(ZumraDB.getSalesPersons());
-    setCancellationReasons(ZumraDB.getCancellationReasons());
-    setTermsAndConditions(ZumraDB.getTermsAndConditions());
-    setOtherServices(ZumraDB.getOtherServices());
-    setPaymentGateways(ZumraDB.getPaymentGateways());
-    setPayByLinks(ZumraDB.getPayByLinks());
-    setEditApprovals(ZumraDB.getEditApprovals());
-    setTaxSettings(ZumraDB.getTaxSettings());
-    setExpenses(ZumraDB.getExpenses());
-    setExpenseCategories(ZumraDB.getExpenseCategories());
-    setConsolidatedInvoices(ZumraDB.getConsolidatedInvoices());
-    // Load new feature data
-    setBlackoutPeriods(loadBlackoutPeriods());
-    setWaitlist(loadWaitlist());
-    // DISABLED: All mock data seeding in production.
-    // Hotels, test data, and default users are no longer auto-generated.
-    // The database (Firestore) is the single source of truth — admin manages all data manually.
-    // hotelSeed, seedTestDataIfEmpty, DEFAULT_USERS merge — all permanently disabled.
-    // Reload agents/reservations in case test data was seeded
-    const loadedAgents = ZumraDB.getAgents();
-    // Backfill portal tokens for existing agents that don't have one
-    const agentsNeedToken = loadedAgents.some((a: Agent) => !a.portalToken && a.type !== 'Supplier');
-    if (agentsNeedToken) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      const withTokens = loadedAgents.map((a: Agent) => {
-        if (a.portalToken || a.type === 'Supplier') return a;
-        const rv = new Uint8Array(32);
-        crypto.getRandomValues(rv);
-        let token = '';
-        for (let i = 0; i < 32; i++) token += chars[rv[i] % chars.length];
-        return { ...a, portalToken: token };
-      });
-      ZumraDB.saveAgents(withTokens);
-      setAgents(withTokens);
+    // ★ CRITICAL: Skip localStorage hydration when Firebase is configured.
+    // Ghost data from deleted documents must NEVER appear on screen.
+    // Firestore listeners will populate state with LIVE data only.
+    if (isFirebaseConfigured) {
+      // Start with empty state — Firestore listeners will fill with live data
+      setHotels([]); setAgents([]); setAllotments([]); setReservations([]);
+      setAccounts([]); setTransactions([]); setExternalTransfers([]);
+      setFollowUps([]); setAuditLog([]); setSalesPersons([]);
+      setCancellationReasons([]); setTermsAndConditions([]); setOtherServices([]);
+      setPaymentGateways([]); setPayByLinks([]); setEditApprovals([]);
+      setTaxSettings([]); setExpenses([]); setExpenseCategories([]);
+      setConsolidatedInvoices([]); setBlackoutPeriods([]); setWaitlist([]);
+      console.log('[Data] Firebase configured — starting with empty state, waiting for live Firestore data');
     } else {
-      setAgents(loadedAgents);
+      // Offline mode: hydrate from localStorage (no Firestore available)
+      setHotels(ZumraDB.getHotels());
+      setAgents(ZumraDB.getAgents());
+      setAllotments(ZumraDB.getAllotments());
+      setReservations(ZumraDB.getReservations());
+      setAccounts(ZumraDB.getAccounts());
+      setTransactions(ZumraDB.getTransactions());
+      setExternalTransfers(ZumraDB.getExternalTransfers());
+      setFollowUps(ZumraDB.getFollowUps());
+      setAuditLog(ZumraDB.getAuditLog());
+      setSalesPersons(ZumraDB.getSalesPersons());
+      setCancellationReasons(ZumraDB.getCancellationReasons());
+      setTermsAndConditions(ZumraDB.getTermsAndConditions());
+      setOtherServices(ZumraDB.getOtherServices());
+      setPaymentGateways(ZumraDB.getPaymentGateways());
+      setPayByLinks(ZumraDB.getPayByLinks());
+      setEditApprovals(ZumraDB.getEditApprovals());
+      setTaxSettings(ZumraDB.getTaxSettings());
+      setExpenses(ZumraDB.getExpenses());
+      setExpenseCategories(ZumraDB.getExpenseCategories());
+      setConsolidatedInvoices(ZumraDB.getConsolidatedInvoices());
+      setBlackoutPeriods(loadBlackoutPeriods());
+      setWaitlist(loadWaitlist());
+      console.log('[Data] Offline mode — hydrated from localStorage');
     }
-    setReservations(ZumraDB.getReservations());
-    setSalesPersons(ZumraDB.getSalesPersons());
 
     // Restore Firebase Auth session and run migration
     if (isFirebaseConfigured) {

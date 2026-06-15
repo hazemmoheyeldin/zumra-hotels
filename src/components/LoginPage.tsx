@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
-import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
+import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -125,12 +125,20 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     setErrorMsg('');
 
     if (!username.trim() || !password.trim()) {
-      setErrorMsg('Please enter both username and password.');
+      setErrorMsg('Please enter both email and password.');
+      return;
+    }
+
+    // ★ EMAIL VALIDATION: Input must contain @ before contacting Firebase
+    const trimmedInput = username.trim().toLowerCase();
+    if (!trimmedInput.includes('@')) {
+      setErrorMsg('Please enter a valid email address (must contain @).');
+      setLoading(false);
       return;
     }
 
     setLoading(true);
-    const userLower = username.trim().toLowerCase();
+    const userLower = trimmedInput;
     console.log('[Auth Bypass] Login attempt:', userLower);
 
     // ═══════════════════════════════════════════════════════════
@@ -142,58 +150,27 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     // ═══════════════════════════════════════════════════════════
     if (isFirebaseConfigured) {
       // Step 1: Resolve email from input
-      // If input contains @, treat as full email. Otherwise auto-append company domain.
-      let email: string = userLower.includes('@')
-        ? userLower
-        : `${userLower}@zumrahotels.com`;
+      // Input MUST contain @ (validated above). No auto-append for username-only.
+      const email: string = userLower;
+      console.log('[Auth] Login email:', email);
 
-      // Fast-path: if username-only, try to resolve to the real email from local cache
-      if (!userLower.includes('@')) {
-        // Try in-memory users list first (populated from Firestore listener)
-        const propMatch = users.find(u => u.username?.toLowerCase() === userLower);
-        if (propMatch?.email) {
-          email = propMatch.email.toLowerCase();
-        } else {
-          // Try localStorage cache (from previous sessions)
-          try {
-            const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
-            const match = cached.find((u: any) => u.username?.toLowerCase() === userLower);
-            if (match?.email) email = match.email.toLowerCase();
-          } catch {}
-        }
-        // No Firestore query — security rules block unauthenticated reads.
-        // If not found in local cache, the constructed ${username}@zumrahotels.com is used.
-      }
-
-      console.log('[Auth] Resolved email:', email);
-
-      // Step 2: Firebase Auth sign-in (up to 4 attempts)
+      // Step 2: Firebase Auth sign-in (ONLY sign-in, NEVER create)
       let authed = false;
       if (email) {
         // Attempt 1: typed password
         authed = await firebaseSignIn(email, password);
         if (!authed) {
-          // Attempt 2: create Firebase Auth account (handles users only in Firestore)
-          const created = await firebaseCreateUser(email, password);
-          if (created) authed = true;
-        }
-        if (!authed) {
-          // Attempt 3: default password pattern (username123)
+          // Attempt 2: default password pattern (username123)
           const defaultPwd = `${email.split('@')[0]}123`;
           authed = await firebaseSignIn(email, defaultPwd);
         }
         if (!authed) {
-          // Attempt 4: try the Firestore-stored password (if we fetched a live user earlier)
+          // Attempt 3: try the Firestore-stored password (if we fetched a live user earlier)
           const liveUserForPwd = await fetchUserFromFirestore(userLower).catch(() => null)
             || await fetchUserFromFirestore(email).catch(() => null);
           if (liveUserForPwd?.password && liveUserForPwd.password !== password) {
             console.log('[Auth] Attempting Firestore-stored password for:', email);
             authed = await firebaseSignIn(email, liveUserForPwd.password);
-            if (!authed) {
-              // Try to re-create with the stored password
-              const recreated = await firebaseCreateUser(email, liveUserForPwd.password);
-              if (recreated) authed = true;
-            }
           }
         }
       }
@@ -765,7 +742,7 @@ const LoginFormCard = memo(function LoginFormCard({
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
               </span>
               <input
-                type="text"
+                type="email"
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
