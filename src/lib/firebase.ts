@@ -642,7 +642,7 @@ export async function firestoreAtomicWrite(
 /**
  * Subscribe to real-time changes in a Firestore collection
  */
-export function firestoreSubscribe<T>(collectionName: string, callback: (data: T[]) => void): () => void {
+export function firestoreSubscribe<T>(collectionName: string, callback: (data: T[], snapshot?: any) => void): () => void {
   if (!db) {
     console.warn(`[Firestore] firestoreSubscribe: db is null, cannot subscribe to ${collectionName}`);
     return () => {};
@@ -668,7 +668,7 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
           firstEmission = false;
           retryCount = 0; // Reset retries on success
         }
-        callback(data);
+        callback(data, snapshot);
       }, (error) => {
         console.error(`[Firebase] Snapshot error for ${collectionName}:`, error?.code, error?.message);
         if (error?.code === 'permission-denied') {

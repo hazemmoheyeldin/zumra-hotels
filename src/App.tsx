@@ -3168,24 +3168,10 @@ export default function App() {
     );
   }
 
-  // Data loading gate - ensures Firestore listeners are connected before rendering dashboard
-  // Prevents race conditions where UI renders before real-time sync is established
-  if (currentUser && !listenersReady) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-slate-200 border-t-amber-500 rounded-full animate-spin mb-4"></div>
-        <p className="text-sm font-medium text-slate-600">Connecting to database...</p>
-        <p className="text-[10px] text-slate-400 mt-1">Establishing real-time sync</p>
-        {initError && <p className="text-[11px] text-amber-600 mt-3 max-w-xs text-center">{initError}</p>}
-        <button
-          onClick={() => setListenersReady(true)}
-          className="mt-6 text-[11px] text-amber-600 hover:text-amber-800 underline cursor-pointer"
-        >
-          Continue with cached data
-        </button>
-      </div>
-    );
-  }
+  // REMOVED: Data loading gate that blocked the entire UI until all Firestore listeners connected.
+  // The dashboard now renders immediately after auth resolves. Individual components
+  // show their own loading states while data streams in via onSnapshot listeners.
+  // The initError banner is shown inline instead of blocking the entire app.
 
   if (!currentUser) {
     // Check for client portal URL
