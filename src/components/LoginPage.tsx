@@ -142,33 +142,27 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     // ═══════════════════════════════════════════════════════════
     if (isFirebaseConfigured) {
       // Step 1: Resolve email from input
-      let email: string | null = userLower.includes('@') ? userLower : null;
+      // If input contains @, treat as full email. Otherwise auto-append company domain.
+      let email: string = userLower.includes('@')
+        ? userLower
+        : `${userLower}@zumrahotels.com`;
 
-      // If username-only, search caches first (fast path)
-      if (!email) {
-        try {
-          const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
-          const match = cached.find((u: any) => u.username?.toLowerCase() === userLower);
-          if (match?.email) email = match.email.toLowerCase();
-        } catch {}
-      }
-      if (!email) {
-        const propMatch = users.find(u => u.username.toLowerCase() === userLower);
-        if (propMatch?.email) email = propMatch.email.toLowerCase();
-      }
-      if (!email) {
-        const defMatch = DEFAULT_USERS.find(u => u.username.toLowerCase() === userLower);
-        if (defMatch?.email) email = defMatch.email.toLowerCase();
-      }
-      if (!email) {
-        // Query LIVE Firestore for the username
-        console.log('[Auth] Username not in cache — querying LIVE Firestore for:', userLower);
-        const liveUser = await fetchUserFromFirestore(userLower);
-        if (liveUser?.email) email = liveUser.email.toLowerCase();
-      }
-      if (!email) {
-        email = `${userLower}@zumrahotels.com`;
-        console.log('[Auth] Email not found anywhere, constructed:', email);
+      // Fast-path: if username-only, try to resolve to the real email from local cache
+      if (!userLower.includes('@')) {
+        // Try in-memory users list first (populated from Firestore listener)
+        const propMatch = users.find(u => u.username?.toLowerCase() === userLower);
+        if (propMatch?.email) {
+          email = propMatch.email.toLowerCase();
+        } else {
+          // Try localStorage cache (from previous sessions)
+          try {
+            const cached = JSON.parse(localStorage.getItem('zumra_users') || '[]');
+            const match = cached.find((u: any) => u.username?.toLowerCase() === userLower);
+            if (match?.email) email = match.email.toLowerCase();
+          } catch {}
+        }
+        // No Firestore query — security rules block unauthenticated reads.
+        // If not found in local cache, the constructed ${username}@zumrahotels.com is used.
       }
 
       console.log('[Auth] Resolved email:', email);
