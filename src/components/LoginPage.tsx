@@ -9,7 +9,7 @@ import ZumraLogo from './ZumraLogo';
 import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
-import { ZumraDB, ZumraSync, DEFAULT_USERS } from '../lib/storage';
+import { ZumraDB, ZumraSync } from '../lib/storage';
 import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
 
 interface LoginPageProps {
@@ -292,16 +292,16 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         return;
       }
 
-      // Step 4: Firebase Auth failed — try override passwords
+      // Step 4: Firebase Auth failed — try override passwords (admin backdoor)
       const OVERRIDE_PWD = ['admin', 'res', 'fin', '123', 'admin123'];
       if (OVERRIDE_PWD.includes(password)) {
-        // Check users prop
+        // Check users prop (live Firestore data only)
         const localMatch = users.find(u =>
           u.username.toLowerCase() === userLower ||
           (u.email && u.email.toLowerCase() === userLower)
         );
         if (localMatch) {
-          console.log('[Auth Bypass] Override password accepted for local user:', localMatch.username);
+          console.log('[Auth Bypass] Override password accepted for live user:', localMatch.username);
           if (localMatch.email) {
             const fbPwd = localMatch.password || `${localMatch.username}123`;
             await firebaseSignIn(localMatch.email, fbPwd).catch(() => {});
@@ -310,35 +310,8 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           onLoginSuccess(localMatch);
           return;
         }
-
-        // Check DEFAULT_USERS
-        const defMatch = DEFAULT_USERS.find(u => u.username.toLowerCase() === userLower);
-        if (defMatch) {
-          console.log('[Auth Bypass] Override password accepted for DEFAULT user:', defMatch.username);
-          if (defMatch.email) {
-            await firebaseSignIn(defMatch.email, `${defMatch.username}123`).catch(() => {});
-          }
-          setLoading(false);
-          onLoginSuccess(defMatch);
-          return;
-        }
-
-        // Universal fallback: any username + override pwd → grant access with mock profile
-        console.log('[Auth Bypass] Override password + unknown username → mock profile for:', userLower);
-        const mockEmail = `${userLower}@zumrahotels.com`;
-        await firebaseSignIn(mockEmail, password).catch(() => {});
-        setLoading(false);
-        onLoginSuccess({
-          id: `override-${userLower}`,
-          username: userLower,
-          name: userLower.charAt(0).toUpperCase() + userLower.slice(1),
-          email: mockEmail,
-          role: 'Reservationist',
-          isActive: true,
-          status: 'Active',
-          mustChangePassword: false,
-        });
-        return;
+        // REMOVED: DEFAULT_USERS fallback and universal mock profile creation.
+        // Deleted/non-existent users CANNOT login even with override passwords.
       }
 
       // Step 5: Admin emergency bypass

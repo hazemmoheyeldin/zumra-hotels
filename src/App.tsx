@@ -600,104 +600,113 @@ export default function App() {
   // before unblocking the UI. Prevents race conditions where the
   // dashboard renders before Firebase Auth has finished initializing.
   // ═══════════════════════════════════════════════════════════
+  // ═══ SECURE AUTH SESSION VALIDATOR ═══
+  // Persistent listener — never unsubscribes.
+  // Handles: initial auth, session deactivation, profile deletion, token revocation.
   useEffect(() => {
     // Load users for login form — NO auto-seeding. Database is source of truth.
     const loadedUsers = ZumraDB.getUsers();
     setUsers(loadedUsers);
 
     if (!isFirebaseConfigured) {
-      // No Firebase — unblock immediately
       setAuthLoading(false);
       return;
     }
 
-    // ═══ NUCLEAR AUTH BYPASS ═══
-    // If Firebase Auth has ANY signed-in user → immediately grant access.
-    // No Firestore validation, no zombie check, no spinner.
-    let settled = false;
+    let initialSettled = false;
+
+    // ★ Helper: wipe ALL local cache (prevents orphaned sessions)
+    const purgeAllCache = () => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('zumra_')) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      console.log('[Auth] Purged', keysToRemove.length, 'zumra_* cache keys');
+    };
+
+    // ★ Helper: force boot — clear state, purge cache, sign out
+    const forceBoot = (reason: string) => {
+      console.warn(`[Auth] FORCE BOOT: ${reason}`);
+      setCurrentUser(null as any);
+      setUsers([]);
+      purgeAllCache();
+      dataLoadedRef.current = false;
+      fbSignOut().catch(() => {});
+    };
+
     const unsub = onFirebaseAuthStateChanged(async (fbUser) => {
-      if (settled) return;
-      settled = true;
-      unsub();
-      clearTimeout(timer);
+      // ─── Initial auth resolution (first emission only) ───
+      if (!initialSettled) {
+        initialSettled = true;
+        clearTimeout(timer);
+        setAuthLoading(false);
+        console.log('[Auth] Initial state resolved. fbUser:', fbUser?.uid || 'null');
+      }
 
-      console.log('[Auth Bypass] onAuthStateChanged fired. fbUser:', fbUser?.uid || 'null');
+      // ─── No auth user (signed out / deleted / token revoked) ───
+      if (!fbUser) {
+        if (currentUser) {
+          console.warn('[Auth] Session ended (fbUser=null) — clearing all local state');
+          forceBoot('fbUser is null — session terminated');
+          toast.warning('Your session has ended. Please sign in again.');
+        }
+        return;
+      }
 
-      // ★ CRITICAL: Unblock UI IMMEDIATELY when auth resolves.
-      // Profile fetch and data loading happen in the background — no spinner blocking.
-      setAuthLoading(false);
+      // ─── Authenticated user — validate profile exists in Firestore ───
+      forceFirestoreReconnect().catch(() => {});
 
-      if (fbUser) {
-        // Force Firestore back to live mode (resets circuit breaker + enableNetwork)
-        forceFirestoreReconnect().catch(() => {});
+      try {
+        const liveProfile = await fetchUserFromFirestore(fbUser.uid)
+          || await fetchUserFromFirestore(fbUser.email || '');
 
-        // Fetch LIVE profile from Firestore (single source of truth) — background, non-blocking
-        try {
-          const liveProfile = await fetchUserFromFirestore(fbUser.uid)
-            || await fetchUserFromFirestore(fbUser.email || '');
-
-          if (liveProfile) {
-            const user: User = {
-              id: liveProfile.id || fbUser.uid,
-              username: liveProfile.username || fbUser.email?.split('@')[0] || 'user',
-              name: liveProfile.name || liveProfile.username || 'User',
-              email: liveProfile.email || fbUser.email || '',
-              role: liveProfile.role || 'Reservationist',
-              isActive: liveProfile.isActive !== false,
-              status: liveProfile.status || 'Active',
-              mustChangePassword: liveProfile.mustChangePassword === true || liveProfile.mustChangePassword === 'true',
-            };
-            console.log('[Auth] LIVE profile loaded:', user.username, user.role, 'mustChangePwd:', user.mustChangePassword);
-            setCurrentUser(user);
-            ZumraDB.setCurrentUser(user);
+        if (liveProfile) {
+          // Check if deactivated
+          if (liveProfile.isActive === false || liveProfile.status === 'Pending') {
+            forceBoot(`Profile deactivated/pending: ${liveProfile.username}`);
+            toast.warning(liveProfile.status === 'Pending'
+              ? 'Account pending approval. Contact admin.'
+              : 'Your account has been deactivated by an administrator.');
             return;
           }
-        } catch (err) {
-          console.warn('[Auth] Failed to fetch LIVE profile from Firestore:', err);
-        }
 
-        // Fallback: try localStorage
-        const savedUser = localStorage.getItem('zumra_current_user');
-        if (savedUser) {
-          try {
-            const user = JSON.parse(savedUser);
-            if (user && user.username && user.role) {
-              console.log('[Auth] Restoring session from localStorage:', user.username);
-              setCurrentUser(user as User);
-              return;
-            }
-          } catch {}
+          const user: User = {
+            id: liveProfile.id || fbUser.uid,
+            username: liveProfile.username || fbUser.email?.split('@')[0] || 'user',
+            name: liveProfile.name || liveProfile.username || 'User',
+            email: liveProfile.email || fbUser.email || '',
+            role: liveProfile.role || 'Reservationist',
+            isActive: liveProfile.isActive !== false,
+            status: liveProfile.status || 'Active',
+            mustChangePassword: liveProfile.mustChangePassword === true || liveProfile.mustChangePassword === 'true',
+          };
+          console.log('[Auth] Profile validated:', user.username, user.role);
+          setCurrentUser(user);
+          ZumraDB.setCurrentUser(user);
+          return;
         }
-
-        // Last resort: mock from Firebase Auth token
-        const email = fbUser.email || '';
-        const username = email.split('@')[0] || 'user';
-        const mockUser: User = {
-          id: fbUser.uid,
-          username: username,
-          name: fbUser.displayName || username.charAt(0).toUpperCase() + username.slice(1),
-          email: email,
-          role: 'Reservationist',
-          isActive: true,
-          status: 'Active',
-          mustChangePassword: false,
-        };
-        console.log('[Auth] Mocking profile from Firebase Auth token:', mockUser.username);
-        setCurrentUser(mockUser);
-        ZumraDB.setCurrentUser(mockUser);
+      } catch (err) {
+        console.warn('[Auth] Profile fetch failed:', err);
       }
+
+      // ★ SECURITY: No Firestore profile = user was deleted. FORCE BOOT.
+      // NO localStorage fallback. NO mock from auth token.
+      forceBoot(`No Firestore profile found for ${fbUser.uid} (${fbUser.email}) — account likely deleted`);
+      toast.error('Your account was not found in the database. Contact admin.');
     });
 
     // Safety timeout: unblock after 3s
     const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        unsub();
-        console.warn('[Auth Bypass] onAuthStateChanged timeout after 3s — force unblocking');
+      if (!initialSettled) {
+        initialSettled = true;
+        console.warn('[Auth] Initial state timeout after 3s — force unblocking');
         setAuthLoading(false);
       }
     }, 3000);
 
+    // Cleanup: unsubscribe on unmount only
     return () => {
       unsub();
       clearTimeout(timer);
@@ -997,9 +1006,17 @@ export default function App() {
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
           // Real-time zombie check: if current user was deactivated by admin on another tab
           if (currentUser && merged.find(u => u.id === currentUser.id)?.isActive === false) {
-            console.warn('[Users Listener] Current user was deactivated — forcing logout');
-            localStorage.removeItem('zumra_current_user');
+            console.warn('[Users Listener] Current user was deactivated — forcing full logout + cache purge');
             setCurrentUser(null as any);
+            setUsers([]);
+            // Purge ALL zumra_* cache to prevent orphaned sessions
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith('zumra_')) keysToRemove.push(key);
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+            dataLoadedRef.current = false;
             if (isFirebaseConfigured) fbSignOut().catch(() => {});
             toast.warning('Your account has been deactivated by an administrator.');
           }
@@ -2522,9 +2539,15 @@ export default function App() {
       // Force Firestore back to live mode on every login (breaks out of offline cache)
       forceFirestoreReconnect().catch(() => {});
     } else {
-      localStorage.removeItem('zumra_current_user');
-      dataLoadedRef.current = false; // Reset so next login triggers Phase 2 again
-      // Sign out from Firebase Auth (required to clear request.auth for security rules)
+      // Full logout: purge ALL zumra_* cache to prevent orphaned sessions
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('zumra_')) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      setUsers([]);
+      dataLoadedRef.current = false;
       if (isFirebaseConfigured) {
         fbSignOut().catch(() => {});
       }
