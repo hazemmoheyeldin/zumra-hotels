@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -2449,7 +2449,7 @@ export default function App() {
           role: user.role || 'Reservationist',
           isActive: user.isActive !== false,
           status: user.status || 'Active',
-          mustChangePassword: user.mustChangePassword !== false, // New users must change password
+          mustChangePassword: user.mustChangePassword !== false,
           password: user.password || fbPwd,
           _updatedAt: new Date().toISOString(),
         };
@@ -2457,8 +2457,19 @@ export default function App() {
           await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
           console.log(`[doAddUser] Firestore profile written for ${user.username} (uid: ${userDocId})`);
         } catch (err: any) {
-          console.error(`[doAddUser] Firestore profile write failed for ${user.username}:`, err);
-          toast.warning(`Auth account created but profile write failed. User may need manual setup.`);
+          // ★ ATOMIC ROLLBACK: Firestore write failed — delete the orphaned Auth account
+          console.error(`[doAddUser] Firestore write FAILED — rolling back Auth account for ${user.email}:`, err);
+          if (authResult?.uid) {
+            console.log('[doAddUser] Deleting orphaned Auth account...');
+            await firebaseDeleteAuthUser(user.email, fbPwd);
+            // Re-authenticate as admin (firebaseDeleteAuthUser signs out the target user)
+            if (currentUser?.email) {
+              const adminPwd = currentUser.password || `${currentUser.username}123`;
+              await firebaseSignIn(currentUser.email, adminPwd);
+            }
+          }
+          toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${err?.message || 'Unknown'}`);
+          return;
         }
       }
 

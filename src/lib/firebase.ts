@@ -14,6 +14,7 @@ import {
   signOut as fbSignOut, onAuthStateChanged as fbOnAuthStateChanged,
   GoogleAuthProvider, signInWithPopup,
   connectAuthEmulator,
+  deleteUser as fbDeleteUser,
   User as FBUser
 } from 'firebase/auth';
 
@@ -363,6 +364,26 @@ export async function firebaseSignOut(): Promise<void> {
 }
 
 /**
+ * Delete a Firebase Auth user by UID.
+ * Used for rollback when Firestore profile creation fails after Auth account was created.
+ * NOTE: Requires the caller to be authenticated as the user to delete OR use Admin SDK.
+ * For admin-side deletion of another user, this re-authenticates as the target user first.
+ */
+export async function firebaseDeleteAuthUser(email: string, password: string): Promise<boolean> {
+  if (!auth) return false;
+  try {
+    // Sign in as the target user to get their credential
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await fbDeleteUser(cred.user);
+    console.log('[Firebase Auth] Deleted user:', email);
+    return true;
+  } catch (err: any) {
+    console.warn('[Firebase Auth] Delete user failed:', email, err?.code || err?.message);
+    return false;
+  }
+}
+
+/**
  * Listen to Firebase Auth state changes.
  * Waits for persistence to be ready before registering the listener.
  * This ensures onAuthStateChanged reports the CORRECT persisted session,
@@ -668,6 +689,13 @@ export function firestoreSubscribe<T>(collectionName: string, callback: (data: T
       }
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
+        // Log removals explicitly for debugging ghost data issues
+        if (!firstEmission) {
+          const removals = snapshot.docChanges().filter(c => c.type === 'removed');
+          if (removals.length > 0) {
+            console.log(`[Firestore] ${collectionName}: ${removals.length} document(s) REMOVED:`, removals.map(c => c.doc.id));
+          }
+        }
         if (firstEmission) {
           console.log(`[Firestore] Listener: ${collectionName} — ${data.length} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
           firstEmission = false;
@@ -783,6 +811,13 @@ export function firestoreSubscribeWithLimit<T>(
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as T));
         const lastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : null;
+        // Log removals explicitly for debugging ghost data issue
+        if (!firstEmission) {
+          const removals = snapshot.docChanges().filter(c => c.type === 'removed');
+          if (removals.length > 0) {
+            console.log(`[Firestore] ${collectionName} (limited): ${removals.length} document(s) REMOVED:`, removals.map(c => c.doc.id));
+          }
+        }
         if (firstEmission) {
           console.log(`[Firestore] Limited listener: ${collectionName} — ${data.length}/${limitCount} records (from: ${snapshot.metadata.fromCache ? 'cache' : 'server'})`);
           firstEmission = false;
