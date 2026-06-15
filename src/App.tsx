@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseCreateUserIsolated, firebaseDeleteAuthUserIsolated, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseCreateUserIsolated, firebaseDeleteAuthUserIsolated, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db, cloudHardDeleteUser } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -675,8 +675,11 @@ export default function App() {
           || await fetchUserFromFirestore(fbUser.email || '');
 
         if (liveProfile) {
-          // Check if deactivated
-          if (liveProfile.isActive === false || liveProfile.status === 'Pending') {
+          // Check if deactivated — block login instantly for deactivated/inactive/pending accounts
+          const isDeactivated = liveProfile.isActive === false
+            || liveProfile.status === 'Pending'
+            || (liveProfile as any).status === 'Inactive';
+          if (isDeactivated) {
             forceBoot(`Profile deactivated/pending: ${liveProfile.username}`);
             toast.warning(liveProfile.status === 'Pending'
               ? 'Account pending approval. Contact admin.'
@@ -1006,7 +1009,13 @@ export default function App() {
           scheduleLocalStorageWrite('zumra_users', merged);
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
           // Real-time zombie check: if current user was deactivated by admin on another tab
-          if (currentUser && merged.find(u => u.id === currentUser.id)?.isActive === false) {
+          const myProfile = currentUser ? merged.find(u => u.id === currentUser.id) : null;
+          const iAmDeactivated = myProfile && (
+            myProfile.isActive === false
+            || myProfile.status === 'Pending'
+            || (myProfile as any).status === 'Inactive'
+          );
+          if (currentUser && iAmDeactivated) {
             console.warn('[Users Listener] Current user was deactivated — forcing full logout + cache purge');
             setCurrentUser(null as any);
             setUsers([]);
@@ -2429,6 +2438,7 @@ export default function App() {
 
   const doAddUser = async (user: User) => {
     const existing = users.find(u => u.id === user.id);
+    const isEditing = !!existing;
 
     // ===== Admin Protection Guard =====
     if (existing && existing.role === 'Admin' && user.role !== 'Admin') {
@@ -2443,52 +2453,77 @@ export default function App() {
       return;
     }
 
-    // ★ SECONDARY APP PATTERN: Auth credential → Firestore profile (no session hijacking)
-    let userDocId = user.id; // default to provided ID
+    let userDocId = user.id;
 
     if (isFirebaseConfigured && user.email) {
-      // Step 1: Create Firebase Auth account on a SECONDARY app instance
-      // This does NOT sign out the admin or affect the primary auth session.
-      addToStaffWhitelist(user.email);
-      const fbPwd = user.password || `${user.username}123`;
-      const authResult = await firebaseCreateUserIsolated(user.email, fbPwd);
-
-      if (authResult?.uid) {
-        // Use the Firebase Auth UID as the Firestore document ID
-        userDocId = authResult.uid;
-      }
-
-      // Step 2: Write the user profile to Firestore using the PRIMARY db (admin privileges)
-      if (db) {
-        const profileData = {
-          username: user.username,
-          name: user.name,
-          email: user.email,
-          role: user.role || 'Reservationist',
-          isActive: user.isActive !== false,
-          status: user.status || 'Active',
-          mustChangePassword: user.mustChangePassword !== false,
-          password: user.password || fbPwd,
-          _updatedAt: new Date().toISOString(),
-        };
-        try {
-          await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
-          console.log(`[doAddUser] Firestore profile written for ${user.username} (uid: ${userDocId})`);
-        } catch (err: any) {
-          // ★ ATOMIC ROLLBACK: Firestore write failed — delete the orphaned Auth account via secondary app
-          console.error(`[doAddUser] Firestore write FAILED — rolling back Auth account for ${user.email}:`, err);
-          if (authResult?.uid) {
-            console.log('[doAddUser] Deleting orphaned Auth account via secondary app...');
-            await firebaseDeleteAuthUserIsolated(user.email, fbPwd);
+      if (isEditing) {
+        // ═══ EDIT MODE: Only update Firestore metadata — NO Auth changes ═══
+        // Bypass Firebase Auth entirely. The admin is only updating profile fields
+        // (name, role, phone, etc.) — not creating or modifying Auth credentials.
+        userDocId = existing!.id; // Keep the existing Firestore document ID
+        if (db) {
+          const profileData: Record<string, any> = {
+            username: user.username,
+            name: user.name,
+            email: user.email,
+            role: user.role || 'Reservationist',
+            isActive: user.isActive !== false,
+            status: user.status || 'Active',
+            mustChangePassword: user.mustChangePassword !== false,
+            _updatedAt: new Date().toISOString(),
+          };
+          // Only update password field if admin explicitly set a new one
+          if (user.password) {
+            profileData.password = user.password;
           }
-          toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${err?.message || 'Unknown'}`);
-          return;
+          try {
+            await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
+            console.log(`[doAddUser] ✅ EDIT: Firestore profile updated for ${user.username} (uid: ${userDocId})`);
+          } catch (err: any) {
+            console.error(`[doAddUser] ❌ EDIT: Firestore update FAILED for ${user.email}:`, err);
+            toast.error(`Failed to update user profile: ${err?.message || 'Unknown error'}`);
+            return;
+          }
+        }
+      } else {
+        // ═══ CREATE MODE: Secondary App Pattern — Auth credential + Firestore profile ═══
+        addToStaffWhitelist(user.email);
+        const fbPwd = user.password || `${user.username}123`;
+        const authResult = await firebaseCreateUserIsolated(user.email, fbPwd);
+
+        if (authResult?.uid) {
+          userDocId = authResult.uid;
+        }
+
+        if (db) {
+          const profileData = {
+            username: user.username,
+            name: user.name,
+            email: user.email,
+            role: user.role || 'Reservationist',
+            isActive: user.isActive !== false,
+            status: user.status || 'Active',
+            mustChangePassword: user.mustChangePassword !== false,
+            password: user.password || fbPwd,
+            _updatedAt: new Date().toISOString(),
+          };
+          try {
+            await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
+            console.log(`[doAddUser] ✅ CREATE: Firestore profile written for ${user.username} (uid: ${userDocId})`);
+          } catch (err: any) {
+            console.error(`[doAddUser] ❌ CREATE: Firestore write FAILED — rolling back Auth account for ${user.email}:`, err);
+            if (authResult?.uid) {
+              console.log('[doAddUser] Deleting orphaned Auth account via secondary app...');
+              await firebaseDeleteAuthUserIsolated(user.email, fbPwd);
+            }
+            toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${err?.message || 'Unknown'}`);
+            return;
+          }
         }
       }
-      // No re-auth needed — secondary app pattern keeps admin session intact
     }
 
-    // Step 4: Update local state with the user (using correct Firestore doc ID)
+    // Update local state with the user (using correct Firestore doc ID)
     const userWithCorrectId = { ...user, id: userDocId };
     const updated = existing
       ? users.map(u => u.id === user.id ? userWithCorrectId : u)
@@ -2496,10 +2531,19 @@ export default function App() {
     setUsers(updated);
     ZumraDB.saveUsers(updated);
 
-    toast.success(`User "${user.name}" created successfully`);
+    toast.success(isEditing
+      ? `User "${user.name}" updated successfully`
+      : `User "${user.name}" created successfully`);
   };
   const handleAddUser = (user: User) => {
-    showConfirm('Save User', `Save user "${user.name}" (${user.role})?`, () => doAddUser(user));
+    const isEditing = users.some(u => u.id === user.id);
+    showConfirm(
+      isEditing ? 'Update User' : 'Save User',
+      isEditing
+        ? `Update user "${user.name}" (${user.role})?`
+        : `Save user "${user.name}" (${user.role})?`,
+      () => doAddUser(user)
+    );
   };
 
   const doDeleteUser = async (userId: string) => {
@@ -2543,6 +2587,38 @@ export default function App() {
     setUsers(updated);
     ZumraDB.saveUsers(updated);
     toast.success(`User "${targetUser.name}" has been reactivated. They can now log in again.`);
+  };
+
+  // ═══ HARD DELETE: Permanently remove Auth + Firestore via Cloud Function ═══
+  const handleHardDeleteUser = (userId: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    // Guard: prevent self-deletion
+    if (currentUser && userId === currentUser.id) {
+      toast.error('You cannot delete your own account.');
+      return;
+    }
+    showConfirm(
+      '⚠️ PERMANENT DELETE',
+      `This will PERMANENTLY delete "${targetUser.name}" (${targetUser.email}).\n\n• Auth account will be destroyed\n• Firestore profile will be erased\n• This CANNOT be undone\n\nType the user's name to confirm: ${targetUser.name}`,
+      async () => {
+        try {
+          const result = await cloudHardDeleteUser(userId, targetUser.name);
+          if (result.success) {
+            // Remove from local state
+            const updated = users.filter(u => u.id !== userId);
+            setUsers(updated);
+            ZumraDB.saveUsers(updated);
+            toast.success(result.message || `User "${targetUser.name}" permanently deleted.`);
+          }
+        } catch (err: any) {
+          const msg = err?.message || 'Unknown error';
+          console.error('[HardDelete] Cloud function failed:', err);
+          toast.error(`Hard delete failed: ${msg}`);
+        }
+      },
+      'destructive'
+    );
   };
 
   const handleLogAudit = (entry: Omit<GlobalAuditEntry, 'id' | 'timestamp'>): void => {
@@ -2936,6 +3012,7 @@ export default function App() {
             onAddUser={handleAddUser}
             onDeleteUser={handleDeleteUser}
             onReactivateUser={handleReactivateUser}
+            onHardDeleteUser={handleHardDeleteUser}
             onToast={(type, msg) => { if (type === 'error') toast.error(msg); else if (type === 'warning') toast.warning(msg); else toast.success(msg); }}
           />
           </ErrorBoundary>

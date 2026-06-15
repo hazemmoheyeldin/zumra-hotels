@@ -15,6 +15,7 @@ interface UserManagementPageProps {
   onAddUser: (user: User) => void;
   onDeleteUser: (userId: string) => void;
   onReactivateUser?: (userId: string) => void;
+  onHardDeleteUser?: (userId: string) => void;
   onToast?: (type: 'success' | 'error' | 'warning', msg: string) => void;
 }
 
@@ -31,7 +32,7 @@ function FormField({ label, error, children }: { label: string; error?: string; 
   );
 }
 
-export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser, onReactivateUser, onToast }: UserManagementPageProps) {
+export default function UserManagementPage({ users, currentUser, onSetCurrentUser, onAddUser, onDeleteUser, onReactivateUser, onHardDeleteUser, onToast }: UserManagementPageProps) {
   const { t, lang } = useLang();
   const [showDeactivated, setShowDeactivated] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -521,6 +522,16 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                           title="Deactivate user (soft delete)"
                         >
                           🚫 Deactivate
+                        </button>
+                      )}
+                      {/* Hard Delete — Admin only, not for self or primary admin */}
+                      {isAdmin && !isCurrentUser && u.email !== 'hazem8383@gmail.com' && onHardDeleteUser && (
+                        <button
+                          onClick={() => onHardDeleteUser(u.id)}
+                          className="bg-red-100 hover:bg-red-200 text-red-800 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-red-300"
+                          title="Permanently delete user (Auth + Firestore) — CANNOT be undone"
+                        >
+                          ☠️ Delete
                         </button>
                       )}
                       <button onClick={() => initiateEdit(u)} className="bg-slate-50 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-slate-200">

@@ -7,6 +7,7 @@
 
 import { initializeApp, FirebaseApp, deleteApp } from 'firebase/app';
 import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, clearIndexedDbPersistence } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -171,6 +172,19 @@ if (isFirebaseConfigured) {
 
 export { db, auth, authReadyPromise };
 export { collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, serverTimestamp };
+
+/**
+ * Call the hardDeleteUser Cloud Function.
+ * Permanently deletes both the Firebase Auth account and Firestore profile.
+ * Only callable by Admin users (validated server-side).
+ */
+export async function cloudHardDeleteUser(uid: string, userName: string): Promise<{ success: boolean; message: string }> {
+  if (!app) throw new Error('Firebase not initialized');
+  const functions = getFunctions(app);
+  const hardDeleteFn = httpsCallable(functions, 'hardDeleteUser');
+  const result = await hardDeleteFn({ uid, userName });
+  return result.data as { success: boolean; message: string };
+}
 export { orderBy, limit, startAfter };
 export type { QueryDocumentSnapshot, DocumentSnapshot };
 export type { FBUser };
