@@ -658,6 +658,22 @@ export async function firestoreLoadAll<T>(collectionName: string): Promise<T[]> 
 }
 
 /**
+ * Sanitize a data object for Firestore writes — strips undefined/null values
+ * that cause "internal assertion" errors in the Firestore SDK.
+ */
+function sanitizeForFirestore(data: any): Record<string, any> {
+  if (!data || typeof data !== 'object') return data;
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined || value === null) continue; // skip undefined/null
+    if (typeof value === 'function') continue; // skip functions
+    if (value instanceof Date) { clean[key] = value.toISOString(); continue; } // convert Date
+    clean[key] = value;
+  }
+  return clean;
+}
+
+/**
  * Helper: Save a single document to Firestore with exponential backoff retry
  */
 export async function firestoreSave(collectionName: string, id: string, data: any): Promise<void> {
@@ -670,9 +686,11 @@ export async function firestoreSave(collectionName: string, id: string, data: an
     console.error(`[Firebase] firestoreSave: invalid doc id for ${collectionName}:`, id);
     return;
   }
+  // Sanitize payload — strip undefined/null to prevent Firestore internal assertion errors
+  const sanitized = sanitizeForFirestore({ ...data, _updatedAt: new Date().toISOString() });
   const timeoutMs = 8000;
   try {
-    const savePromise = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+    const savePromise = setDoc(doc(db, collectionName, id), sanitized, { merge: true });
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
     );
@@ -689,7 +707,7 @@ export async function firestoreSave(collectionName: string, id: string, data: an
         try {
           console.log(`[Firebase] Permission denied for ${collectionName}/${id} — retrying after auth settle (1.5s)`);
           await new Promise(resolve => setTimeout(resolve, 1500));
-          const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+          const savePromise2 = setDoc(doc(db, collectionName, id), sanitized, { merge: true });
           const timeoutPromise2 = new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
           );
@@ -705,7 +723,7 @@ export async function firestoreSave(collectionName: string, id: string, data: an
     // Retry other transient errors (network, timeout, etc.)
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const savePromise2 = setDoc(doc(db, collectionName, id), { ...data, _updatedAt: new Date().toISOString() });
+      const savePromise2 = setDoc(doc(db, collectionName, id), sanitized, { merge: true });
       const timeoutPromise2 = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error(`Firestore write timeout after ${timeoutMs}ms`)), timeoutMs)
       );
