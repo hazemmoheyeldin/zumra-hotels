@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseCreateUserIsolated, firebaseDeleteAuthUserIsolated, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db, cloudHardDeleteUser } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseCreateUserIsolated, firebaseDeleteAuthUserIsolated, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db, cloudHardDeleteUser, cloudUpdateUserPassword } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -2457,7 +2457,7 @@ export default function App() {
 
     if (isFirebaseConfigured && user.email) {
       if (isEditing) {
-        // ═══ EDIT MODE: Only update Firestore metadata — NO Auth changes ═══
+        // ═══ EDIT MODE: Only update Firestore metadata — NO Auth creation ═══
         // Bypass Firebase Auth entirely. The admin is only updating profile fields
         // (name, role, phone, etc.) — not creating or modifying Auth credentials.
         userDocId = existing!.id; // Keep the existing Firestore document ID
@@ -2476,13 +2476,33 @@ export default function App() {
           if (user.password) {
             profileData.password = user.password;
           }
+          // Strip any undefined/null values to prevent Firestore write rejection
+          Object.keys(profileData).forEach(k => {
+            if (profileData[k] === undefined || profileData[k] === null) delete profileData[k];
+          });
           try {
             await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
-            console.log(`[doAddUser] ✅ EDIT: Firestore profile updated for ${user.username} (uid: ${userDocId})`);
+            console.log(`[doAddUser] EDIT: Firestore profile updated for ${user.username} (uid: ${userDocId})`);
           } catch (err: any) {
-            console.error(`[doAddUser] ❌ EDIT: Firestore update FAILED for ${user.email}:`, err);
+            console.error(`[doAddUser] EDIT: Firestore update FAILED for ${user.email}:`, err);
             toast.error(`Failed to update user profile: ${err?.message || 'Unknown error'}`);
             return;
+          }
+        }
+
+        // If password was changed, ALSO update the Auth credential via Cloud Function (Admin SDK)
+        if (user.password && isFirebaseConfigured) {
+          try {
+            const authResult = await cloudUpdateUserPassword(userDocId, user.password);
+            if (authResult.authUpdated) {
+              console.log(`[doAddUser] EDIT: Auth password updated via Cloud Function for uid: ${userDocId}`);
+            } else {
+              console.log(`[doAddUser] EDIT: No Auth account found for uid: ${userDocId} (Firestore-only user)`);
+            }
+          } catch (authErr: any) {
+            // Non-fatal: Firestore was already updated. Log but don't block the user.
+            console.warn(`[doAddUser] EDIT: Auth password update failed for ${user.email}:`, authErr?.message);
+            toast.warning(`Profile updated, but Auth password could not be synced: ${authErr?.message}`);
           }
         }
       } else {
@@ -2493,13 +2513,17 @@ export default function App() {
 
         if (authResult?.uid) {
           userDocId = authResult.uid;
+        } else {
+          // Auth creation failed — check if it was an email-already-exists scenario
+          console.warn(`[doAddUser] CREATE: firebaseCreateUserIsolated returned null for ${user.email}. Using fallback id: ${userDocId}`);
         }
 
         if (db) {
-          const profileData = {
-            username: user.username,
-            name: user.name,
-            email: user.email,
+          // Build profile payload — ensure NO undefined/null fields (Firestore rejects them)
+          const profileData: Record<string, any> = {
+            username: user.username || '',
+            name: user.name || '',
+            email: user.email || '',
             role: user.role || 'Reservationist',
             isActive: user.isActive !== false,
             status: user.status || 'Active',
@@ -2507,17 +2531,37 @@ export default function App() {
             password: user.password || fbPwd,
             _updatedAt: new Date().toISOString(),
           };
+          // Defensive: strip any remaining undefined/null values
+          Object.keys(profileData).forEach(k => {
+            if (profileData[k] === undefined || profileData[k] === null) delete profileData[k];
+          });
+
+          // Verify admin is still authenticated before Firestore write
+          if (isFirebaseConfigured && auth && !auth.currentUser) {
+            console.warn('[doAddUser] CREATE: Admin auth session lost — waiting for re-establishment...');
+            // Brief pause to allow auth state to stabilize
+            await new Promise(r => setTimeout(r, 1000));
+          }
+
           try {
             await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
-            console.log(`[doAddUser] ✅ CREATE: Firestore profile written for ${user.username} (uid: ${userDocId})`);
+            console.log(`[doAddUser] CREATE: Firestore profile written for ${user.username} (uid: ${userDocId})`);
           } catch (err: any) {
-            console.error(`[doAddUser] ❌ CREATE: Firestore write FAILED — rolling back Auth account for ${user.email}:`, err);
-            if (authResult?.uid) {
-              console.log('[doAddUser] Deleting orphaned Auth account via secondary app...');
-              await firebaseDeleteAuthUserIsolated(user.email, fbPwd);
+            // Retry once after brief delay (handles transient auth flicker from secondary app)
+            console.warn(`[doAddUser] CREATE: First Firestore write attempt FAILED for ${user.email}. Retrying in 1s...`, err?.code, err?.message);
+            try {
+              await new Promise(r => setTimeout(r, 1000));
+              await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
+              console.log(`[doAddUser] CREATE: Firestore profile written on RETRY for ${user.username} (uid: ${userDocId})`);
+            } catch (retryErr: any) {
+              console.error(`[doAddUser] CREATE: Firestore write FAILED after retry — rolling back Auth for ${user.email}:`, retryErr);
+              if (authResult?.uid) {
+                console.log('[doAddUser] Deleting orphaned Auth account via secondary app...');
+                await firebaseDeleteAuthUserIsolated(user.email, fbPwd).catch(() => {});
+              }
+              toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${retryErr?.message || retryErr?.code || 'Unknown'}`);
+              return;
             }
-            toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${err?.message || 'Unknown'}`);
-            return;
           }
         }
       }

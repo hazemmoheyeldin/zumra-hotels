@@ -185,6 +185,19 @@ export async function cloudHardDeleteUser(uid: string, userName: string): Promis
   const result = await hardDeleteFn({ uid, userName });
   return result.data as { success: boolean; message: string };
 }
+
+/**
+ * Call the updateUserPassword Cloud Function.
+ * Uses Firebase Admin SDK to set a user's Auth password without requiring re-authentication.
+ * Only callable by Admin users (validated server-side).
+ */
+export async function cloudUpdateUserPassword(uid: string, newPassword: string): Promise<{ success: boolean; authUpdated: boolean; message: string }> {
+  if (!app) throw new Error('Firebase not initialized');
+  const functions = getFunctions(app);
+  const updateFn = httpsCallable(functions, 'updateUserPassword');
+  const result = await updateFn({ uid, newPassword });
+  return result.data as { success: boolean; authUpdated: boolean; message: string };
+}
 export { orderBy, limit, startAfter };
 export type { QueryDocumentSnapshot, DocumentSnapshot };
 export type { FBUser };

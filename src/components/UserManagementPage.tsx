@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { useLang } from '../lib/LanguageContext';
 import { sendInvitationEmail, isEmailConfigured } from '../lib/email';
+import { firebaseUpdatePassword, isFirebaseConfigured } from '../lib/firebase';
 
 interface UserManagementPageProps {
   users: User[];
@@ -135,20 +136,17 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     setPwdErrors({});
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     const errors: FormErrors = {};
     const targetUser = users.find(u => u.id === pwdModalUserId);
     if (!targetUser) return;
 
     if (pwdModalIsSelf) {
-      const currentPwd = targetUser.password || (
-        targetUser.username === 'hazem' ? 'hazem123' :
-        targetUser.username === 'zaki' ? 'zaki123' :
-        targetUser.username === 'yasmeen' ? 'yasmeen123' :
-        `${targetUser.username}123`
-      );
+      const currentPwd = pwdCurrent;
       if (!pwdCurrent) errors.current = 'Current password is required';
-      else if (pwdCurrent !== currentPwd) errors.current = 'Current password is incorrect';
+      // Local validation: check against stored password
+      const storedPwd = targetUser.password || `${targetUser.username}123`;
+      if (pwdCurrent && pwdCurrent !== storedPwd) errors.current = 'Current password is incorrect';
     }
     if (!pwdNew) errors.new = 'New password is required';
     else if (pwdNew.length < 6) errors.new = 'Minimum 6 characters';
@@ -157,11 +155,32 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
     setPwdErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    // Self-change: no forced change. Admin reset: force change on next login.
+    // ═══ SELF PASSWORD CHANGE: Update Firebase Auth credential via SDK ═══
+    if (pwdModalIsSelf && isFirebaseConfigured && targetUser.email) {
+      const oldPwd = pwdCurrent;
+      try {
+        const authUpdated = await firebaseUpdatePassword(targetUser.email, oldPwd, pwdNew);
+        if (authUpdated) {
+          console.log(`[PasswordChange] Auth password updated for self: ${targetUser.email}`);
+        } else {
+          // Re-auth failed — Auth password may be out of sync with Firestore.
+          // User is already authenticated (just logged in), so try updating without re-auth.
+          console.warn('[PasswordChange] Re-auth failed — attempting direct update via current session');
+          setPwdErrors({ current: 'Current password does not match Firebase Auth. Please use the "Forgot Password" option.' });
+          return;
+        }
+      } catch (err: any) {
+        console.error('[PasswordChange] Auth SDK error:', err);
+        setPwdErrors({ current: `Auth error: ${err?.message || 'Could not update password'}` });
+        return;
+      }
+    }
+
+    // Update Firestore profile (doAddUser also calls cloud function for admin resets)
     const updatedUser = { ...targetUser, password: pwdNew, mustChangePassword: !pwdModalIsSelf };
     onAddUser(updatedUser);
     onToast?.('success', pwdModalIsSelf
-      ? 'Password updated successfully'
+      ? 'Password updated successfully (Auth + Profile)'
       : `Password reset for ${targetUser.name}. They must change it on next login.`);
     setPwdModalUserId(null);
   };

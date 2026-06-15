@@ -120,3 +120,78 @@ exports.hardDeleteUser = onCall(async (request) => {
     message: `User "${userName || uid}" has been permanently deleted.`,
   };
 });
+
+/**
+ * updateUserPassword — Sets a user's Firebase Auth password via Admin SDK.
+ * 
+ * This bypasses the client-side re-authentication requirement, allowing
+ * admins to reset passwords that actually update the Auth credentials.
+ * 
+ * Only callable by authenticated Admin users.
+ */
+exports.updateUserPassword = onCall(async (request) => {
+  // SECURITY: Validate authentication
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be logged in to perform this action.");
+  }
+
+  const callerUid = request.auth.uid;
+  const callerEmail = request.auth.token?.email || "";
+
+  // SECURITY: Verify caller is Admin
+  let callerRole = null;
+  try {
+    let callerDoc = await adminDb.collection("users").doc(callerUid).get();
+    if (!callerDoc.exists && callerEmail) {
+      const emailQuery = await adminDb.collection("users")
+        .where("email", "==", callerEmail)
+        .limit(1)
+        .get();
+      if (!emailQuery.empty) {
+        callerDoc = emailQuery.docs[0];
+      }
+    }
+    if (callerDoc.exists) {
+      callerRole = callerDoc.data().role;
+    }
+  } catch (err) {
+    console.error("[updateUserPassword] Failed to verify caller role:", err);
+    throw new HttpsError("internal", "Failed to verify your admin status.");
+  }
+
+  if (callerRole !== "Admin") {
+    throw new HttpsError("permission-denied", "Only administrators can reset user passwords.");
+  }
+
+  // Validate input
+  const { uid, newPassword } = request.data || {};
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "Missing or invalid 'uid' parameter.");
+  }
+  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+
+  // EXECUTE: Update Auth password via Admin SDK (no re-auth needed)
+  try {
+    await adminAuth.updateUser(uid, { password: newPassword });
+    console.log(`[updateUserPassword] Auth password updated for uid: ${uid}`);
+  } catch (err) {
+    if (err.code === "auth/user-not-found") {
+      console.warn(`[updateUserPassword] No Auth account found for uid: ${uid} — Firestore-only user`);
+      return {
+        success: true,
+        authUpdated: false,
+        message: "No Auth account found. Password saved to profile only.",
+      };
+    }
+    console.error(`[updateUserPassword] Failed to update Auth password for ${uid}:`, err);
+    throw new HttpsError("internal", `Failed to update Auth password: ${err.message}`);
+  }
+
+  return {
+    success: true,
+    authUpdated: true,
+    message: `Auth password updated successfully for user ${uid}.`,
+  };
+});

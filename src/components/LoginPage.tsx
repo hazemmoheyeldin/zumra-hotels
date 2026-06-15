@@ -355,16 +355,30 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     try {
       // 1. Update the Firebase Auth password (requires re-authentication)
+      let authSynced = false;
       if (isFirebaseConfigured && forcePwdUser.email) {
         const oldPwd = forcePwdUser.password || `${forcePwdUser.username}123`;
-        const authUpdated = await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
-        if (!authUpdated) {
-          // Fallback: try to sign in with old password and then update
-          console.warn('[Password Change] Firebase Auth password update failed — trying sign-in approach');
-          const signedIn = await firebaseSignIn(forcePwdUser.email, oldPwd);
-          if (signedIn) {
-            await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
+
+        // Attempt A: Re-auth + update (works when Firestore pwd matches Auth pwd)
+        authSynced = await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
+
+        if (!authSynced) {
+          // Attempt B: Sign in with stored password to refresh session, then update
+          console.warn('[ForcePwdChange] Re-auth failed — attempting sign-in + update');
+          try {
+            const signedIn = await firebaseSignIn(forcePwdUser.email, oldPwd);
+            if (signedIn) {
+              authSynced = await firebaseUpdatePassword(forcePwdUser.email, oldPwd, newPwd);
+            }
+          } catch (signinErr: any) {
+            console.warn('[ForcePwdChange] Sign-in with stored password failed:', signinErr?.code);
           }
+        }
+
+        if (!authSynced) {
+          // Auth password is out of sync with Firestore (e.g., admin reset password before cloud function fix).
+          // Allow the user to proceed — Firestore password is updated, Auth will be fixed on next admin edit.
+          console.warn('[ForcePwdChange] Auth could not be updated — proceeding with Firestore-only update');
         }
       }
 
@@ -377,11 +391,11 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       // 4. Sync to Firestore (user IS authenticated at this point)
       if (isFirebaseConfigured) {
         // Direct write to Firestore users collection (source of truth)
-        firestoreSave(COLLECTIONS.USERS, updatedUser.id, { ...updatedUser, mustChangePassword: false }).catch((err: any) => {
-          console.warn('[Password Change] Firestore direct save failed:', err?.message);
+        await firestoreSave(COLLECTIONS.USERS, updatedUser.id, { ...updatedUser, mustChangePassword: false }).catch((err: any) => {
+          console.warn('[ForcePwdChange] Firestore direct save failed:', err?.message);
         });
         ZumraSync.saveUser(updatedUser).catch((err: any) => {
-          console.warn('[Password Change] Firestore user sync failed (non-critical):', err?.message);
+          console.warn('[ForcePwdChange] Firestore user sync failed (non-critical):', err?.message);
         });
       }
 
