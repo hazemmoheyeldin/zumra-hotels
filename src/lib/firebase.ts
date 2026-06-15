@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -107,7 +107,12 @@ let authReadyPromise: Promise<void> = Promise.resolve();
 if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
+    // ★ CRITICAL: Use MemoryLocalCache to explicitly prevent IndexedDB persistence.
+    // This ensures NO stale offline data ever overrides the live database.
+    // Ghost data from old sessions is impossible with in-memory cache.
+    db = initializeFirestore(app, {
+      localCache: memoryLocalCache(),
+    });
     
     // Check if using emulators (skip persistence for emulators)
     const useEmulator = import.meta.env.VITE_USE_EMULATOR === 'true' || 

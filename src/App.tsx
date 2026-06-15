@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -619,39 +619,41 @@ export default function App() {
       if (settled) return;
       settled = true;
       unsub();
+      clearTimeout(timer);
 
       console.log('[Auth Bypass] onAuthStateChanged fired. fbUser:', fbUser?.uid || 'null');
+
+      // ★ CRITICAL: Unblock UI IMMEDIATELY when auth resolves.
+      // Profile fetch and data loading happen in the background — no spinner blocking.
+      setAuthLoading(false);
 
       if (fbUser) {
         // Force Firestore back to live mode (resets circuit breaker + enableNetwork)
         forceFirestoreReconnect().catch(() => {});
 
-        // Fetch LIVE profile from Firestore (single source of truth)
-        let liveProfile: any = null;
+        // Fetch LIVE profile from Firestore (single source of truth) — background, non-blocking
         try {
-          liveProfile = await fetchUserFromFirestore(fbUser.uid)
+          const liveProfile = await fetchUserFromFirestore(fbUser.uid)
             || await fetchUserFromFirestore(fbUser.email || '');
+
+          if (liveProfile) {
+            const user: User = {
+              id: liveProfile.id || fbUser.uid,
+              username: liveProfile.username || fbUser.email?.split('@')[0] || 'user',
+              name: liveProfile.name || liveProfile.username || 'User',
+              email: liveProfile.email || fbUser.email || '',
+              role: liveProfile.role || 'Reservationist',
+              isActive: liveProfile.isActive !== false,
+              status: liveProfile.status || 'Active',
+              mustChangePassword: liveProfile.mustChangePassword === true || liveProfile.mustChangePassword === 'true',
+            };
+            console.log('[Auth] LIVE profile loaded:', user.username, user.role, 'mustChangePwd:', user.mustChangePassword);
+            setCurrentUser(user);
+            ZumraDB.setCurrentUser(user);
+            return;
+          }
         } catch (err) {
           console.warn('[Auth] Failed to fetch LIVE profile from Firestore:', err);
-        }
-
-        if (liveProfile) {
-          // Firestore doc is authoritative
-          const user: User = {
-            id: liveProfile.id || fbUser.uid,
-            username: liveProfile.username || fbUser.email?.split('@')[0] || 'user',
-            name: liveProfile.name || liveProfile.username || 'User',
-            email: liveProfile.email || fbUser.email || '',
-            role: liveProfile.role || 'Reservationist',
-            isActive: liveProfile.isActive !== false,
-            status: liveProfile.status || 'Active',
-            mustChangePassword: liveProfile.mustChangePassword === true || liveProfile.mustChangePassword === 'true',
-          };
-          console.log('[Auth] LIVE profile loaded:', user.username, user.role, 'mustChangePwd:', user.mustChangePassword);
-          setCurrentUser(user);
-          ZumraDB.setCurrentUser(user);
-          setAuthLoading(false);
-          return;
         }
 
         // Fallback: try localStorage
@@ -662,7 +664,6 @@ export default function App() {
             if (user && user.username && user.role) {
               console.log('[Auth] Restoring session from localStorage:', user.username);
               setCurrentUser(user as User);
-              setAuthLoading(false);
               return;
             }
           } catch {}
@@ -685,12 +686,9 @@ export default function App() {
         setCurrentUser(mockUser);
         ZumraDB.setCurrentUser(mockUser);
       }
-
-      // KILL SPINNER: force authLoading=false the instant auth resolves
-      setAuthLoading(false);
     });
 
-    // Safety timeout: unblock after 3s (reduced from 5s)
+    // Safety timeout: unblock after 3s
     const timer = setTimeout(() => {
       if (!settled) {
         settled = true;
@@ -2399,7 +2397,6 @@ export default function App() {
     const existing = users.find(u => u.id === user.id);
 
     // ===== Admin Protection Guard =====
-    // Prevent demoting the last Admin to a non-Admin role
     if (existing && existing.role === 'Admin' && user.role !== 'Admin') {
       const adminCount = users.filter(u => u.role === 'Admin').length;
       if (adminCount <= 1) {
@@ -2407,39 +2404,63 @@ export default function App() {
         return;
       }
     }
-    // Prevent changing the primary admin's email (hazem8383@gmail.com)
     if (existing && existing.email === 'hazem8383@gmail.com' && user.email !== 'hazem8383@gmail.com') {
       toast.error('The primary admin email cannot be changed.');
       return;
     }
 
-    const updated = existing
-      ? users.map(u => u.id === user.id ? user : u)
-      : [...users, user];
-    setUsers(updated);
-    ZumraDB.saveUsers(updated);
-    // Save user to Firestore IMMEDIATELY (while admin is still authenticated)
-    ZumraSync.saveUser(user).then(() => {
-      console.log(`[doAddUser] Firestore sync completed for ${user.username}`);
-    }).catch(err => {
-      console.error(`[doAddUser] Firestore sync failed for ${user.username}:`, err);
-    });
-    // Also bulk-save all users to Firestore to ensure consistency
-    if (isFirebaseConfigured) {
-      firestoreBulkSave(COLLECTIONS.USERS, updated).catch(() => {});
-    }
-    // Create Firebase Auth user (required for Firestore security rules)
+    // ★ TWO-STEP ADD USER: Auth credential → Firestore profile (sequential)
+    let userDocId = user.id; // default to provided ID
+
     if (isFirebaseConfigured && user.email) {
-      addToStaffWhitelist(user.email); // Ensure new user can access via Google Sign-In too
+      // Step 1: Create Firebase Auth account (required for security rules)
+      addToStaffWhitelist(user.email);
       const fbPwd = user.password || `${user.username}123`;
-      await firebaseCreateUser(user.email, fbPwd);
-      // Re-authenticate as current admin (firebaseCreateUser signs in as the new user)
+      const authResult = await firebaseCreateUser(user.email, fbPwd);
+
+      if (authResult?.uid) {
+        // Use the Firebase Auth UID as the Firestore document ID
+        userDocId = authResult.uid;
+      }
+
+      // Step 2: Write the user profile to Firestore IMMEDIATELY
+      if (db) {
+        const profileData = {
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role || 'Reservationist',
+          isActive: user.isActive !== false,
+          status: user.status || 'Active',
+          mustChangePassword: user.mustChangePassword !== false, // New users must change password
+          password: user.password || fbPwd,
+          _updatedAt: new Date().toISOString(),
+        };
+        try {
+          await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
+          console.log(`[doAddUser] Firestore profile written for ${user.username} (uid: ${userDocId})`);
+        } catch (err: any) {
+          console.error(`[doAddUser] Firestore profile write failed for ${user.username}:`, err);
+          toast.warning(`Auth account created but profile write failed. User may need manual setup.`);
+        }
+      }
+
+      // Step 3: Re-authenticate as current admin (firebaseCreateUser signs in as the new user)
       if (currentUser?.email && currentUser.email !== user.email) {
         const adminPwd = currentUser.password || `${currentUser.username}123`;
         await firebaseSignIn(currentUser.email, adminPwd);
       }
     }
-    toast.success(`User "${user.name}" saved`);
+
+    // Step 4: Update local state with the user (using correct Firestore doc ID)
+    const userWithCorrectId = { ...user, id: userDocId };
+    const updated = existing
+      ? users.map(u => u.id === user.id ? userWithCorrectId : u)
+      : [...users, userWithCorrectId];
+    setUsers(updated);
+    ZumraDB.saveUsers(updated);
+
+    toast.success(`User "${user.name}" created successfully`);
   };
   const handleAddUser = (user: User) => {
     showConfirm('Save User', `Save user "${user.name}" (${user.role})?`, () => doAddUser(user));
