@@ -1084,8 +1084,18 @@ export default function App() {
         }));
         attach(() => firestoreSubscribe<Message>(COLLECTIONS.MESSAGES, (data) => {
           const safe = (data || []).map(normalizeMessage);
+          const newCount = safe.length;
           scheduleLocalStorageWrite('zumra_messages', safe);
-          setMessages(prev => arraysEqual(prev, safe) ? prev : safe);
+          setMessages(prev => {
+            if (arraysEqual(prev, safe)) return prev;
+            const prevIds = new Set(prev.map(m => m.id));
+            const added = safe.filter(m => !prevIds.has(m.id));
+            if (added.length > 0) {
+              console.log(`[Messages] 📩 Received ${added.length} new message(s) via live listener:`, added.map(m => m.id));
+            }
+            console.log(`[Messages] Listener update: ${prev.length} → ${newCount} messages`);
+            return safe;
+          });
         }));
         // Dedicated full-collection reservations listener for real-time notifications
         // Runs alongside the paginated listener — ensures alerts scan ALL reservations
@@ -1332,14 +1342,20 @@ export default function App() {
   const handleSaveMessages = (updatedMessages: Message[]) => {
     setMessages(updatedMessages);
     ZumraDB.saveMessages(updatedMessages);
-    // Sync each new message to Firestore
+    // Sync each new message to Firestore with explicit logging
     if (isFirebaseConfigured) {
       const existing = new Set(messages.map(m => m.id));
-      updatedMessages.filter(m => !existing.has(m.id)).forEach(m => {
-        firestoreSave(COLLECTIONS.MESSAGES, m.id, m).catch(() => {});
+      const newMsgs = updatedMessages.filter(m => !existing.has(m.id));
+      if (newMsgs.length > 0) {
+        console.log(`[Messages] Sending ${newMsgs.length} new message(s) to Firestore:`, newMsgs.map(m => m.id));
+      }
+      newMsgs.forEach(m => {
+        firestoreSave(COLLECTIONS.MESSAGES, m.id, m)
+          .then(() => console.log(`[Messages] ✅ Message ${m.id} saved to Firestore`))
+          .catch(err => console.error(`[Messages] ❌ FAILED to save ${m.id} to Firestore:`, err?.code, err?.message));
       });
       // Also sync read-status changes
-      updatedMessages.forEach(m => {
+      updatedMessages.filter(m => existing.has(m.id)).forEach(m => {
         firestoreSave(COLLECTIONS.MESSAGES, m.id, m).catch(() => {});
       });
     }

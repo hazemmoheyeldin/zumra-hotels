@@ -145,7 +145,7 @@ function ReservationsPage({
   };
 
   // Floating Booking Summary toggle + drag state
-  const [showFloatingSummary, setShowFloatingSummary] = useState(true);
+  const [showFloatingSummary, setShowFloatingSummary] = useState(false);
   const [summaryPos, setSummaryPos] = useState<{ x: number; y: number } | null>(null);
   const [isDraggingSummary, setIsDraggingSummary] = useState(false);
   const dragOffset = React.useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
@@ -2249,7 +2249,7 @@ function ReservationsPage({
                 <button
                   type="button"
                   onClick={() => setShowFloatingSummary(true)}
-                  className="hidden xl:flex fixed bottom-6 right-6 z-40 bg-white border border-slate-200 shadow-lg rounded-full w-12 h-12 items-center justify-center hover:bg-indigo-50 transition text-lg"
+                  className="fixed bottom-6 right-6 z-40 bg-white border border-slate-200 shadow-lg rounded-full w-12 h-12 flex items-center justify-center hover:bg-indigo-50 transition text-lg"
                   title="Show Booking Summary"
                 >
                   📋
@@ -2257,27 +2257,36 @@ function ReservationsPage({
               )}
               {/* Summary panel */}
               {showFloatingSummary && (
-                <div
-                  ref={summaryRef}
-                  className="hidden xl:block fixed z-30 w-56 animate-in fade-in duration-200"
-                  style={summaryPos ? { left: summaryPos.x, top: summaryPos.y } : { right: 16, top: 96 }}
-                >
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-4 space-y-3">
-                    {/* Draggable header */}
-                    <div
-                      className="flex items-center justify-between cursor-move select-none"
-                      onMouseDown={(e) => {
-                        const rect = summaryRef.current?.getBoundingClientRect();
-                        if (rect) {
-                          dragOffset.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
-                          setSummaryPos({ x: rect.left, y: rect.top });
-                        }
-                        setIsDraggingSummary(true);
-                      }}
-                    >
-                      <div className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">Booking Summary</div>
-                      <button type="button" onClick={() => setShowFloatingSummary(false)} className="text-slate-400 hover:text-slate-600 text-sm leading-none" title="Hide">&times;</button>
-                    </div>
+                <>
+                  {/* Mobile backdrop */}
+                  <div className="fixed inset-0 bg-black/20 z-20 sm:hidden" onClick={() => setShowFloatingSummary(false)} />
+                  <div
+                    ref={summaryRef}
+                    className="fixed z-30 animate-in fade-in duration-200"
+                    style={summaryPos 
+                      ? { left: summaryPos.x, top: summaryPos.y, width: 224 }
+                      : window.innerWidth < 640 
+                        ? { bottom: 16, left: 16, right: 16 }
+                        : { right: 16, top: 96, width: 224 }
+                    }
+                  >
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-4 space-y-3">
+                      {/* Draggable header (desktop) / close button (mobile) */}
+                      <div
+                        className="flex items-center justify-between cursor-move select-none"
+                        onMouseDown={(e) => {
+                          if (window.innerWidth < 640) return; // Skip drag on mobile
+                          const rect = summaryRef.current?.getBoundingClientRect();
+                          if (rect) {
+                            dragOffset.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+                            setSummaryPos({ x: rect.left, y: rect.top });
+                          }
+                          setIsDraggingSummary(true);
+                        }}
+                      >
+                        <div className="text-[9px] font-bold uppercase text-slate-400 tracking-widest">Booking Summary</div>
+                        <button type="button" onClick={() => setShowFloatingSummary(false)} className="text-slate-400 hover:text-slate-600 text-lg sm:text-sm leading-none px-2 sm:px-0" title="Hide">&times;</button>
+                      </div>
                     <div className="space-y-1.5 text-[10px]">
                       {guestName && <div className="font-bold text-slate-800 truncate">👤 {guestName}</div>}
                       <div className="text-slate-600 truncate">🏨 {selectedHotelObj.name}</div>
@@ -2308,6 +2317,7 @@ function ReservationsPage({
                     </div>
                   </div>
                 </div>
+                </>
               )}
             </>
           )}

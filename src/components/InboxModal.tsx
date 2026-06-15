@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User, Message } from '../types';
 import { useLang } from '../lib/LanguageContext';
 
@@ -14,6 +14,12 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
   const { t } = useLang();
   const [activeChatUser, setActiveChatUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to latest message
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, activeChatUser]);
 
   // Include ALL other users in chat list — even those with missing username/name
   const chatUsers = users.filter(u => u.id !== currentUser.id);
@@ -60,17 +66,20 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
     setNewMessage('');
   };
 
+  // On mobile: when chat is active, show only the chat view with a back button
+  const showUserList = !activeChatUser;
+
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[2000] p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[600px] flex overflow-hidden border border-slate-200" onClick={(e) => e.stopPropagation()}>
-        
-        {/* Users List Sidebar */}
-        <div className="w-1/3 bg-slate-50 border-r border-slate-150 flex flex-col">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[2000] p-0 sm:p-4" onClick={onClose}>
+      <div className="bg-white sm:rounded-2xl shadow-2xl w-full max-w-4xl h-full sm:h-[600px] flex overflow-hidden sm:border border-slate-200" onClick={(e) => e.stopPropagation()}>
+
+        {/* Users List Sidebar — hidden on mobile when chat is active */}
+        <div className={`${showUserList ? 'flex' : 'hidden'} sm:flex w-full sm:w-1/3 bg-slate-50 border-r border-slate-150 flex-col`}>
           <div className="p-4 border-b border-slate-150 bg-white flex justify-between items-center">
             <h2 className="font-bold text-slate-800 flex items-center gap-2">
               <span>💬</span> {t('inbox.title')}
             </h2>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {chatUsers.map(u => {
@@ -99,19 +108,29 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
           </div>
         </div>
 
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-slate-50/50">
+        {/* Chat Area — full width on mobile when active */}
+        <div className={`${!showUserList ? 'flex' : 'hidden'} sm:flex flex-1 flex-col bg-slate-50/50`}>
           {activeChatUser ? (
             <>
-              <div className="p-4 border-b border-slate-150 bg-white/80 backdrop-blur">
-                <h3 className="font-bold text-slate-800">{activeChatUser.name || activeChatUser.username || activeChatUser.email?.split('@')[0] || 'Unknown'} <span className="text-xs text-slate-400 font-normal ml-2">@{activeChatUser.username || activeChatUser.email?.split('@')[0] || activeChatUser.id}</span></h3>
+              <div className="p-4 border-b border-slate-150 bg-white/80 backdrop-blur flex items-center gap-2">
+                {/* Mobile back button */}
+                <button
+                  onClick={() => setActiveChatUser(null)}
+                  className="sm:hidden text-slate-500 hover:text-slate-800 font-bold text-lg -ml-1 mr-1"
+                >
+                  ←
+                </button>
+                <h3 className="font-bold text-slate-800 truncate">
+                  {activeChatUser.name || activeChatUser.username || activeChatUser.email?.split('@')[0] || 'Unknown'}
+                  <span className="text-xs text-slate-400 font-normal ml-2">@{activeChatUser.username || activeChatUser.email?.split('@')[0] || activeChatUser.id}</span>
+                </h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {activeMessages.length > 0 ? activeMessages.map(m => {
                   const isMe = m.senderId === currentUser.id;
                   return (
                     <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'}`}>
+                      <div className={`max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-2 text-sm ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'}`}>
                         {m.content}
                         <div className={`text-[9px] mt-1 text-right ${isMe ? 'text-indigo-200' : 'text-slate-400'}`}>
                           {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -122,26 +141,27 @@ export default function InboxModal({ currentUser, users, messages, onSaveMessage
                 }) : (
                   <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">{t('inbox.noMessages')}</div>
                 )}
+                <div ref={chatEndRef} />
               </div>
-              <div className="p-4 bg-white border-t border-slate-150 flex gap-2">
+              <div className="p-3 sm:p-4 bg-white border-t border-slate-150 flex gap-2">
                 <input 
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder={t('inbox.typeMessage')}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-400"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400"
                 />
                 <button 
                   onClick={handleSendMessage}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-xl transition"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl transition text-sm"
                 >
                   {t('inbox.send')}
                 </button>
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400 flex-col">
+            <div className="hidden sm:flex flex-1 items-center justify-center text-slate-400 flex-col">
               <span className="text-4xl mb-2 grayscale opacity-50">✉️</span>
               <p className="font-semibold text-sm">{t('inbox.selectColleague')}</p>
             </div>
