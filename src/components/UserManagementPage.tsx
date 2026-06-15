@@ -298,7 +298,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
         </div>
 
         {showAddForm ? (
-          <form onSubmit={handleSubmit} className="space-y-4 max-w-md bg-slate-50 border border-slate-200/60 p-5 rounded-2xl" noValidate>
+          <form onSubmit={handleSubmit} className="space-y-4 max-w-md bg-slate-50 border border-slate-200/60 p-5 rounded-2xl" noValidate autoComplete="off">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               {editingUserId ? t('users.editUser') : t('users.newUser')}
             </h3>
@@ -309,6 +309,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setFormErrors(prev => ({ ...prev, username: '' })); }}
                 placeholder="e.g. zaki"
+                autoComplete="off"
                 className={`w-full px-3 py-2 border rounded-lg text-xs font-semibold focus:outline-none transition ${formErrors.username ? 'border-rose-400 focus:border-rose-500 bg-rose-50/50' : 'border-slate-200 focus:border-amber-500'}`}
                 required
               />
@@ -341,6 +342,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setFormErrors(prev => ({ ...prev, email: '' })); }}
                 placeholder="e.g. zaki@zumrahotels.com"
+                autoComplete="off"
                 className={`w-full px-3 py-2 border rounded-lg text-xs font-semibold focus:outline-none transition ${formErrors.email ? 'border-rose-400 focus:border-rose-500 bg-rose-50/50' : 'border-slate-200 focus:border-amber-500'}`}
                 required
               />
@@ -352,6 +354,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setFormErrors(prev => ({ ...prev, password: '' })); }}
                 placeholder="Min. 6 characters"
+                autoComplete="new-password"
                 className={`w-full px-3 py-2 border rounded-lg text-xs font-semibold focus:outline-none transition ${formErrors.password ? 'border-rose-400 focus:border-rose-500 bg-rose-50/50' : 'border-slate-200 focus:border-amber-500'}`}
                 required={!editingUserId}
               />

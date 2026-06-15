@@ -5,7 +5,7 @@
  * Project: zumrahotels-rms
  */
 
-import { initializeApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, FirebaseApp, deleteApp } from 'firebase/app';
 import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, initializeFirestore, memoryLocalCache, clearIndexedDbPersistence } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
@@ -310,6 +310,79 @@ export async function firebaseCreateUser(email: string, password: string): Promi
     }
     console.warn(`[Firebase Auth] Create user failed for ${email}:`, err?.code || err?.message || err);
     return null;
+  }
+}
+
+/**
+ * Create a Firebase Auth user using a SECONDARY app instance.
+ * This prevents the primary auth from being hijacked (admin stays logged in).
+ * Returns { uid } on success, null on failure.
+ * 
+ * Usage:
+ *   const result = await firebaseCreateUserIsolated(email, password);
+ *   if (result?.uid) { await setDoc(doc(db, 'users', result.uid), profile); }
+ */
+export async function firebaseCreateUserIsolated(email: string, password: string): Promise<{ uid: string } | null> {
+  if (!isFirebaseConfigured) return null;
+
+  // Initialize a temporary secondary Firebase app
+  const secondaryAppName = `SecondaryApp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    // Create user on the secondary instance — does NOT affect primary auth session
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const uid = cred.user.uid;
+    console.log(`[firebaseCreateUserIsolated] Created Auth user ${email} (uid: ${uid})`);
+    return { uid };
+  } catch (err: any) {
+    if (err?.code === 'auth/email-already-in-use') {
+      // User already exists in Auth — sign in on secondary to get UID
+      try {
+        const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
+        console.log(`[firebaseCreateUserIsolated] Signed in existing user ${email} on secondary (uid: ${cred.user.uid})`);
+        return { uid: cred.user.uid };
+      } catch (signinErr: any) {
+        console.warn(`[firebaseCreateUserIsolated] Secondary sign-in failed:`, signinErr?.code);
+        return null;
+      }
+    }
+    console.warn(`[firebaseCreateUserIsolated] Create failed for ${email}:`, err?.code || err?.message || err);
+    return null;
+  } finally {
+    // Always clean up the secondary app to free memory
+    try {
+      await deleteApp(secondaryApp);
+      console.log(`[firebaseCreateUserIsolated] Secondary app "${secondaryAppName}" deleted`);
+    } catch (cleanupErr) {
+      console.warn(`[firebaseCreateUserIsolated] Cleanup failed:`, cleanupErr);
+    }
+  }
+}
+
+/**
+ * Delete a Firebase Auth user by signing in as that user and calling deleteUser.
+ * Used for rollback when Firestore profile creation fails.
+ * This operates on a SECONDARY app instance to avoid hijacking the admin session.
+ */
+export async function firebaseDeleteAuthUserIsolated(email: string, password: string): Promise<boolean> {
+  if (!isFirebaseConfigured) return false;
+
+  const secondaryAppName = `DeleteApp_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    const cred = await signInWithEmailAndPassword(secondaryAuth, email, password);
+    await fbDeleteUser(cred.user);
+    console.log('[firebaseDeleteAuthUserIsolated] Deleted user:', email);
+    return true;
+  } catch (err: any) {
+    console.warn('[firebaseDeleteAuthUserIsolated] Delete failed:', email, err?.code || err?.message);
+    return false;
+  } finally {
+    try { await deleteApp(secondaryApp); } catch {}
   }
 }
 

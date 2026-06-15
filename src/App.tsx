@@ -8,7 +8,7 @@ import lazyWithRetry from './lib/lazyWithRetry';
 import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
 import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
-import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
+import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseCreateUserIsolated, firebaseDeleteAuthUserIsolated, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseDeleteAuthUser, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore, doc, setDoc, db } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
 import { TranslationKey } from './lib/i18n';
@@ -2438,21 +2438,22 @@ export default function App() {
       return;
     }
 
-    // ★ TWO-STEP ADD USER: Auth credential → Firestore profile (sequential)
+    // ★ SECONDARY APP PATTERN: Auth credential → Firestore profile (no session hijacking)
     let userDocId = user.id; // default to provided ID
 
     if (isFirebaseConfigured && user.email) {
-      // Step 1: Create Firebase Auth account (required for security rules)
+      // Step 1: Create Firebase Auth account on a SECONDARY app instance
+      // This does NOT sign out the admin or affect the primary auth session.
       addToStaffWhitelist(user.email);
       const fbPwd = user.password || `${user.username}123`;
-      const authResult = await firebaseCreateUser(user.email, fbPwd);
+      const authResult = await firebaseCreateUserIsolated(user.email, fbPwd);
 
       if (authResult?.uid) {
         // Use the Firebase Auth UID as the Firestore document ID
         userDocId = authResult.uid;
       }
 
-      // Step 2: Write the user profile to Firestore IMMEDIATELY
+      // Step 2: Write the user profile to Firestore using the PRIMARY db (admin privileges)
       if (db) {
         const profileData = {
           username: user.username,
@@ -2469,27 +2470,17 @@ export default function App() {
           await setDoc(doc(db, COLLECTIONS.USERS, userDocId), profileData, { merge: true });
           console.log(`[doAddUser] Firestore profile written for ${user.username} (uid: ${userDocId})`);
         } catch (err: any) {
-          // ★ ATOMIC ROLLBACK: Firestore write failed — delete the orphaned Auth account
+          // ★ ATOMIC ROLLBACK: Firestore write failed — delete the orphaned Auth account via secondary app
           console.error(`[doAddUser] Firestore write FAILED — rolling back Auth account for ${user.email}:`, err);
           if (authResult?.uid) {
-            console.log('[doAddUser] Deleting orphaned Auth account...');
-            await firebaseDeleteAuthUser(user.email, fbPwd);
-            // Re-authenticate as admin (firebaseDeleteAuthUser signs out the target user)
-            if (currentUser?.email) {
-              const adminPwd = currentUser.password || `${currentUser.username}123`;
-              await firebaseSignIn(currentUser.email, adminPwd);
-            }
+            console.log('[doAddUser] Deleting orphaned Auth account via secondary app...');
+            await firebaseDeleteAuthUserIsolated(user.email, fbPwd);
           }
           toast.error(`Failed to create user profile in database. Auth account was cleaned up. Error: ${err?.message || 'Unknown'}`);
           return;
         }
       }
-
-      // Step 3: Re-authenticate as current admin (firebaseCreateUser signs in as the new user)
-      if (currentUser?.email && currentUser.email !== user.email) {
-        const adminPwd = currentUser.password || `${currentUser.username}123`;
-        await firebaseSignIn(currentUser.email, adminPwd);
-      }
+      // No re-auth needed — secondary app pattern keeps admin session intact
     }
 
     // Step 4: Update local state with the user (using correct Firestore doc ID)
