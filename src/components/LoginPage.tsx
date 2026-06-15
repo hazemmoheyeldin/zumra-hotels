@@ -139,14 +139,15 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
     setLoading(true);
     const userLower = trimmedInput;
-    console.log('[Auth Bypass] Login attempt:', userLower);
+    console.log('[Auth] Login attempt:', userLower);
 
     // ═══════════════════════════════════════════════════════════
-    // SINGLE SOURCE OF TRUTH AUTH:
-    // 1. Resolve email (from Firestore LIVE if needed)
-    // 2. Firebase Auth sign-in
-    // 3. Fetch user doc from LIVE Firestore (source of truth)
-    // 4. Gate on mustChangePassword flag
+    // FIREBASE AUTH — SINGLE SOURCE OF TRUTH
+    // 1. signInWithEmailAndPassword with typed credentials
+    // 2. If rejected → HARD STOP ("Invalid credentials")
+    // 3. If accepted → fetch LIVE Firestore profile
+    // 4. Gate on deactivated / pending / mustChangePassword
+    // No fallbacks. No overrides. No backdoors.
     // ═══════════════════════════════════════════════════════════
     if (isFirebaseConfigured) {
       // Step 1: Resolve email from input
