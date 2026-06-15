@@ -6,7 +6,7 @@
  */
 
 import { initializeApp, FirebaseApp, deleteApp } from 'firebase/app';
-import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, initializeFirestore, memoryLocalCache, clearIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, Firestore, collection, doc, getDoc, getDocs, setDoc, onSnapshot, query, deleteDoc, writeBatch, enableNetwork, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentSnapshot, connectFirestoreEmulator, serverTimestamp, clearIndexedDbPersistence } from 'firebase/firestore';
 import {
   getAuth, Auth, browserLocalPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -38,7 +38,7 @@ export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.p
 let _circuitOpen = false;
 let _permissionDeniedCount = 0;
 const CIRCUIT_THRESHOLD = 8; // Need 8+ persistent errors AFTER grace period to trip
-const _circuitInitTime = Date.now();
+let _circuitInitTime = Date.now();
 const CIRCUIT_GRACE_MS = 15000; // 15s grace period for initial auth + listener attachment
 
 function tripCircuit(reason: string) {
@@ -58,7 +58,11 @@ function tripCircuit(reason: string) {
 }
 
 export function isCircuitOpen(): boolean { return _circuitOpen; }
-export function resetCircuit() { _circuitOpen = false; _permissionDeniedCount = 0; }
+export function resetCircuit() { 
+  _circuitOpen = false; 
+  _permissionDeniedCount = 0; 
+  _circuitInitTime = Date.now(); // Reset grace period on every login/reconnect
+}
 
 /**
  * Force-reconnect Firestore to live server.
@@ -108,16 +112,13 @@ let authReadyPromise: Promise<void> = Promise.resolve();
 if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
-    // ★ CRITICAL: Use MemoryLocalCache to explicitly prevent IndexedDB persistence.
-    // This ensures NO stale offline data ever overrides the live database.
-    // Ghost data from old sessions is impossible with in-memory cache.
-    db = initializeFirestore(app, {
-      localCache: memoryLocalCache(),
-    });
+    // ★ Use default Firestore initialization (no memoryLocalCache).
+    // onSnapshot real-time listeners require the default cache behavior
+    // to properly maintain live connections with the server.
+    db = getFirestore(app);
 
-    // ★ CRITICAL: Purge any stale IndexedDB cache from older versions
-    // that had enableMultiTabIndexedDbPersistence enabled.
-    // This ensures browsers with corrupt offline data get a clean slate.
+    // ★ Purge any stale IndexedDB cache from previous sessions
+    // to prevent ghost data from old sessions appearing on screen.
     clearIndexedDbPersistence(db).then(() => {
       console.log('[Firestore] Stale IndexedDB cache purged');
     }).catch(() => {}); // Ignore errors (may fail if no old DB exists)

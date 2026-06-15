@@ -1100,7 +1100,7 @@ export default function App() {
         console.log('[Firestore] All', attachIndex, 'listeners queued for staggered attachment');
         setTimeout(() => {
           firestoreListenerUnsubs.current = unsubs;
-          console.log('[Firestore] All', unsubs.length, 'real-time listeners attached successfully');
+          console.log(`%c[Firestore] ✅ LIVE SYNC ACTIVE — ${unsubs.length} real-time onSnapshot listeners attached`, 'color: #22c55e; font-weight: bold');
         }, attachIndex * STAGGER_MS + 100);
       };
 
