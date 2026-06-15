@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync, DEFAULT_USERS } from '../lib/storage';
-import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth } from '../lib/firebase';
+import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseCreateUser, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -246,6 +246,25 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
 
         console.log('[Auth] Profile loaded:', profileUser.username, profileUser.role,
           'mustChangePassword:', profileUser.mustChangePassword);
+
+        // ★ AUTO-REPAIR: If Firestore doc is missing username/name, patch it silently
+        if (liveProfile && db) {
+          const needsRepair = !liveProfile.username || !liveProfile.name;
+          if (needsRepair) {
+            const derivedUsername = profileUser.username || fbEmail.split('@')[0] || uid;
+            const derivedName = derivedUsername.charAt(0).toUpperCase() + derivedUsername.slice(1);
+            const patch: any = {};
+            if (!liveProfile.username) patch.username = derivedUsername;
+            if (!liveProfile.name) patch.name = derivedName;
+            console.log('[Auth] Auto-repairing incomplete profile:', profileUser.id, patch);
+            try {
+              await setDoc(doc(db, COLLECTIONS.USERS, profileUser.id), patch, { merge: true });
+              console.log('[Auth] Profile repaired successfully');
+            } catch (repairErr: any) {
+              console.warn('[Auth] Profile auto-repair failed (non-critical):', repairErr?.message);
+            }
+          }
+        }
 
         // Check deactivated / pending
         if (profileUser.isActive === false) {

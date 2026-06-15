@@ -457,7 +457,7 @@ export default function UserManagementPage({ users, currentUser, onSetCurrentUse
                         )}
                       </div>
                       <h4 className="font-bold text-slate-800 uppercase mt-1.5">{u.name || u.username || 'Unknown User'}</h4>
-                      <p className="text-[10px] text-slate-450 mt-0.5">@{u.username || u.id} • {u.email || 'no email'}</p>
+                      <p className="text-[10px] text-slate-450 mt-0.5">@{u.username || u.email?.split('@')[0] || u.id} • {u.email || 'no email'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 xl:mt-0 items-center justify-end w-full xl:w-auto">
                       {isAdmin && !isCurrentUser && (
