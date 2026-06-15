@@ -5,9 +5,9 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import lazyWithRetry from './lib/lazyWithRetry';
-import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus, DEFAULT_USERS } from './lib/storage';
+import { ZumraDB, ZumraSync, getSyncStatus, onSyncStatusChange, onSyncError, flushSyncQueue, SyncStatus } from './lib/storage';
 import { Hotel, Agent, Allotment, Reservation, Account, Transaction, User, FollowUp, ExternalTransfer, RefundAlert, GlobalAuditEntry, SalesPerson, CancellationReason, TermsAndConditions, OtherService, PaymentGateway, PayByLink, EditApprovalRequest, TaxSettings, Expense, ExpenseCategory, ConsolidatedInvoice, BlackoutPeriod, WaitlistEntry, Message } from './types';
-import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, seedTestDataIfEmpty, strategicDatabaseReset } from './lib/storage';
+import { getEgyptTime, getReservationTotals, loadFromFirestore, getNextVoucherNo, getNextDocNo, loadBlackoutPeriods, saveBlackoutPeriods, loadWaitlist, saveWaitlist, loadSentReminders, saveSentReminders, strategicDatabaseReset } from './lib/storage';
 import { isFirebaseConfigured, firestoreSubscribe, firestoreSubscribeWithLimit, firestoreFetchPage, firestoreLoadFull, firestoreLoadAll, firestoreBulkSave, firestoreSave, firestoreAtomicWrite, COLLECTIONS, firebaseCreateUser, firebaseSignIn, firebaseSignOut as fbSignOut, onFirebaseAuthStateChanged, auth, addToStaffWhitelist, isCircuitOpen, forceFirestoreReconnect, fetchUserFromFirestore } from './lib/firebase';
 import type { DocumentSnapshot } from './lib/firebase';
 import { useLang } from './lib/LanguageContext';
@@ -601,25 +601,9 @@ export default function App() {
   // dashboard renders before Firebase Auth has finished initializing.
   // ═══════════════════════════════════════════════════════════
   useEffect(() => {
-    // Load users for login form
+    // Load users for login form — NO auto-seeding. Database is source of truth.
     const loadedUsers = ZumraDB.getUsers();
-    const hasAdmin = loadedUsers.some(u => u.username === 'hazem');
-    if (!hasAdmin) {
-      const defaultAdmin: User = {
-        id: 'admin-hazem',
-        username: 'hazem',
-        name: 'Hazem Mohey Eldin',
-        role: 'Admin',
-        email: 'hazem8383@gmail.com',
-        password: 'hazem123',
-        mustChangePassword: false,
-      };
-      const updatedUsers = [...loadedUsers, defaultAdmin];
-      ZumraDB.saveUsers(updatedUsers);
-      setUsers(updatedUsers);
-    } else {
-      setUsers(loadedUsers);
-    }
+    setUsers(loadedUsers);
 
     if (!isFirebaseConfigured) {
       // No Firebase — unblock immediately
@@ -771,21 +755,10 @@ export default function App() {
     // Load new feature data
     setBlackoutPeriods(loadBlackoutPeriods());
     setWaitlist(loadWaitlist());
-    // Seed hotels if empty (first run or force reset) — dynamic import to keep login bundle small
-    import('./lib/hotelSeed').then(({ seedHotelsIfEmpty }) => {
-      const seededHotels = seedHotelsIfEmpty(false);
-      if (seededHotels.length > 0 && ZumraDB.getHotels().length === 0) {
-        setHotels(seededHotels);
-      }
-    });
-    // Seed test data (clients, suppliers, reservations) ONLY for first admin
-    // New staff members should see data from Firestore, not get their own seeded copies
-    const allUsers = ZumraDB.getUsers();
-    const isFirstAdmin = allUsers.length <= 1 && allUsers.some(u => u.username === 'hazem' || u.role === 'Admin');
-    if (isFirstAdmin && !localStorage.getItem('zumra_test_data_seeded')) {
-      seedTestDataIfEmpty();
-      localStorage.setItem('zumra_test_data_seeded', 'true');
-    }
+    // DISABLED: All mock data seeding in production.
+    // Hotels, test data, and default users are no longer auto-generated.
+    // The database (Firestore) is the single source of truth — admin manages all data manually.
+    // hotelSeed, seedTestDataIfEmpty, DEFAULT_USERS merge — all permanently disabled.
     // Reload agents/reservations in case test data was seeded
     const loadedAgents = ZumraDB.getAgents();
     // Backfill portal tokens for existing agents that don't have one
@@ -879,11 +852,9 @@ export default function App() {
               // Firestore has data -> merge for users, use directly for others
               if (col.name === COLLECTIONS.USERS) {
                 // Merge: deduplicate by email AND username (not just ID)
-                // DEFAULT_USERS are always preserved; Firestore version takes priority
+                // NO DEFAULT_USERS merge — Firestore is the sole source of truth
                 const localData = col.loader();
                 const mergedMap = new Map<string, any>();
-                // Start with DEFAULT_USERS as baseline (always present)
-                DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
                 // Index local users by email and username for dedup
                 const localByEmail = new Map<string, any>();
                 const localByUsername = new Map<string, any>();
@@ -1021,10 +992,9 @@ export default function App() {
         }));
         attach(() => firestoreSubscribe<User>(COLLECTIONS.USERS, (data) => {
           const safe = (data || []).map(normalizeUser);
-          const mergedMap = new Map<string, User>();
-          DEFAULT_USERS.forEach(u => mergedMap.set(u.id, u));
-          safe.forEach(u => mergedMap.set(u.id, u));
-          const merged = Array.from(mergedMap.values());
+          // NO DEFAULT_USERS merge — Firestore is the sole source of truth
+          // Deleted users stay deleted. Admin manages all user accounts manually.
+          const merged = safe;
           scheduleLocalStorageWrite('zumra_users', merged);
           setUsers(prev => arraysEqual(prev, merged) ? prev : merged);
           // Real-time zombie check: if current user was deactivated by admin on another tab
