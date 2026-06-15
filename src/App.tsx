@@ -853,7 +853,7 @@ export default function App() {
             if (col.name === COLLECTIONS.HOTELS && localStorage.getItem('zumra_hotels_migrated') === 'true') {
               const freshHotels = ZumraDB.getHotels();
               if (freshHotels.length >= 1800) {
-                await firestoreBulkSave(col.name, freshHotels);
+                await firestoreBulkSave(col.name, freshHotels, true); // force: intentional CSV migration
                 col.setter(freshHotels);
                 localStorage.removeItem('zumra_hotels_migrated');
                 continue;
@@ -910,7 +910,7 @@ export default function App() {
           if (isAdminUser) {
             const currentUsers = ZumraDB.getUsers();
             if (currentUsers.length > 0) {
-              await firestoreBulkSave(COLLECTIONS.USERS, currentUsers);
+              await firestoreBulkSave(COLLECTIONS.USERS, currentUsers, true); // force: admin seeding
             }
           }
           // Initial data sync complete

@@ -10,7 +10,7 @@ import loginLogoUrl from '../assets/zumra-logo-opt.png';
 import { useLang } from '../lib/LanguageContext';
 import { isEmailConfigured, sendPasswordResetEmail } from '../lib/email';
 import { ZumraDB, ZumraSync } from '../lib/storage';
-import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
+import { firestoreLoadAll, firestoreSave, COLLECTIONS, isFirebaseConfigured, firebaseSignIn, firebaseSignOut as fbSignOut, firebaseGoogleSignIn, firebaseUpdatePassword, ensureUserProfileInFirestore, addToStaffWhitelist, fetchUserFromFirestore, auth, doc, setDoc, db } from '../lib/firebase';
 
 interface LoginPageProps {
   users: User[];
@@ -180,12 +180,28 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           || await fetchUserFromFirestore(fbEmail).catch(() => null)
           || await fetchUserFromFirestore(uname).catch(() => null);
 
-        // Build the user object — Firestore doc is authoritative
+        // ★ ROUTE GUARD: If Firestore doc doesn't exist, reject session
+        // This prevents ghost sessions where Auth succeeds but no profile exists
+        if (!liveProfile) {
+          console.error('[Auth] Firestore profile NOT FOUND for UID:', uid, 'email:', fbEmail);
+          console.error('[Auth] Signing out — user has no Firestore profile. Contact admin to create one.');
+          await fbSignOut().catch(() => {});
+          // Clear ALL local cache to prevent stale data
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key?.startsWith('zumra_')) localStorage.removeItem(key);
+          }
+          setLoading(false);
+          setErrorMsg('Your account has no profile in the database. Please contact your administrator.');
+          return;
+        }
+
+        // Build the user object — Firestore doc is authoritative (liveProfile is guaranteed non-null by route guard above)
         // ★ CRITICAL: Normalize mustChangePassword — Firestore may store as string "false" which is truthy in JS
-        const rawMcp = liveProfile?.mustChangePassword;
+        const rawMcp = liveProfile.mustChangePassword;
         const mustChangePwd = rawMcp === true || rawMcp === 'true' || rawMcp === 1;
 
-        const profileUser: User = liveProfile ? {
+        const profileUser: User = {
           id: liveProfile.id || uid,
           username: liveProfile.username || uname,
           name: liveProfile.name || liveProfile.username || uname,
@@ -195,16 +211,6 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
           status: liveProfile.status || 'Active',
           mustChangePassword: mustChangePwd,
           password: liveProfile.password || '',
-        } : {
-          // Fallback: no Firestore doc found — use Firebase Auth token data
-          id: uid,
-          username: uname,
-          name: uname.charAt(0).toUpperCase() + uname.slice(1),
-          email: fbEmail,
-          role: 'Reservationist',
-          isActive: true,
-          status: 'Active',
-          mustChangePassword: false,
         };
 
         console.log('[Auth] Profile loaded:', profileUser.username, profileUser.role,

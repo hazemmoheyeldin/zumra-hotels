@@ -779,18 +779,42 @@ export async function firestoreDelete(collectionName: string, id: string): Promi
 }
 
 /**
- * Helper: Bulk save entire collection to Firestore (used for initial sync)
+ * Helper: Bulk save entire collection to Firestore (used for initial sync).
+ * Uses { merge: true } to prevent destructive full-document overwrites.
+ * Also checks if the cloud collection already has MORE documents than the
+ * local payload — if so, refuses to overwrite (anti-wipeout guard).
  */
-export async function firestoreBulkSave(collectionName: string, items: any[]): Promise<void> {
+export async function firestoreBulkSave(collectionName: string, items: any[], force = false): Promise<void> {
   if (!db || items.length === 0 || _circuitOpen) {
     if (_circuitOpen) console.warn(`[Circuit Breaker] Skipping bulk save ${collectionName} (${items.length} items)`);
     return;
   }
+  // ★ ANTI-WIPEOUT GUARD: If the cloud collection has more documents than
+  // the local payload, refuse to bulk overwrite (prevents stale localStorage
+  // from wiping out valid cloud data).  Override with force=true.
+  if (!force) {
+    try {
+      const cloudSnap = await getDocs(collection(db, collectionName));
+      const cloudCount = cloudSnap.size;
+      const localCount = items.length;
+      if (cloudCount > localCount && cloudCount > 0) {
+        console.warn(
+          `[Firebase] ANTI-WIPEOUT: ${collectionName} has ${cloudCount} cloud docs but only ${localCount} local. ` +
+          `Refusing bulk overwrite to prevent data loss. Use force=true to override.`
+        );
+        return;
+      }
+    } catch (readErr: any) {
+      console.warn(`[Firebase] Could not read ${collectionName} for guard check:`, readErr?.message);
+      // Continue with write if read fails (transient network issue)
+    }
+  }
   try {
     const batch = writeBatch(db);
+    const timestamp = new Date().toISOString();
     items.forEach(item => {
       const docRef = doc(db, collectionName, item.id);
-      batch.set(docRef, { ...item, _updatedAt: new Date().toISOString() });
+      batch.set(docRef, sanitizeForFirestore({ ...item, _updatedAt: timestamp }), { merge: true });
     });
     await batch.commit();
     console.log(`[Firebase] Bulk saved ${items.length} items to ${collectionName}`);
@@ -816,7 +840,7 @@ export async function firestoreAtomicWrite(
   const timestamp = new Date().toISOString();
   writes.forEach(({ collection, id, data }) => {
     const docRef = doc(db, collection, String(id));
-    batch.set(docRef, { ...data, _updatedAt: timestamp });
+    batch.set(docRef, sanitizeForFirestore({ ...data, _updatedAt: timestamp }), { merge: true });
   });
   await batch.commit();
   console.log(`[Firebase] Atomic write: ${writes.length} docs committed`);

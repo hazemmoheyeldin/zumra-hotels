@@ -1232,7 +1232,7 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
   ZumraDB.saveUsers(keptUsers);
   if (isFirebaseConfigured) {
     await firestoreClearCollection(COLLECTIONS.USERS);
-    await firestoreBulkSave(COLLECTIONS.USERS, keptUsers);
+    await firestoreBulkSave(COLLECTIONS.USERS, keptUsers, true); // force=true: intentional reset
   }
 
   // 5. Clear allotment booked counts
@@ -1240,7 +1240,7 @@ export async function strategicDatabaseReset(): Promise<{ cleared: number; prese
   const resetAllotments = allotments.map(a => ({ ...a, bookedCount: 0 }));
   ZumraDB.saveAllotments(resetAllotments);
   if (isFirebaseConfigured) {
-    await firestoreBulkSave(COLLECTIONS.ALLOTMENTS, resetAllotments);
+    await firestoreBulkSave(COLLECTIONS.ALLOTMENTS, resetAllotments, true); // force=true: intentional reset
   }
 
   const preserved = [
@@ -1318,6 +1318,11 @@ export const ZumraSync = {
   deleteConsolidatedInvoice: (id: string) => { markLocalWrite(COLLECTIONS.CONSOLIDATED_INVOICES); return syncDeleteToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, id); },
   bulkSyncAll: () => {
     if (!isFirebaseConfigured) return;
+    // ★ SAFETY: Each syncCollectionToFirestore call goes through firestoreBulkSave
+    // which has an anti-wipeout guard — refuses to overwrite non-empty cloud
+    // collections with fewer local documents. This prevents stale localStorage
+    // from wiping out valid Firestore data.
+    console.log('[Sync] bulkSyncAll: starting (anti-wipeout guard active)');
     syncCollectionToFirestore(COLLECTIONS.HOTELS, JSON.parse(localStorage.getItem('zumra_hotels') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.AGENTS, JSON.parse(localStorage.getItem('zumra_agents') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.ALLOTMENTS, JSON.parse(localStorage.getItem('zumra_allotments') || '[]'));
@@ -1340,6 +1345,7 @@ export const ZumraSync = {
     syncCollectionToFirestore(COLLECTIONS.EXPENSE_CATEGORIES, JSON.parse(localStorage.getItem('zumra_expense_categories') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.CONSOLIDATED_INVOICES, JSON.parse(localStorage.getItem('zumra_consolidated_invoices') || '[]'));
     syncCollectionToFirestore(COLLECTIONS.DOCUMENT_TEMPLATES, JSON.parse(localStorage.getItem('zumra_document_templates') || '[]'));
+    console.log('[Sync] bulkSyncAll: complete');
   },
   /** Atomic writeBatch for linked payment writes (transaction + reservation + accounts) */
   atomicPayment: async (writes: Array<{ collection: string; id: string; data: any }>): Promise<void> => {
