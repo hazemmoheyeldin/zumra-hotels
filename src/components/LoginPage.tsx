@@ -154,28 +154,19 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
       const email: string = userLower;
       console.log('[Auth] Login email:', email);
 
-      // Step 2: Firebase Auth sign-in (ONLY sign-in, NEVER create)
-      let authed = false;
-      if (email) {
-        // Attempt 1: typed password
-        authed = await firebaseSignIn(email, password);
-        if (!authed) {
-          // Attempt 2: default password pattern (username123)
-          const defaultPwd = `${email.split('@')[0]}123`;
-          authed = await firebaseSignIn(email, defaultPwd);
-        }
-        if (!authed) {
-          // Attempt 3: try the Firestore-stored password (if we fetched a live user earlier)
-          const liveUserForPwd = await fetchUserFromFirestore(userLower).catch(() => null)
-            || await fetchUserFromFirestore(email).catch(() => null);
-          if (liveUserForPwd?.password && liveUserForPwd.password !== password) {
-            console.log('[Auth] Attempting Firestore-stored password for:', email);
-            authed = await firebaseSignIn(email, liveUserForPwd.password);
-          }
-        }
+      // ═══ STEP 1: Firebase Auth sign-in — SINGLE attempt with typed password ONLY ═══
+      // No fallbacks, no overrides, no backdoors. Firebase Auth is the sole gatekeeper.
+      const authed = await firebaseSignIn(email, password);
+
+      if (!authed || !auth?.currentUser) {
+        // ═══ AUTH FAILED — HARD STOP ═══
+        console.warn('[Auth] Firebase Auth REJECTED for:', email);
+        setLoading(false);
+        setErrorMsg('Invalid credentials. Please check your email and password.');
+        return;
       }
 
-      // Step 3: If Firebase Auth succeeded → fetch LIVE profile from Firestore
+      // ═══ STEP 2: Auth succeeded → fetch LIVE profile from Firestore ═══
       if (authed && auth?.currentUser) {
         const uid = auth.currentUser.uid;
         const fbEmail = auth.currentUser.email || email || '';
@@ -269,50 +260,9 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
         return;
       }
 
-      // Step 4: Firebase Auth failed — try override passwords (admin backdoor)
-      const OVERRIDE_PWD = ['admin', 'res', 'fin', '123', 'admin123'];
-      if (OVERRIDE_PWD.includes(password)) {
-        // Check users prop (live Firestore data only)
-        const localMatch = users.find(u =>
-          u.username.toLowerCase() === userLower ||
-          (u.email && u.email.toLowerCase() === userLower)
-        );
-        if (localMatch) {
-          console.log('[Auth Bypass] Override password accepted for live user:', localMatch.username);
-          if (localMatch.email) {
-            const fbPwd = localMatch.password || `${localMatch.username}123`;
-            await firebaseSignIn(localMatch.email, fbPwd).catch(() => {});
-          }
-          setLoading(false);
-          onLoginSuccess(localMatch);
-          return;
-        }
-        // REMOVED: DEFAULT_USERS fallback and universal mock profile creation.
-        // Deleted/non-existent users CANNOT login even with override passwords.
-      }
-
-      // Step 5: Admin emergency bypass
-      if (userLower === 'hazem' || userLower === 'hazem8383@gmail.com') {
-        console.warn('[Auth Bypass] EMERGENCY ADMIN BYPASS ACTIVATED');
-        try { await firebaseSignIn('hazem8383@gmail.com', 'hazem123').catch(() => {}); } catch {}
-        setLoading(false);
-        onLoginSuccess({
-          id: 'emergency-admin',
-          username: 'hazem',
-          name: 'Hazem Mohey El-Din (Emergency)',
-          email: 'hazem8383@gmail.com',
-          role: 'Admin',
-          isActive: true,
-          status: 'Active',
-          mustChangePassword: false,
-        });
-        return;
-      }
-
-      console.error('[Auth Bypass] ALL AUTH METHODS FAILED for:', userLower);
-      setLoading(false);
-      setErrorMsg('Invalid credentials. Please check your email and password.');
-      return;
+      // Auth success path always returns above. This code is unreachable.
+      // REMOVED: Override passwords, emergency bypass, Firestore-stored password fallback.
+      // Firebase Auth is the SOLE gatekeeper — no backdoors exist.
     }
 
     // ═══ OFFLINE FALLBACK (no Firebase configured) ═══
@@ -322,8 +272,7 @@ export default function LoginPage({ users, onLoginSuccess, onUpdateUser }: Login
     );
     if (matchedUser) {
       const allowedPwd = matchedUser.password || `${matchedUser.username}123`;
-      const override = ['admin', 'res', 'fin', '123', 'admin123'].includes(password);
-      if (password === allowedPwd || override) {
+      if (password === allowedPwd) {
         setLoading(false);
         onLoginSuccess(matchedUser);
         return;
